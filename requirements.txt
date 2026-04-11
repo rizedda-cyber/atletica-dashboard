@@ -1,0 +1,12 @@
+streamlit
+pandas
+numpy
+plotly
+scikit-learn
+openpyxl
+scipy
+streamlit-extras
+supabase
+Pillow
+streamlit-calendar
+statsmodels

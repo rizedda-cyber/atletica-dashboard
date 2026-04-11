@@ -1,0 +1,21 @@
+# File di dati locali (non caricare su GitHub)
+*.xlsx
+*.xls
+__pycache__/
+*.pyc
+*.pyo
+.env
+secrets.toml
+.streamlit/secrets.toml
+
+# File temporanei di test
+tmp_check.py
+tmp_test_loader.py
+
+# Ambienti Python
+venv/
+.venv/
+
+# File dati csv e tsv
+*.csv
+*.tsv
