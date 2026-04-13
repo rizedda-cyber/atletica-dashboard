@@ -605,6 +605,19 @@ else:
         </div>
     ''', unsafe_allow_html=True)
 
+# KPI HTML Generation
+def make_kpi_card(title, value, delta_text, trend, icon, val_class=""):
+    delta_class = "delta-neu"
+    if trend == "pos": delta_class = "delta-pos"
+    elif trend == "neg": delta_class = "delta-neg"
+    
+    return f"""<div class="kpi-card">
+<div class="kpi-icon">{icon}</div>
+<div class="kpi-title">{title}</div>
+<div class="kpi-value {val_class}">{value}</div>
+<div class="kpi-delta {delta_class}">{delta_text}</div>
+</div>"""
+
 if st.session_state.current_page == "Inserimento":
     st.markdown("## ➕ Inserisci Nuovo Allenamento")
     if DATA_SOURCE != "cloud":
@@ -700,7 +713,6 @@ if st.session_state.current_page == "Inserimento":
                             st.error("❌ Errore nel salvataggio.")
 
 elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
-    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     pb_corse = df_r.groupby('Distanza')['Tempo'].min()
     
     is_400_runner = False
@@ -718,22 +730,24 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
         is_400_runner = False
         
     num_allenamenti = df_r['Data'].dt.date.nunique() if len(df_r) > 0 else 0
-    kpi1.metric("Allenamenti In Pista", f"{num_allenamenti} sessioni")
+    c1 = make_kpi_card("Allenamenti Pista", num_allenamenti, "Sessioni Totali", "neu", "🏟️")
     
     if is_400_runner:
         d1 = pb_corse.get(150, "-")
         d2 = pb_corse.get(300, "-")
         d3 = pb_corse.get(400, "-")
-        kpi2.metric("Record (PB) 150m", f"{d1:.2f}s" if d1 != "-" else "-")
-        kpi3.metric("Record (PB) 300m", f"{d2:.2f}s" if d2 != "-" else "-")
-        kpi4.metric("Record (PB) 400m", f"{d3:.2f}s" if d3 != "-" else "-")
+        c2 = make_kpi_card("Record 150m", f"{d1:.2f}s" if d1 != "-" else "-", "Miglior Tempo", "neu" if d1 == "-" else "pos", "⏱️", "kpi-glow" if d1 != "-" else "")
+        c3 = make_kpi_card("Record 300m", f"{d2:.2f}s" if d2 != "-" else "-", "Miglior Tempo", "neu" if d2 == "-" else "pos", "⚡", "kpi-glow" if d2 != "-" else "")
+        c4 = make_kpi_card("Record 400m", f"{d3:.2f}s" if d3 != "-" else "-", "Miglior Tempo", "neu" if d3 == "-" else "pos", "🔥", "kpi-glow" if d3 != "-" else "")
     else:
         d1 = pb_corse.get(60, "-")
         d2 = pb_corse.get(100, "-")
         d3 = pb_corse.get(200, "-")
-        kpi2.metric("Record (PB) 60m", f"{d1:.2f}s" if d1 != "-" else "-")
-        kpi3.metric("Record (PB) 100m", f"{d2:.2f}s" if d2 != "-" else "-")
-        kpi4.metric("Record (PB) 200m", f"{d3:.2f}s" if d3 != "-" else "-")
+        c2 = make_kpi_card("Record 60m", f"{d1:.2f}s" if d1 != "-" else "-", "Miglior Tempo", "neu" if d1 == "-" else "pos", "⏱️", "kpi-glow" if d1 != "-" else "")
+        c3 = make_kpi_card("Record 100m", f"{d2:.2f}s" if d2 != "-" else "-", "Miglior Tempo", "neu" if d2 == "-" else "pos", "⚡", "kpi-glow" if d2 != "-" else "")
+        c4 = make_kpi_card("Record 200m", f"{d3:.2f}s" if d3 != "-" else "-", "Miglior Tempo", "neu" if d3 == "-" else "pos", "🔥", "kpi-glow" if d3 != "-" else "")
+        
+    st.markdown(f'<div class="kpi-grid">{c1}{c2}{c3}{c4}</div>', unsafe_allow_html=True)
 
 elif st.session_state.current_page == "Home":
     # ────────────────────────────────────────────────────────────────
@@ -774,18 +788,7 @@ elif st.session_state.current_page == "Home":
         else:
             storico_vbt[k] = row['Potenza_max']
             nuovi_vbt += 1
-    # KPI HTML Generation
-    def make_kpi_card(title, value, delta_text, trend, icon, val_class=""):
-        delta_class = "delta-neu"
-        if trend == "pos": delta_class = "delta-pos"
-        elif trend == "neg": delta_class = "delta-neg"
-        
-        return f"""<div class="kpi-card">
-<div class="kpi-icon">{icon}</div>
-<div class="kpi-title">{title}</div>
-<div class="kpi-value {val_class}">{value}</div>
-<div class="kpi-delta {delta_class}">{delta_text}</div>
-</div>"""
+
     # KPI Row 2 calcoli
     # 1. Atleti con PB nel periodo
     storico_pb = df_running[df_running['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Distanza'])['Tempo'].min().to_dict()
