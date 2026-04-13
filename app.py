@@ -165,22 +165,32 @@ st.markdown("""
     
     [data-baseweb="tab-highlight"] { display: none !important; }
     
-    /* Fix visibilità e contrasto Tasto Menu a tendina (Hamburger) per Mobile */
-    [data-testid="collapsedControl"] {
+    /* Menu Hamburger: Alta Visibilità (Supporta nuove versioni Streamlit) */
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapsedControl"] {
         background-color: #E8FF3A !important;
-        border-radius: 6px !important;
-        padding: 4px !important;
-        margin: 10px !important;
+        border-radius: 50% !important;
+        padding: 10px !important;
+        margin: 10px 0 0 10px !important;
         opacity: 1 !important;
-        box-shadow: 0 4px 10px rgba(232,255,58,0.3) !important;
-        border: 1px solid rgba(10,13,20,0.5) !important;
+        box-shadow: 0 4px 15px rgba(232,255,58,0.5) !important;
+        border: 2px solid #0A0D14 !important;
+        transform: scale(1.1);
+        transition: all 0.2s ease;
     }
-    [data-testid="collapsedControl"] svg {
+    
+    [data-testid="collapsedControl"] svg,
+    [data-testid="stSidebarCollapsedControl"] svg {
         color: #0A0D14 !important;
         fill: #0A0D14 !important;
+        width: 30px !important;
+        height: 30px !important;
     }
-    [data-testid="collapsedControl"]:hover {
+    
+    [data-testid="collapsedControl"]:hover,
+    [data-testid="stSidebarCollapsedControl"]:hover {
         background-color: #d1e82e !important;
+        transform: scale(1.2);
     }
 
     /* Premium Glass KPI Cards */
