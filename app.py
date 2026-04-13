@@ -734,7 +734,8 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
         kpi2.metric("Record (PB) 60m", f"{d1:.2f}s" if d1 != "-" else "-")
         kpi3.metric("Record (PB) 100m", f"{d2:.2f}s" if d2 != "-" else "-")
         kpi4.metric("Record (PB) 200m", f"{d3:.2f}s" if d3 != "-" else "-")
-    # Rimossa kpi1, kpi2, kpi3, kpi4 = st.columns(4) per usare il nuovo grid
+
+elif st.session_state.current_page == "Home":
     # ────────────────────────────────────────────────────────────────
     # CALCOLO KPI DI SQUADRA (HOME)
     # ────────────────────────────────────────────────────────────────
@@ -779,14 +780,12 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
         if trend == "pos": delta_class = "delta-pos"
         elif trend == "neg": delta_class = "delta-neg"
         
-        return f'''
-        <div class="kpi-card">
-            <div class="kpi-icon">{icon}</div>
-            <div class="kpi-title">{title}</div>
-            <div class="kpi-value {val_class}">{value}</div>
-            <div class="kpi-delta {delta_class}">{delta_text}</div>
-        </div>
-        '''
+        return f"""<div class="kpi-card">
+<div class="kpi-icon">{icon}</div>
+<div class="kpi-title">{title}</div>
+<div class="kpi-value {val_class}">{value}</div>
+<div class="kpi-delta {delta_class}">{delta_text}</div>
+</div>"""
     # KPI Row 2 calcoli
     # 1. Atleti con PB nel periodo
     storico_pb = df_running[df_running['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Distanza'])['Tempo'].min().to_dict()
