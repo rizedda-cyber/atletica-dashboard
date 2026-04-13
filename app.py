@@ -909,7 +909,7 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
                 legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, font=dict(family="'DM Mono', monospace", size=11, color="rgba(255,255,255,0.6)")),
                 plot_bgcolor="rgba(0,0,0,0)",
                 paper_bgcolor="rgba(255,255,255,0.02)",
-                title=dict(text="ANALISI SETTIMANALE PROGRESSIONE", font=dict(family="'DM Mono', monospace", size=11, color="rgba(255,255,255,0.4)", letterSpacing=2)),
+                title=dict(text="<span style='letter-spacing: 2px;'>ANALISI SETTIMANALE PROGRESSIONE</span>", font=dict(family="'DM Mono', monospace", size=11, color="rgba(255,255,255,0.4)")),
             )
             
             fig.update_yaxes(title_text="Volume Palestra (kg)", secondary_y=False, showgrid=False, zeroline=False, color="#4A9EFF", tickfont=dict(color="rgba(255,255,255,0.3)"))
