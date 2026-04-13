@@ -824,11 +824,18 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
         df_v_tonn['Week'] = df_v_tonn['Data'].dt.to_period('W-MON').dt.start_time
         tonn_weekly = df_v_tonn.groupby('Week')['Tonnellaggio'].sum().reset_index()
         
+        # Leggo il valore del lag corrente per shiftare il tempo nel grafico (offsetting)
+        current_lag = st.session_state.get('lag_slider_val', 0)
+        
         # Tempi Corsa per Settimana
         df_r_ref = df_r[df_r['Distanza'] == dist_ref].copy()
         if not df_r_ref.empty:
             df_r_ref['Week'] = df_r_ref['Data'].dt.to_period('W-MON').dt.start_time
             time_weekly = df_r_ref.groupby('Week')['Tempo'].min().reset_index()
+            # Applica lo shift temporale!
+            # Se lag=5, il tempo della settimana 6 viene graficato alla settimana 1 per vedere la correlazione.
+            if current_lag > 0:
+                time_weekly['Week'] = time_weekly['Week'] - pd.to_timedelta(current_lag, unit='W')
         else:
             time_weekly = pd.DataFrame(columns=['Week', 'Tempo'])
             
@@ -926,7 +933,10 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
             with st.container(border=True):
                 sl1, sl2, sl3 = st.columns([1, 2, 2], vertical_alignment="center")
                 with sl1:
-                    lag_v = sl2.slider("Offset Lag (Sett.)", min_value=2, max_value=8, value=5, label_visibility="collapsed")
+                    # Inizializzo un valore di default qualora Streamlit faccia i capricci al primo load
+                    if 'lag_slider_val' not in st.session_state:
+                        st.session_state['lag_slider_val'] = 0
+                    lag_v = sl2.slider("Offset Lag (Sett.)", min_value=0, max_value=8, value=st.session_state['lag_slider_val'], key='lag_slider_val', label_visibility="collapsed")
                     st.markdown(f"<div style=\"font-family: 'DM Mono', monospace; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 2px;\">OFFSET LAG</div>", unsafe_allow_html=True)
                     st.markdown(f"<div style=\"font-family: 'Bebas Neue', sans-serif; font-size: 34px; color: #E8FF3A; line-height: 1;\">{lag_v} SETT.</div>", unsafe_allow_html=True)
                 with sl3:
