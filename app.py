@@ -861,11 +861,44 @@ if st.session_state.current_page == "Home":
         pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
         pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
         pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
-        st.dataframe(pb_pivot.style.highlight_min(axis=0, color='#90e0ef')
-                     .highlight_max(axis=0, color='#fde2e4').format("{:.2f}s"),
-                     use_container_width=True, height=500)
+        
+        def bg_min(s):
+            return ['background-color: #90e0ef; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.min())]
+
+        def bg_max(s):
+            return ['background-color: #fde2e4; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.max())]
+
+        styled_pb = pb_pivot.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - ")\
+                                  .apply(bg_min, axis=0)\
+                                  .apply(bg_max, axis=0)
+                                  
+        st.dataframe(styled_pb, use_container_width=True, height=500)
     else:
         st.info("Nessuna prova presente.")
+        
+    st.divider()
+    with st.expander("📅 Riepilogo Dettagliato Allenamenti (Vista Excel)", expanded=False):
+        st.markdown("Spulcia le tabelle inserite giorno per giorno. Le colonne si espandono in base a quante prove sono state svolte sulla singola distanza nell'arco della seduta.")
+        if not df_r.empty:
+            date_uniche = df_r['Data'].dt.strftime('%d/%m/%Y').sort_values(ascending=False).unique()
+            sel_giorno_str = st.selectbox("Scegli la data dell'allenamento:", date_uniche)
+            if sel_giorno_str:
+                df_day = df_r[df_r['Data'].dt.strftime('%d/%m/%Y') == sel_giorno_str].copy()
+                if not df_day.empty:
+                    df_day = df_day.sort_values(by=['Distanza', 'Data']) # Mantieni eventuale ordine cronologico e alfabetico
+                    df_day['Ripetizione'] = df_day.groupby(['Atleta', 'Distanza']).cumcount() + 1
+                    pivot_day = df_day.pivot_table(index='Atleta', columns=['Distanza', 'Ripetizione'], values='Tempo', aggfunc='first')
+                    # Flatten the MultiIndex of the columns
+                    new_cols = []
+                    for dist, rep in pivot_day.columns:
+                        new_cols.append(f"{int(dist)}m - Pr. {rep}")
+                    pivot_day.columns = new_cols
+                    
+                    st.dataframe(pivot_day.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - "), use_container_width=True)
+                else:
+                    st.info("Nessuna prova in questa data.")
+        else:
+            st.info("Nessun dato registrato o presente nei filtri.")
 
 elif st.session_state.current_page == "Atleti":
     from supabase_connector import get_atleti
