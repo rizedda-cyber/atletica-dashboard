@@ -1533,6 +1533,110 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
     # ══════════════════════════════════════════════════════════════════════
 
     with tab3:
+        st.markdown("<h3 style='font-family: Bebas Neue; color: #fff; margin-bottom: 0; line-height: 1.1; font-size: 38px;'>PREDIZIONE <span style='color: #E8FF3A;'>PRESTAZIONE GARA</span></h3>", unsafe_allow_html=True)
+        st.markdown("<span style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 2px;'>MODELLO VITTORI · FIDAL</span>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # 1. Estrazione PB (Auto-Fill)
+        pb_30, pb_60, pb_100, pb_200 = None, None, None, None
+        if selected_athlete != "Tutta la squadra" and len(df_r) > 0:
+            pb_corse = df_r.groupby('Distanza')['Tempo'].min()
+            pb_30 = float(pb_corse.get(30, None)) if pd.notna(pb_corse.get(30, None)) else None
+            pb_60 = float(pb_corse.get(60, None)) if pd.notna(pb_corse.get(60, None)) else None
+            pb_100 = float(pb_corse.get(100, None)) if pd.notna(pb_corse.get(100, None)) else None
+            pb_200 = float(pb_corse.get(200, None)) if pd.notna(pb_corse.get(200, None)) else None
+
+        col_sx, col_dx = st.columns([1, 4])
+        gender_sel = col_sx.radio("Sesso Atleta", ["Maschile", "Femminile"], horizontal=True, label_visibility="collapsed")
+        g_code = "M" if gender_sel == "Maschile" else "F"
+
+        vt1, vt2 = st.tabs(["🚀 Predizione Gara (Forward)", "🎯 Calcolatore Obiettivo (Reverse)"])
+        
+        with vt1:
+            st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 15px;'>INSERISCI I TUOI TEMPI (Auto-compilati con lo storico PB)</div>", unsafe_allow_html=True)
+            i1, i2, i3, i4 = st.columns(4)
+            t30 = i1.number_input("30m (fermo) - s", value=pb_30, step=0.05, format="%.2f")
+            t60 = i2.number_input("60m (fermo) - s", value=pb_60, step=0.05, format="%.2f")
+            t100 = i3.number_input("100m - s", value=pb_100, step=0.05, format="%.2f")
+            t200 = i4.number_input("200m - s", value=pb_200, step=0.05, format="%.2f")
+            
+            p30 = t30 if (t30 and t30>0) else None
+            p60 = t60 if (t60 and t60>0) else None
+            p100 = t100 if (t100 and t100>0) else None
+            p200 = t200 if (t200 and t200>0) else None
+
+            est100 = p100 or (round(p60 * 1.576 + 0.18, 2) if p60 else (round(p30 * 2.85 + 0.30, 2) if p30 else None))
+            est60 = p60 or (round(p30 * 1.78 + 0.12, 2) if p30 else None)
+            est200 = p200 or (round(est100 * 2 - 0.24, 2) if est100 else None)
+            est400 = round(est200 * 2 + (4.2 if g_code == "F" else 3.8), 2) if est200 else None
+            
+            if not any([p30, p60, p100, p200]):
+                st.info("💡 Inserisci almeno un tempo (preferibilmente i 60m o 30m) per calcolare la regressione di Vittori.")
+            else:
+                st.markdown("<br><div style='padding:20px; border-radius:12px; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);'>", unsafe_allow_html=True)
+                if est60 and not p60:
+                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.05);'><div><span style='font-family:DM Mono; font-size:11px; color:#aaa; letter-spacing:1px;'>60m STIMATO</span><br><small style='color:#555;'>da 30m</small></div><span style='font-family:Bebas Neue; font-size:26px; color:#fff;'>{est60:.2f}s</span></div>", unsafe_allow_html=True)
+                if est100:
+                    src100 = "inserito" if p100 else ("da 60m" if p60 else "da 30m")
+                    bg_res = "rgba(232,255,58,0.06)" if not p100 else "transparent"
+                    col_res = "#E8FF3A" if not p100 else "#fff"
+                    bord = "border:1px solid rgba(232,255,58,0.2);" if not p100 else ""
+                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:15px; margin-top:10px; border-radius:8px; background:{bg_res}; {bord}'><div><span style='font-family:DM Mono; font-size:11px; color:{col_res}; letter-spacing:1px;'>100m {'' if p100 else 'STIMATO'}</span><br><small style='color:rgba(255,255,255,0.3);'>Origine: {src100}</small></div><div><span style='font-family:Bebas Neue; font-size:38px; color:{col_res};'>{est100:.2f}s</span></div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align:right; font-family:Bebas Neue; font-size:24px; color:#4A9EFF; margin-top:4px;'>VEL. MEDIA: {(100/est100):.2f} m/s</div>", unsafe_allow_html=True)
+                if est200:
+                    src200 = "inserito" if p200 else "da 100m"
+                    bg_res = "rgba(232,255,58,0.06)" if not p200 else "transparent"
+                    col_res = "#E8FF3A" if not p200 else "#fff"
+                    bord = "border:1px solid rgba(232,255,58,0.2);" if not p200 else ""
+                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:15px; margin-top:10px; border-radius:8px; background:{bg_res}; {bord}'><div><span style='font-family:DM Mono; font-size:11px; color:{col_res}; letter-spacing:1px;'>200m {'' if p200 else 'STIMATO'}</span><br><small style='color:rgba(255,255,255,0.3);'>Origine: {src200}</small></div><div><span style='font-family:Bebas Neue; font-size:32px; color:{col_res};'>{est200:.2f}s</span></div></div>", unsafe_allow_html=True)
+                if est400:
+                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:15px; margin-top:10px;'><div><span style='font-family:DM Mono; font-size:11px; color:#aaa; letter-spacing:1px;'>400m STIMATO</span><br><small style='color:#555;'>costante Vittori {g_code}</small></div><span style='font-family:Bebas Neue; font-size:26px; color:#fff;'>{est400:.2f}s</span></div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+        with vt2:
+            st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 15px;'>CALCOLO DEL GAP DAI TUOI PB REALI</div>", unsafe_allow_html=True)
+            tr1, tr2 = st.columns([1, 2])
+            tgt_dist = tr1.selectbox("Gara Obiettivo:", ["100m", "200m", "400m"])
+            tgt_t = tr2.number_input("Tempo Bersaglio Sperato (s):", value=None, step=0.10, placeholder="Es. inserisci 10.85 per i 100m")
+            
+            p_tgt = tgt_t if (tgt_t and tgt_t > 0) else None
+            
+            if p_tgt:
+                need100, need60, need30 = None, None, None
+                if tgt_dist == "100m":
+                    need100 = p_tgt
+                    need60 = round((p_tgt - 0.18)/1.576, 2)
+                    need30 = round((p_tgt - 0.30)/2.85, 2)
+                elif tgt_dist == "200m":
+                    need100 = round((p_tgt + 0.24)/2, 2)
+                    need60 = round((need100 - 0.18)/1.576, 2)
+                    need30 = round((need100 - 0.30)/2.85, 2)
+                elif tgt_dist == "400m":
+                    need100 = round(((p_tgt - (4.2 if g_code == 'F' else 3.8))/2 + 0.24)/2, 2)
+                    need60 = round((need100 - 0.18)/1.576, 2)
+                    need30 = round((need100 - 0.30)/2.85, 2)
+                    
+                cur_100_est = pb_100 or (round(pb_60 * 1.576 + 0.18, 2) if pb_60 else (round(pb_30 * 2.85 + 0.30, 2) if pb_30 else None))
+                gap = round(cur_100_est - need100, 2) if cur_100_est else None
+                
+                st.markdown("<br><div style='padding:20px; border-radius:12px; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);'>", unsafe_allow_html=True)
+                if tgt_dist != "100m":
+                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.05);'><div><span style='font-family:DM Mono; font-size:11px; color:#FF9A3A; letter-spacing:1px;'>100m NECESSARIO COME STEP</span></div><span style='font-family:Bebas Neue; font-size:26px; color:#FF9A3A;'>{need100:.2f}s</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:15px; margin-top:10px; border-radius:8px; background:rgba(232,255,58,0.06); border:1px solid rgba(232,255,58,0.2);'><div><span style='font-family:DM Mono; font-size:11px; color:#E8FF3A; letter-spacing:1px;'>🎯 TARGET ASINCRONO 60m</span><br><small style='color:rgba(255,255,255,0.3);'>allenamento</small></div><div><span style='font-family:Bebas Neue; font-size:38px; color:#E8FF3A;'>{need60:.2f}s</span></div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:10px; margin-top:10px;'><div><span style='font-family:DM Mono; font-size:11px; color:#B8FF8A; letter-spacing:1px;'>🎯 TARGET ASINCRONO 30m</span></div><span style='font-family:Bebas Neue; font-size:22px; color:#B8FF8A;'>{need30:.2f}s</span></div>", unsafe_allow_html=True)
+                
+                if gap is not None:
+                    g_col = "#FF4B4B" if gap > 0 else "#B8FF8A"
+                    g_bg = "rgba(255,75,75,0.08)" if gap > 0 else "rgba(184,255,138,0.08)"
+                    g_bord = "rgba(255,75,75,0.25)" if gap > 0 else "rgba(184,255,138,0.25)"
+                    g_txt = "+"+str(gap) if gap > 0 else str(gap)
+                    lbl_gap = "⚡ GAP DA COLMARE" if gap > 0 else "✅ TARGET GIÀ RAGGIUNGIBILE"
+                    st.markdown(f"<div style='margin-top:15px; padding:15px; border-radius:10px; background:{g_bg}; border:1px solid {g_bord};'><div style='font-family:DM Mono; font-size:10px; color:{g_col}; letter-spacing:2px; margin-bottom:6px;'>{lbl_gap}</div><div style='display:flex; align-items:baseline; gap:10px;'><span style='font-family:Bebas Neue; font-size:36px; color:{g_col}; line-height:1;'>{g_txt}s</span><span style='font-size:12px; color:rgba(255,255,255,0.4);'>sul 100m stimato attuale ({cur_100_est:.2f}s)</span></div></div>", unsafe_allow_html=True)
+                else:
+                    st.info("Per calcolare il Gap, devi avere almeno una Prova ufficiale (100, 60 o 30) a database.")
+                st.markdown("</div>", unsafe_allow_html=True)
+
+        st.divider()
         st.subheader("🔗 Correlazione: Palestra ↔ Pista")
         st.markdown("Verifica se un miglioramento di forza/potenza corrisponde a un calo cronometrico.")
 
