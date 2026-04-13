@@ -165,10 +165,17 @@ st.markdown("""
     
     [data-baseweb="tab-highlight"] { display: none !important; }
     
-    /* Pulsante ESPANDI MENU (Hamburger Header) */
+    /* Nascondi completamente i menu secondari e i bottoni di deploy in alto a destra */
+    [data-testid="stToolbar"],
+    [data-testid="stHeaderActions"],
+    .stAppDeployButton {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    /* Pulsante ESPANDI MENU (Esclusivo per il lato sinistro) */
     [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapsedControl"],
-    header button[kind="header"] {
+    [data-testid="stSidebarCollapsedControl"] {
         background-color: #E8FF3A !important;
         border-radius: 8px !important;
         padding: 5px 12px 5px 12px !important;
@@ -182,17 +189,19 @@ st.markdown("""
         align-items: center !important;
         justify-content: center !important;
         transition: all 0.2s ease;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        z-index: 999999 !important;
     }
     
     [data-testid="collapsedControl"] svg,
-    [data-testid="stSidebarCollapsedControl"] svg,
-    header button[kind="header"] svg {
+    [data-testid="stSidebarCollapsedControl"] svg {
         display: none !important;
     }
     
     [data-testid="collapsedControl"]::after,
-    [data-testid="stSidebarCollapsedControl"]::after,
-    header button[kind="header"]::after {
+    [data-testid="stSidebarCollapsedControl"]::after {
         content: "☰ ESPANDI" !important;
         color: #0A0D14 !important;
         font-weight: 900 !important;
@@ -202,8 +211,7 @@ st.markdown("""
     }
     
     [data-testid="collapsedControl"]:hover,
-    [data-testid="stSidebarCollapsedControl"]:hover,
-    header button[kind="header"]:hover {
+    [data-testid="stSidebarCollapsedControl"]:hover {
         background-color: #d1e82e !important;
         transform: scale(1.05);
     }
