@@ -145,14 +145,43 @@ st.markdown("""
     }
     [data-baseweb="tab"][aria-selected="true"] {
         background-color: #E8FF3A !important;
-        color: #0A0D14 !important;
         border: 2px solid #E8FF3A !important;
     }
+    /* Forza il testo dentro la tab attiva ad essere scuro */
+    [data-baseweb="tab"][aria-selected="true"] p, 
+    [data-baseweb="tab"][aria-selected="true"] span, 
+    [data-baseweb="tab"][aria-selected="true"] div {
+        color: #0A0D14 !important;
+    }
+    
     [data-baseweb="tab"]:hover {
         background-color: rgba(232,255,58,0.2) !important;
+    }
+    [data-baseweb="tab"]:hover p,
+    [data-baseweb="tab"]:hover span,
+    [data-baseweb="tab"]:hover div {
         color: #E8FF3A !important;
     }
+    
     [data-baseweb="tab-highlight"] { display: none !important; }
+    
+    /* Fix visibilità e contrasto Tasto Menu a tendina (Hamburger) per Mobile */
+    [data-testid="collapsedControl"] {
+        background-color: #E8FF3A !important;
+        border-radius: 6px !important;
+        padding: 4px !important;
+        margin: 10px !important;
+        opacity: 1 !important;
+        box-shadow: 0 4px 10px rgba(232,255,58,0.3) !important;
+        border: 1px solid rgba(10,13,20,0.5) !important;
+    }
+    [data-testid="collapsedControl"] svg {
+        color: #0A0D14 !important;
+        fill: #0A0D14 !important;
+    }
+    [data-testid="collapsedControl"]:hover {
+        background-color: #d1e82e !important;
+    }
 
     .cloud-badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.78em; font-weight: 700; }
     .cloud-ok { background: rgba(184,255,138,0.1); color: #B8FF8A; border: 1px solid rgba(184,255,138,0.2); }
