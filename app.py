@@ -868,10 +868,10 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
                 fig.add_trace(
                     go.Scatter(
                         x=valid_times['Week_Label'], y=valid_times['Tempo'],
-                        name=f"Tempo {dist_ref}m",
+                        name=f"Tempo {dist_ref}m (s)",
                         mode='lines+markers',
                         line=dict(color="#FFFFFF", width=3.5),
-                        marker=dict(size=8, color="#0A0D14", line=dict(width=2, color="#FFFFFF")),
+                        marker=dict(size=8, color="#080A0E", line=dict(width=2, color="#FFFFFF")),
                         connectgaps=True
                     ),
                     secondary_y=True,
@@ -879,13 +879,25 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
                 
                 pb_points = valid_times[valid_times['is_PB'] == True]
                 if not pb_points.empty:
+                    # Doppio Layer per ricreare l'effetto "Halo" (alone del PB)
                     fig.add_trace(
                         go.Scatter(
                             x=pb_points['Week_Label'], y=pb_points['Tempo'],
                             mode='markers',
-                            name="Miglior Tempo",
-                            marker=dict(size=14, color="#B8FF8A", line=dict(width=3, color="rgba(184,255,138,0.3)")),
-                            showlegend=False
+                            name="Personal Best (Halo)",
+                            marker=dict(size=24, color="rgba(184,255,138,0.15)", line=dict(width=2, color="rgba(184,255,138,0.6)")),
+                            showlegend=False,
+                            hoverinfo='skip'
+                        ),
+                        secondary_y=True,
+                    )
+                    fig.add_trace(
+                        go.Scatter(
+                            x=pb_points['Week_Label'], y=pb_points['Tempo'],
+                            mode='markers',
+                            name="Personal Best",
+                            marker=dict(size=10, color="#B8FF8A"),
+                            showlegend=True
                         ),
                         secondary_y=True,
                     )
@@ -893,25 +905,52 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
             fig.update_layout(
                 template=THEME_TEMPLATE,
                 height=420,
-                margin=dict(l=0, r=0, t=10, b=30),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                margin=dict(l=20, r=20, t=50, b=20),
+                legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, font=dict(family="'DM Mono', monospace", size=11, color="rgba(255,255,255,0.6)")),
                 plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)"
+                paper_bgcolor="rgba(255,255,255,0.02)",
+                title=dict(text="ANALISI SETTIMANALE PROGRESSIONE", font=dict(family="'DM Mono', monospace", size=11, color="rgba(255,255,255,0.4)", letterSpacing=2)),
             )
             
-            fig.update_yaxes(title_text="Volume (kg)", secondary_y=False, showgrid=False, zeroline=False, color="#4A9EFF")
+            fig.update_yaxes(title_text="Volume Palestra (kg)", secondary_y=False, showgrid=False, zeroline=False, color="#4A9EFF", tickfont=dict(color="rgba(255,255,255,0.3)"))
             if not valid_times.empty:
                 # Inverti asse in modo che i tempi minori (più veloci) siano verso l'alto
-                fig.update_yaxes(title_text=f"Tempo (s)", secondary_y=True, autorange="reversed", showgrid=True, gridcolor="rgba(255,255,255,0.05)", zeroline=False)
+                fig.update_yaxes(title_text=f"Tempo Gara (s)", secondary_y=True, autorange="reversed", showgrid=True, gridcolor="rgba(255,255,255,0.04)", zeroline=False, tickfont=dict(color="rgba(255,255,255,0.3)"))
             
+            # Wrapper per stondare i bordi del grafico come nell'immagine
+            st.markdown('<div style="border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; overflow: hidden; margin-bottom: 20px;">', unsafe_allow_html=True)
             st.plotly_chart(fig, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
             
+            # Box Offset Lag Interattivo
+            with st.container(border=True):
+                sl1, sl2, sl3 = st.columns([1, 2, 2], vertical_alignment="center")
+                with sl1:
+                    lag_v = sl2.slider("Offset Lag (Sett.)", min_value=2, max_value=8, value=5, label_visibility="collapsed")
+                    st.markdown(f"<div style=\"font-family: 'DM Mono', monospace; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 2px;\">OFFSET LAG</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style=\"font-family: 'Bebas Neue', sans-serif; font-size: 34px; color: #E8FF3A; line-height: 1;\">{lag_v} SETT.</div>", unsafe_allow_html=True)
+                with sl3:
+                    st.markdown("<div style=\"font-size: 12px; color: rgba(255,255,255,0.4); letter-spacing: 0.5px;\">Letteratura: effetti VBT visibili su sprint in <strong style=\"color: rgba(255,255,255,0.8);\">3–8 settimane</strong> dal picco di carico.</div>", unsafe_allow_html=True)
+            
+            # Pills Legend - FASI
             st.markdown(f'''
-            <div style="background: rgba(232,255,58,0.04); border: 1px solid rgba(232,255,58,0.15); border-left: 3px solid #E8FF3A; padding: 18px; border-radius: 12px; margin-top: 10px;">
-                <div style="font-family: 'DM Mono', monospace; font-size: 11px; color: #E8FF3A; letter-spacing: 2px; margin-bottom: 8px;">💡 INSIGHT ALLENATORE — L'EFFETTO LAG</div>
-                <p style="color: rgba(255,255,255,0.7); font-size: 14px; margin: 0; line-height: 1.5;">Osserva il divario temporale. In letteratura, il picco del tonnellaggio si manifesta fisiologicamente sotto forma di Personal Best in pista con un <strong>Lag (ritardo) che varia dalle 3 alle 8 settimane</strong> 
-                dopo aver effettuato un opportuno <span style="color:#FF9A3A; font-weight: bold;">ciclo di scarico</span> prima di gareggiare. Cerca di allineare gli scarichi al calo delle barre blu per sprigionare la performance.
-                </p>
+            <div style="display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap;">
+                <div style="padding: 6px 16px; border-radius: 20px; background: rgba(74, 158, 255, 0.1); border: 1px solid rgba(74, 158, 255, 0.3); display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 8px; height: 8px; border-radius: 50%; background: #4A9EFF;"></div>
+                    <span style="font-family: 'DM Mono', monospace; font-size: 11px; color: #4A9EFF; font-weight: 700;">ACCUMULO</span>
+                </div>
+                <div style="padding: 6px 16px; border-radius: 20px; background: rgba(232, 255, 58, 0.05); border: 1px solid rgba(232, 255, 58, 0.3); display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 8px; height: 8px; border-radius: 50%; background: #E8FF3A;"></div>
+                    <span style="font-family: 'DM Mono', monospace; font-size: 11px; color: #E8FF3A; font-weight: 700;">PICCO</span>
+                </div>
+                <div style="padding: 6px 16px; border-radius: 20px; background: rgba(255, 154, 58, 0.1); border: 1px solid rgba(255, 154, 58, 0.3); display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 8px; height: 8px; border-radius: 50%; background: #FF9A3A;"></div>
+                    <span style="font-family: 'DM Mono', monospace; font-size: 11px; color: #FF9A3A; font-weight: 700;">SCARICO</span>
+                </div>
+                <div style="padding: 6px 16px; border-radius: 20px; background: rgba(184, 255, 138, 0.1); border: 1px solid rgba(184, 255, 138, 0.3); display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 8px; height: 8px; border-radius: 50%; background: #B8FF8A;"></div>
+                    <span style="font-family: 'DM Mono', monospace; font-size: 11px; color: #B8FF8A; font-weight: 700;">GARA</span>
+                </div>
             </div>
             ''', unsafe_allow_html=True)
             
