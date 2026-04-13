@@ -266,7 +266,21 @@ st.markdown("""
     div[data-baseweb="input"] input {
         color: #FFFFFF !important;
         -webkit-text-fill-color: #FFFFFF !important;
-    }    
+    }
+
+    @media (min-width: 768px) {
+        .mobile-divider {
+            display: none !important;
+        }
+    }
+    @media (max-width: 767px) {
+        .mobile-divider {
+            border: none;
+            border-top: 1px dashed rgba(232, 255, 58, 0.4);
+            margin: 24px 0 16px 0;
+            width: 100%;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -679,10 +693,12 @@ if st.session_state.current_page == "Inserimento":
                 distanze_opts = [30, 40, 50, 60, 80, 100, 120, 150, 200, 300, 400]
                 prove = []
                 for i in range(1, 13):
+                    if i > 1:
+                        st.markdown("<hr class='mobile-divider'>", unsafe_allow_html=True)
                     c1, c2, c3 = st.columns([1, 1, 2])
-                    dist_i = c1.selectbox(f"Dist. prova {i}", ["-"] + [f"{d}m" for d in distanze_opts], key=f"dist_{i}")
-                    tempo_i = c2.text_input(f"Tempo {i} (es: 7.12)", key=f"tempo_{i}", placeholder="es. 7.12")
-                    nota_i = c3.text_input(f"Nota {i}", key=f"nota_{i}", placeholder="es. vento, elettrico...")
+                    dist_i = c1.selectbox(f"🎯 PROVA {i} (Distanza)", ["-"] + [f"{d}m" for d in distanze_opts], key=f"dist_{i}")
+                    tempo_i = c2.text_input(f"⏱️ TEMPO {i}", key=f"tempo_{i}", placeholder="es. 7.12")
+                    nota_i = c3.text_input(f"📝 NOTE {i}", key=f"nota_{i}", placeholder="es. vento, elettrico...")
                     if dist_i != "-" and tempo_i.strip():
                         prove.append((int(dist_i.replace("m", "")), tempo_i.strip(), nota_i.strip()))
 
