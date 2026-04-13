@@ -183,6 +183,25 @@ st.markdown("""
         background-color: #d1e82e !important;
     }
 
+    /* Premium Glass KPI Cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .kpi-card { 
+        background: rgba(20, 23, 30, 0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05); padding: 20px; position: relative; overflow: hidden;
+        display: flex; flex-direction: column; justify-content: space-between; transition: all 0.3s ease;
+        height: 140px; box-sizing: border-box;
+    }
+    .kpi-card:hover { border-color: rgba(232,255,58,0.4); transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+    .kpi-icon { position: absolute; right: -5px; bottom: -15px; font-size: 70px; opacity: 0.04; transform: rotate(-15deg); user-select: none; pointer-events: none; text-shadow: none; }
+    .kpi-title { font-size: 0.85em; color: rgba(255,255,255,0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; z-index: 1; margin-bottom: 5px; }
+    .kpi-value { font-size: 2.2em; color: #fff; font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px; margin: 0; z-index: 1; text-shadow: 0 0 10px rgba(255,255,255,0.1); line-height: 1.1; }
+    .kpi-glow { color: #E8FF3A; text-shadow: 0 0 15px rgba(232,255,58,0.6); }
+    .kpi-alert { color: #FF4B4B; text-shadow: 0 0 15px rgba(255,75,75,0.6); }
+    .kpi-delta { font-size: 0.8em; font-weight: 700; z-index: 1; padding: 4px 8px; border-radius: 6px; display: inline-block; width: max-content; margin-top: auto; }
+    .delta-pos { background: rgba(184,255,138,0.1); color: #B8FF8A; border: 1px solid rgba(184,255,138,0.2); }
+    .delta-neg { background: rgba(255,75,75,0.1); color: #FF4B4B; border: 1px solid rgba(255,75,75,0.2); }
+    .delta-neu { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.1); }
+
     .cloud-badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.78em; font-weight: 700; }
     .cloud-ok { background: rgba(184,255,138,0.1); color: #B8FF8A; border: 1px solid rgba(184,255,138,0.2); }
     /* Nascondi il menu di Streamlit Cloud in alto a destra (Deploy, GitHub, ecc) mantenendo visibile il bottone per riaprire la sidebar */
@@ -715,8 +734,7 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
         kpi2.metric("Record (PB) 60m", f"{d1:.2f}s" if d1 != "-" else "-")
         kpi3.metric("Record (PB) 100m", f"{d2:.2f}s" if d2 != "-" else "-")
         kpi4.metric("Record (PB) 200m", f"{d3:.2f}s" if d3 != "-" else "-")
-elif st.session_state.current_page == "Home":
-    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    # Rimossa kpi1, kpi2, kpi3, kpi4 = st.columns(4) per usare il nuovo grid
     # ────────────────────────────────────────────────────────────────
     # CALCOLO KPI DI SQUADRA (HOME)
     # ────────────────────────────────────────────────────────────────
@@ -755,51 +773,32 @@ elif st.session_state.current_page == "Home":
         else:
             storico_vbt[k] = row['Potenza_max']
             nuovi_vbt += 1
+    # KPI HTML Generation
+    def make_kpi_card(title, value, delta_text, trend, icon, val_class=""):
+        delta_class = "delta-neu"
+        if trend == "pos": delta_class = "delta-pos"
+        elif trend == "neg": delta_class = "delta-neg"
+        
+        return f'''
+        <div class="kpi-card">
+            <div class="kpi-icon">{icon}</div>
+            <div class="kpi-title">{title}</div>
+            <div class="kpi-value {val_class}">{value}</div>
+            <div class="kpi-delta {delta_class}">{delta_text}</div>
+        </div>
+        '''
 
-    # KPI Row 1 display
-    kpi1.metric("Sessioni in Pista", sess_curr, delta=f"{delta_sess:+} vs prec." if delta_sess != 0 else "uguale al prec.")
-    kpi2.metric("Prove Registrate", prove_curr, delta=f"su {prove_totali} totali storiche", delta_color="off")
-    kpi3.metric("Record Palestra (VBT)", len(df_v), delta=f"+{nuovi_vbt} nuovi nel periodo", delta_color="normal")
-    kpi4.metric("Atleti a Sistema", df_r['Atleta'].nunique() if len(df_r) > 0 else 0)
+    c1 = make_kpi_card("Sessioni Pista", sess_curr, f"↑ {delta_sess} vs prec." if delta_sess > 0 else (f"↓ {abs(delta_sess)}" if delta_sess < 0 else "Invariato"), "pos" if delta_sess > 0 else ("neg" if delta_sess<0 else "neu"), "🏟️", "kpi-glow")
+    c2 = make_kpi_card("Prove Registrate", prove_curr, f"{prove_totali} totali tracciate", "neu", "🏃")
+    c3 = make_kpi_card("Record (VBT)", len(df_v), f"↑ {nuovi_vbt} freschi" if nuovi_vbt > 0 else "Nessun nuovo PB", "pos" if nuovi_vbt > 0 else "neu", "🏋️")
+    c4 = make_kpi_card("Atleti a Sistema", df_r['Atleta'].nunique() if len(df_r) > 0 else 0, "Attivi nel periodo", "neu", "👥")
     
-    # KPI Row 2 calcoli
-    # 1. Atleti con PB nel periodo
-    storico_pb = df_running[df_running['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Distanza'])['Tempo'].min().to_dict()
-    atleti_pb = set()
-    for idx, row in df_r.iterrows():
-        k = (row['Atleta'], row['Distanza'])
-        if k in storico_pb:
-            if row['Tempo'] < storico_pb[k]:
-                atleti_pb.add(row['Atleta'])
-                storico_pb[k] = row['Tempo']
-        else:
-            atleti_pb.add(row['Atleta'])
-            storico_pb[k] = row['Tempo']
-            
-    # 2. Atleti inattivi
-    ultime_date = pd.concat([df_running[['Atleta', 'Data']], df_vbt[['Atleta', 'Data']]]).groupby('Atleta')['Data'].max()
-    inattivi = []
-    for atl, ud in ultime_date.items():
-        if pd.notnull(ud) and (pd.Timestamp.now().tz_localize(None) - ud).days > 7:
-            inattivi.append(atl)
-            
-    # 3. Media sessioni/settimana
-    settimane = max(1, duration_days / 7)
-    tot_sess_atl = df_r.groupby('Atleta')['Data'].nunique()
-    media_sess = tot_sess_atl.mean() / settimane if len(tot_sess_atl) > 0 else 0
-    
-    # 4. Km squadra
-    km_curr = df_r['Distanza'].sum() / 1000
-    km_prev = df_r_prev['Distanza'].sum() / 1000
-    delta_km = km_curr - km_prev
-    p_km = (delta_km / km_prev * 100) if km_prev > 0 else 0
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    kpi5, kpi6, kpi7, kpi8 = st.columns(4)
-    kpi5.metric("Atleti in PB", len(atleti_pb), delta="in questo periodo")
-    kpi6.metric("Inattivi (>7 gg)", len(inattivi), delta="da richiamare" if inattivi else "Ottimo!", delta_color="inverse")
-    kpi7.metric("Media Allen. (Sett.)", f"{media_sess:.1f}", delta="sessioni/atleta", delta_color="off")
-    kpi8.metric("Volume Squadra", f"{km_curr:.1f} km", delta=f"{delta_km:+.1f} km ({p_km:+.0f}%)", delta_color="normal")
+    c5 = make_kpi_card("Atleti in PB", len(atleti_pb), f"🌟 Formidabile" if atleti_pb > 0 else "Costanza", "pos" if atleti_pb > 0 else "neu", "🏅", "kpi-glow" if atleti_pb > 0 else "")
+    c6 = make_kpi_card("Inattivi (>7 gg)", len(inattivi), "Da richiamare!" if inattivi else "Ottimi, nessuno fermo", "neg" if inattivi else "pos", "⚠️", "kpi-alert" if inattivi else "")
+    c7 = make_kpi_card("Media (Sett.)", f"{media_sess:.1f}", "Sess / Atleta", "neu", "📉")
+    c8 = make_kpi_card("Volume Squadra", f"{km_curr:.1f} km", f"↑ {delta_km:+.1f}km ({p_km:+.0f}%)" if delta_km > 0 else (f"↓ {delta_km:+.1f}km ({p_km:+.0f}%)" if delta_km < 0 else "Invariato"), "pos" if delta_km > 0 else ("neg" if delta_km < 0 else "neu"), "🛣️")
+
+    st.markdown(f'<div class="kpi-grid">{c1}{c2}{c3}{c4}{c5}{c6}{c7}{c8}</div>', unsafe_allow_html=True)
     
     # NOTIFICHE AUTOMATICHE E COMPLEANNI
     st.markdown("<hr class='gold'>", unsafe_allow_html=True)

@@ -19,3 +19,6 @@ venv/
 # File dati csv e tsv
 *.csv
 *.tsv
+
+# File con credenziali (MAI caricare)
+CREDENZIALI_DASHBOARD.txt
