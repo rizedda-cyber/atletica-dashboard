@@ -880,10 +880,29 @@ if st.session_state.current_page == "Home":
     with st.expander("📅 Riepilogo Dettagliato Allenamenti (Vista Excel)", expanded=False):
         st.markdown("Spulcia le tabelle inserite giorno per giorno. Le colonne si espandono in base a quante prove sono state svolte sulla singola distanza nell'arco della seduta.")
         if not df_r.empty:
-            date_uniche = df_r['Data'].dt.strftime('%d/%m/%Y').sort_values(ascending=False).unique()
-            sel_giorno_str = st.selectbox("Scegli la data dell'allenamento:", date_uniche)
-            if sel_giorno_str:
-                df_day = df_r[df_r['Data'].dt.strftime('%d/%m/%Y') == sel_giorno_str].copy()
+            giorni_sett = {0: 'Lunedì', 1: 'Martedì', 2: 'Mercoledì', 3: 'Giovedì', 4: 'Venerdì', 5: 'Sabato', 6: 'Domenica'}
+            mesi = {1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile', 5: 'Maggio', 6: 'Giugno', 7: 'Luglio', 8: 'Agosto', 9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'}
+            
+            df_r_opt = df_r.copy()
+            df_r_opt['Data_date'] = df_r_opt['Data'].dt.date
+            date_uniche = sorted(df_r_opt['Data_date'].unique(), reverse=True)
+            
+            date_options = {}
+            for d in date_uniche:
+                g_str = giorni_sett[d.weekday()]
+                m_str = mesi[d.month]
+                num_prove = len(df_r_opt[df_r_opt['Data_date'] == d])
+                lbl = f"🗓️ {g_str} {d.day} {m_str} {d.year} — ({num_prove} prove)"
+                date_options[d] = lbl
+                
+            sel_giorno = st.selectbox("Seleziona la data dell'allenamento:", date_uniche, format_func=lambda x: date_options[x])
+            
+            if sel_giorno:
+                lbl_fmt = date_options[sel_giorno].replace('🗓️ ', '').split('—')[0].strip()
+                st.markdown(f"#### 🏟️ Allenamento del {lbl_fmt}")
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                df_day = df_r_opt[df_r_opt['Data_date'] == sel_giorno].copy()
                 if not df_day.empty:
                     df_day = df_day.sort_values(by=['Distanza', 'Data']) # Mantieni eventuale ordine cronologico e alfabetico
                     df_day['Ripetizione'] = df_day.groupby(['Atleta', 'Distanza']).cumcount() + 1
