@@ -165,10 +165,9 @@ st.markdown("""
     
     [data-baseweb="tab-highlight"] { display: none !important; }
     
-    /* Nascondi completamente i menu secondari e i bottoni di deploy in alto a destra */
-    [data-testid="stToolbar"],
-    [data-testid="stHeaderActions"],
-    .stAppDeployButton {
+    /* Nascondi solo i menu secondari tecnici (Deploy/Settings) in alto a destra, senza oscurare il contenitore del bottone menu sinistro */
+    .stAppDeployButton,   
+    .stToolbarActions {
         display: none !important;
         visibility: hidden !important;
     }
