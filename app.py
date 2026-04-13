@@ -62,11 +62,12 @@ st.markdown("""
         text-align: center; padding: 60px 40px; position: relative; overflow: hidden; margin: -6rem -4rem 2rem -4rem; border-radius: 0 0 20px 20px;
     }
     
-    /* Quando non loggato, blocchiamo lo stream per non fluttuare su mobile */
-    .lock-scroll {
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; overflow: hidden; touch-action: none; background: #080A0E; z-index: 9999;
+    /* Cover Amsicora Login Dark Neon */
+    .cover {
+        background: #080A0E; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        text-align: center; padding: 40px; border-radius: 20px; margin: 0 auto; max-width: 600px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
     }
-    .cover-container { padding: 40px 20px; text-align: center; max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+    html, body { overscroll-behavior: none; }
     
     .cover::before {
         content: ''; position: absolute; inset: 0;
@@ -248,21 +249,19 @@ if not st.session_state.authenticated:
         pass
         
     st.markdown(f'''
-    <div class="lock-scroll">
-      <div class="cover-container">
+    <div class="cover">
         <img class="cover-logo" src="data:image/png;base64,{b64_string}" alt="Logo">
         <div class="cover-eyebrow">Società Ginnastica Amsicora</div>
         <div class="cover-title">Atletica<br><span>Sprint</span><br>Dashboard</div>
         <div class="cover-subtitle">I dati e le statistiche di questa dashboard sono riservati allo staff e agli atleti. Inserisci il PIN.</div>
-      </div>
     </div>
     ''', unsafe_allow_html=True)
     
-    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         with st.container(border=True):
-            st.markdown("<h4 style='text-align: center; position:relative; z-index:10000;'>Login Squadra</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center;'>Login Squadra</h4>", unsafe_allow_html=True)
 
             pin_input = st.text_input("Codice di Accesso", type="password", placeholder="PIN o Password...", label_visibility="collapsed")
             st.markdown("<br>", unsafe_allow_html=True)
