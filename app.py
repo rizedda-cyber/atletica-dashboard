@@ -326,33 +326,23 @@ all_athletes = sorted(set(df_running['Atleta'].unique()) | set(df_vbt['Atleta'].
 with st.sidebar:
     st.markdown("### 🏃 Menu Navigazione")
     
-    # Map da stato interno a etichetta e viceversa
-    st_mapping = {
-        "Home": "🏠 Home Squadra",
-        "Atleti": "👥 Tutti gli Atleti",
-        "Inserimento": "➕ Inserisci Allenamento",
-        "Dettaglio Atleta": "👤 Dettaglio Atleta"
-    }
-    
-    page_options = [st_mapping["Home"], st_mapping["Atleti"], st_mapping["Inserimento"]]
-    if st.session_state.current_page == "Dettaglio Atleta":
-        page_options.append(st_mapping["Dettaglio Atleta"])
-        
-    current_label = st_mapping.get(st.session_state.current_page, st_mapping["Home"])
-    if current_label not in page_options:
-        current_label = page_options[0]
-        
-    menu_choice = st.radio("Scegli vista:", page_options, index=page_options.index(current_label), label_visibility="collapsed")
-    
-    # Aggiorna lo stato in base alla scelta
-    if menu_choice == st_mapping["Home"]:
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🏠 Home Squadra", use_container_width=True, type="primary" if st.session_state.current_page == "Home" else "secondary"):
         st.session_state.current_page = "Home"
         st.session_state.app_athlete = "Tutta la squadra"
-    elif menu_choice == st_mapping["Atleti"]:
+        st.rerun()
+
+    if st.button("👥 Tutti gli Atleti", use_container_width=True, type="primary" if st.session_state.current_page == "Atleti" else "secondary"):
         st.session_state.current_page = "Atleti"
         st.session_state.app_athlete = "Tutta la squadra"
-    elif menu_choice == st_mapping["Inserimento"]:
+        st.rerun()
+
+    if st.button("➕ Inserisci Allenamento", use_container_width=True, type="primary" if st.session_state.current_page == "Inserimento" else "secondary"):
         st.session_state.current_page = "Inserimento"
+        st.rerun()
+
+    if st.session_state.current_page == "Dettaglio Atleta":
+        st.button("👤 Dettaglio Atleta", use_container_width=True, type="primary")
 
     st.divider()
 
