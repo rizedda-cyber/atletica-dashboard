@@ -787,6 +787,37 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
             <div class="kpi-delta {delta_class}">{delta_text}</div>
         </div>
         '''
+    # KPI Row 2 calcoli
+    # 1. Atleti con PB nel periodo
+    storico_pb = df_running[df_running['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Distanza'])['Tempo'].min().to_dict()
+    atleti_pb = set()
+    for idx, row in df_r.iterrows():
+        k = (row['Atleta'], row['Distanza'])
+        if k in storico_pb:
+            if row['Tempo'] < storico_pb[k]:
+                atleti_pb.add(row['Atleta'])
+                storico_pb[k] = row['Tempo']
+        else:
+            atleti_pb.add(row['Atleta'])
+            storico_pb[k] = row['Tempo']
+            
+    # 2. Atleti inattivi
+    ultime_date = pd.concat([df_running[['Atleta', 'Data']], df_vbt[['Atleta', 'Data']]]).groupby('Atleta')['Data'].max()
+    inattivi = []
+    for atl, ud in ultime_date.items():
+        if pd.notnull(ud) and (pd.Timestamp.now().tz_localize(None) - ud).days > 7:
+            inattivi.append(atl)
+            
+    # 3. Media sessioni/settimana
+    settimane = max(1, duration_days / 7)
+    tot_sess_atl = df_r.groupby('Atleta')['Data'].nunique()
+    media_sess = tot_sess_atl.mean() / settimane if len(tot_sess_atl) > 0 else 0
+    
+    # 4. Km squadra
+    km_curr = df_r['Distanza'].sum() / 1000
+    km_prev = df_r_prev['Distanza'].sum() / 1000
+    delta_km = km_curr - km_prev
+    p_km = (delta_km / km_prev * 100) if km_prev > 0 else 0
 
     c1 = make_kpi_card("Sessioni Pista", sess_curr, f"↑ {delta_sess} vs prec." if delta_sess > 0 else (f"↓ {abs(delta_sess)}" if delta_sess < 0 else "Invariato"), "pos" if delta_sess > 0 else ("neg" if delta_sess<0 else "neu"), "🏟️", "kpi-glow")
     c2 = make_kpi_card("Prove Registrate", prove_curr, f"{prove_totali} totali tracciate", "neu", "🏃")
