@@ -873,21 +873,6 @@ elif st.session_state.current_page == "Home":
 st.divider()
 
 if st.session_state.current_page == "Home":
-    st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
-    df_r_vol = df_r.copy()
-    if not df_r_vol.empty:
-        df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
-        vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
-        vol_df = vol_agg.reset_index()
-        vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
-        fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
-        fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
-        fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
-        st.plotly_chart(fig_vol, use_container_width=True)
-    else:
-        st.info("Nessun dato di corsa nel periodo selezionato.")
-        
-    st.divider()
     st.markdown("<h3 style='margin-bottom:0;'>🏆 CLASSIFICA PERSONAL BEST (PB) SQUADRA</h3>", unsafe_allow_html=True)
     if len(df_r) > 0:
         pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
@@ -907,6 +892,22 @@ if st.session_state.current_page == "Home":
         st.dataframe(styled_pb, use_container_width=True, height=500)
     else:
         st.info("Nessuna prova presente.")
+        
+    st.divider()
+
+    st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
+    df_r_vol = df_r.copy()
+    if not df_r_vol.empty:
+        df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
+        vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
+        vol_df = vol_agg.reset_index()
+        vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
+        fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
+        fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
+        fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
+        st.plotly_chart(fig_vol, use_container_width=True)
+    else:
+        st.info("Nessun dato di corsa nel periodo selezionato.")
         
     st.divider()
     with st.expander("📅 Riepilogo Dettagliato Allenamenti (Vista Excel)", expanded=False):
