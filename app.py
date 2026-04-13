@@ -61,6 +61,13 @@ st.markdown("""
         background: #080A0E; min-height: 500px; display: flex; flex-direction: column; align-items: center; justify-content: center;
         text-align: center; padding: 60px 40px; position: relative; overflow: hidden; margin: -6rem -4rem 2rem -4rem; border-radius: 0 0 20px 20px;
     }
+    
+    /* Quando non loggato, blocchiamo lo stream per non fluttuare su mobile */
+    .lock-scroll {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; overflow: hidden; touch-action: none; background: #080A0E; z-index: 9999;
+    }
+    .cover-container { padding: 40px 20px; text-align: center; max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+    
     .cover::before {
         content: ''; position: absolute; inset: 0;
         background: radial-gradient(ellipse at 30% 20%, rgba(232,255,58,0.06) 0%, transparent 60%),
@@ -164,8 +171,7 @@ st.markdown("""
         font-size: 1.1em !important;
     }
 
-    [data-testid="stSidebar"] { display: none !important; }
-    
+    /* [data-testid="stSidebar"] rimosso per consentire l'uso della navbar laterale */
     /* Fix visibilità Input Box Login (evita sfondi chiari con testo bianco) */
     div[data-baseweb="input"] {
         background-color: #0A0D14 !important;
@@ -210,6 +216,9 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Home"
+
 
 def get_team_pin() -> str:
     if "TEAM_PIN" in st.secrets:
@@ -239,19 +248,22 @@ if not st.session_state.authenticated:
         pass
         
     st.markdown(f'''
-    <div class="cover">
-      <img class="cover-logo" src="data:image/png;base64,{b64_string}" alt="Logo">
-      <div class="cover-eyebrow">Società Ginnastica Amsicora</div>
-      <div class="cover-title">Atletica<br><span>Sprint</span><br>Dashboard</div>
-      <div class="cover-subtitle">I dati e le statistiche di questa dashboard sono riservati allo staff e agli atleti. Inserisci il PIN.</div>
+    <div class="lock-scroll">
+      <div class="cover-container">
+        <img class="cover-logo" src="data:image/png;base64,{b64_string}" alt="Logo">
+        <div class="cover-eyebrow">Società Ginnastica Amsicora</div>
+        <div class="cover-title">Atletica<br><span>Sprint</span><br>Dashboard</div>
+        <div class="cover-subtitle">I dati e le statistiche di questa dashboard sono riservati allo staff e agli atleti. Inserisci il PIN.</div>
+      </div>
     </div>
     ''', unsafe_allow_html=True)
     
-    st.divider()
+    st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         with st.container(border=True):
-            st.markdown("<h4 style='text-align: center;'>Login Squadra</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center; position:relative; z-index:10000;'>Login Squadra</h4>", unsafe_allow_html=True)
+
             pin_input = st.text_input("Codice di Accesso", type="password", placeholder="PIN o Password...", label_visibility="collapsed")
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("🔐 Accedi", type="primary", use_container_width=True):
@@ -305,53 +317,78 @@ if not df_running.empty:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# TOP BAR — NAVIGAZIONE E FILTRI
+# NAVIGAZIONE LATERALE (SIDEBAR) E FILTRI
 # ──────────────────────────────────────────────────────────────────────
 if "app_athlete" not in st.session_state:
     st.session_state.app_athlete = "Tutta la squadra"
 
 all_athletes = sorted(set(df_running['Atleta'].unique()) | set(df_vbt['Atleta'].unique()))
-selected_athlete = st.session_state.app_athlete
 
-top_col1, top_col2, top_col3, top_col4 = st.columns([3, 4, 2, 2])
+with st.sidebar:
+    st.markdown("### 🏃 Menu Navigazione")
+    
+    # Map da stato interno a etichetta e viceversa
+    st_mapping = {
+        "Home": "🏠 Home Squadra",
+        "Atleti": "👥 Tutti gli Atleti",
+        "Inserimento": "➕ Inserisci Allenamento",
+        "Dettaglio Atleta": "👤 Dettaglio Atleta"
+    }
+    
+    page_options = [st_mapping["Home"], st_mapping["Atleti"], st_mapping["Inserimento"]]
+    if st.session_state.current_page == "Dettaglio Atleta":
+        page_options.append(st_mapping["Dettaglio Atleta"])
+        
+    current_label = st_mapping.get(st.session_state.current_page, st_mapping["Home"])
+    if current_label not in page_options:
+        current_label = page_options[0]
+        
+    menu_choice = st.radio("Scegli vista:", page_options, index=page_options.index(current_label), label_visibility="collapsed")
+    
+    # Aggiorna lo stato in base alla scelta
+    if menu_choice == st_mapping["Home"]:
+        st.session_state.current_page = "Home"
+        st.session_state.app_athlete = "Tutta la squadra"
+    elif menu_choice == st_mapping["Atleti"]:
+        st.session_state.current_page = "Atleti"
+        st.session_state.app_athlete = "Tutta la squadra"
+    elif menu_choice == st_mapping["Inserimento"]:
+        st.session_state.current_page = "Inserimento"
 
-with top_col1:
-    if selected_athlete != "Tutta la squadra":
-        if st.button(f"← Squadra — {selected_athlete}", use_container_width=True):
-            st.session_state.app_athlete = "Tutta la squadra"
-            st.rerun()
-    else:
-        st.markdown(f"<h3 style='margin:0;'>PANORAMICA GRUPPO</h3>", unsafe_allow_html=True)
-        st.caption(f"{len(all_athletes)} atleti attivi")
+    st.divider()
 
-with top_col2:
-    min_date = df_running['Data'].min().date()
-    max_date = df_running['Data'].max().date()
-    date_range = st.date_input("Periodo Analisi", value=(min_date, max_date), min_value=min_date, max_value=max_date, label_visibility="collapsed")
+    st.markdown("### 📅 Opzioni Analisi")
+    min_date = df_running['Data'].min().date() if not df_running.empty else pd.Timestamp(2023, 1, 1).date()
+    max_date = df_running['Data'].max().date() if not df_running.empty else pd.Timestamp.now().date()
+    
+    with st.popover("📅 Intervallo Temporale Dati", use_container_width=True):
+        date_range = st.date_input("Periodo Analisi", value=(min_date, max_date), min_value=min_date, max_value=max_date, label_visibility="collapsed")
+        
     if isinstance(date_range, tuple) and len(date_range) == 2:
         start_date, end_date = date_range
     else:
         start_date, end_date = min_date, max_date
-
-with top_col3:
+        
+    st.divider()
+    
     if DATA_SOURCE == "cloud":
-        st.markdown('<div style="margin-top:5px;"><span class="cloud-badge cloud-ok">☁️ Supabase</span></div>', unsafe_allow_html=True)
+        st.markdown('<div style="text-align:center;"><span class="cloud-badge cloud-ok">☁️ Supabase Connesso</span></div>', unsafe_allow_html=True)
     else:
-        st.markdown('<div style="margin-top:5px;"><span class="cloud-badge cloud-local">📂 Locale</span></div>', unsafe_allow_html=True)
-
-with top_col4:
-    role_label = "👑 Admin" if st.session_state.is_admin else "🟢 Esci"
+        st.markdown('<div style="text-align:center;"><span class="cloud-badge cloud-local">📂 Dati Locali (Excel)</span></div>', unsafe_allow_html=True)
+        
+    st.markdown("<br>", unsafe_allow_html=True)
+    role_label = "👑 Admin" if st.session_state.is_admin else "🟢 Esci / Log Out"
     if st.button(f"🚪 {role_label}", key="btn_logout", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.is_admin = False
+        st.session_state.current_page = "Home"
         st.rerun()
 
-st.divider()
+selected_athlete = st.session_state.app_athlete
 
 @st.cache_data
 def convert_df_to_csv(df):
     return df.to_csv(index=False).encode('utf-8')
-
 
 # ──────────────────────────────────────────────────────────────────────
 # FILTRAGGIO DATI
@@ -527,8 +564,8 @@ else:
         </div>
     ''', unsafe_allow_html=True)
 
-@st.dialog("Inserisci Nuovo Allenamento", width="large")
-def render_insert_modal():
+if st.session_state.current_page == "Inserimento":
+    st.markdown("## ➕ Inserisci Nuovo Allenamento")
     if DATA_SOURCE != "cloud":
         st.warning("⚠️ La dashboard sta usando i dati locali (Excel). L'inserimento richiede la connessione al cloud.")
     else:
@@ -621,11 +658,8 @@ def render_insert_modal():
                         else:
                             st.error("❌ Errore nel salvataggio.")
 
-        # Aggiorna foto rimosso (spostato nella pagina atleta)#
-
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-
-if selected_athlete != "Tutta la squadra":
+elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     pb_corse = df_r.groupby('Distanza')['Tempo'].min()
     
     is_400_runner = False
@@ -659,7 +693,8 @@ if selected_athlete != "Tutta la squadra":
         kpi2.metric("Record (PB) 60m", f"{d1:.2f}s" if d1 != "-" else "-")
         kpi3.metric("Record (PB) 100m", f"{d2:.2f}s" if d2 != "-" else "-")
         kpi4.metric("Record (PB) 200m", f"{d3:.2f}s" if d3 != "-" else "-")
-else:
+elif st.session_state.current_page == "Home":
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     # ────────────────────────────────────────────────────────────────
     # CALCOLO KPI DI SQUADRA (HOME)
     # ────────────────────────────────────────────────────────────────
@@ -781,601 +816,608 @@ else:
         else:
             st.success("Tutti gli atleti sono attivi di recente! 🎉")
 
-if st.session_state.authenticated:
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("➕ NUOVO ALLENAMENTO", type="primary", use_container_width=True):
-        render_insert_modal()
-
 st.divider()
 
-if selected_athlete == "Tutta la squadra":
+if st.session_state.current_page == "Home":
+    st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
+    df_r_vol = df_r.copy()
+    if not df_r_vol.empty:
+        df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
+        vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
+        vol_df = vol_agg.reset_index()
+        vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
+        fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
+        fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
+        fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
+        st.plotly_chart(fig_vol, use_container_width=True)
+    else:
+        st.info("Nessun dato di corsa nel periodo selezionato.")
+        
+    st.divider()
+    st.markdown("<h3 style='margin-bottom:0;'>🏆 CLASSIFICA PERSONAL BEST (PB) SQUADRA</h3>", unsafe_allow_html=True)
+    if len(df_r) > 0:
+        pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
+        pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
+        pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
+        st.dataframe(pb_pivot.style.highlight_min(axis=0, color='#90e0ef')
+                     .highlight_max(axis=0, color='#fde2e4').format("{:.2f}s"),
+                     use_container_width=True, height=500)
+    else:
+        st.info("Nessuna prova presente.")
+
+elif st.session_state.current_page == "Atleti":
     from supabase_connector import get_atleti
     df_atleti = get_atleti()
     
     st.markdown("<br>", unsafe_allow_html=True)
-    col_r_left, col_r_right = st.columns([6, 4])
     
-    with col_r_left:
-        st.markdown("<h3 style='margin-bottom:0;'>ATLETI</h3>", unsafe_allow_html=True)
-        # Search bar e Arricchimento dati
-        roster_data = []
-        if not df_atleti.empty:
-            for _, row in df_atleti.iterrows():
-                atl = row['nome_completo']
-                f_url = row.get('foto_url', '')
-                
-                mask_r = df_running['Atleta'] == atl
-                mask_v = df_vbt['Atleta'] == atl
-                last_r = df_running[mask_r]['Data'].max() if len(df_running[mask_r]) > 0 else pd.NaT
-                last_v = df_vbt[mask_v]['Data'].max() if len(df_vbt[mask_v]) > 0 else pd.NaT
-                
-                last_d = max(last_r, last_v) if pd.notnull(last_r) and pd.notnull(last_v) else (last_r if pd.notnull(last_r) else last_v)
-                days_ago = (pd.Timestamp.now().tz_localize(None) - last_d).days if pd.notnull(last_d) else 999
-                
-                if days_ago <= 3:
-                    stato = "🔥 Picco"
-                    color = "#E8FF3A"
-                    c_badge = "background: rgba(232,255,58,0.1); color: #E8FF3A;"
-                elif days_ago <= 10:
-                    stato = "✓ Buona"
-                    color = "#16a34a"
-                    c_badge = "background: rgba(22,163,74,0.1); color: #16a34a;"
-                elif days_ago <= 30:
-                    stato = "⚠ Monitor"
-                    color = "#FFB347"
-                    c_badge = "background: rgba(255,179,71,0.1); color: #FFB347;"
-                else:
-                    stato = "🔴 Fermo"
-                    color = "#FF6B6B"
-                    c_badge = "background: rgba(255,107,107,0.1); color: #FF6B6B;"
-                    
-                atl_run = df_running[mask_r]
-                highlight_txt = "-"
-                if len(atl_run) > 0:
-                    if 100 in atl_run['Distanza'].values:
-                        pb = atl_run[atl_run['Distanza'] == 100]['Tempo'].min()
-                        highlight_txt = f"{pb:.2f}s (100m)"
-                    elif 60 in atl_run['Distanza'].values:
-                        pb = atl_run[atl_run['Distanza'] == 60]['Tempo'].min()
-                        highlight_txt = f"{pb:.2f}s (60m)"
-                
-                if highlight_txt == "-" and len(df_vbt[mask_v]) > 0:
-                     highlight_txt = f"{len(df_vbt[mask_v])} sess. VBT"
-
-                roster_data.append({
-                    'nome': atl,
-                    'foto': f_url,
-                    'stato': stato,
-                    'color': color,
-                    'c_badge': c_badge,
-                    'highlight': highlight_txt
-                })
-                
-            roster_df = pd.DataFrame(roster_data)
-
-            # Barra di ricerca se > 10
-            if len(roster_df) > 10:
-                search_q = st.text_input("🔍 Cerca Atleta", placeholder="Cerca nome...", label_visibility="collapsed")
-                if search_q:
-                    roster_df = roster_df[roster_df['nome'].str.contains(search_q, case=False, na=False)]
+    st.markdown("<h3 style='margin-bottom:0;'>👥 ELENCO ATLETI</h3>", unsafe_allow_html=True)
+    # Search bar e Arricchimento dati
+    roster_data = []
+    if not df_atleti.empty:
+        for _, row in df_atleti.iterrows():
+            atl = row['nome_completo']
+            f_url = row.get('foto_url', '')
             
-            # Grid System
-            cols = st.columns(3)
-            for i, row in roster_df.iterrows():
-                col = cols[i % 3]
-                with col.container(border=True):
-                    if pd.notna(row['foto']) and str(row['foto']).strip() != "":
-                        av_html = f'''<div style="width:55px; height:55px; border-radius:50%; border:2px solid {row["color"]}; overflow:hidden; margin-bottom:10px;">
-                                        <img src="{row["foto"]}" style="width:100%; height:100%; object-fit:cover; display:block;">
-                                      </div>'''
-                    else:
-                        inz = "".join([n[0] for n in row['nome'].split()[:2]]).upper()
-                        av_html = f'''<div style="width:55px; height:55px; border-radius:50%; border:2px solid {row["color"]}; background:#14171E; color:#FFF; font-family:'DM Mono', monospace; font-size:20px; font-weight:bold; display:flex; align-items:center; justify-content:center; margin-bottom:10px;">
-                                        {inz}
-                                      </div>'''
-                    
-                    st.markdown(f'''
-                    <div>
-                        {av_html}
-                        <div style="font-weight:600; font-size:1.1em; line-height:1.2; margin-bottom:2px;">{row["nome"]}</div>
-                        <div style="font-size:0.8em; color:rgba(255,255,255,0.5); margin-bottom:8px;">Velocità</div>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <span style="font-size:10px; padding:2px 6px; border-radius:4px; font-family:'DM Mono'; {row["c_badge"]}">{row["stato"]}</span>
-                            <span style="font-size:11px; color:#fff; font-family:'DM Mono'; font-weight:bold;">{row["highlight"]}</span>
-                        </div>
-                    </div>
-                    ''', unsafe_allow_html=True)
-                    
-                    if st.button("Vai", key=f"nav_{row['nome']}", use_container_width=True):
-                        st.session_state.app_athlete = row['nome']
-                        st.rerun()
-
-            if st.session_state.authenticated:
-                @st.dialog("Registra Nuovo Atleta")
-                def render_new_atleta_modal():
-                    with st.form("new_atleta_form", clear_on_submit=True):
-                        st.markdown("**Inserisci il nuovo membro della squadra**")
-                        n1, n2 = st.columns(2)
-                        nome = n1.text_input("Nome")
-                        cognome = n2.text_input("Cognome")
-                        spec = st.text_input("Specialità (es. Velocità, Salti)", value="Velocità")
-                        if st.form_submit_button("✅ Registra Atleta", type="primary", use_container_width=True):
-                            if nome.strip() and cognome.strip():
-                                from supabase_connector import upsert_atleta
-                                upsert_atleta(nome.strip(), cognome.strip(), spec.strip())
-                                st.success("✅ Completato! (Ricaricamento...)")
-                                st.cache_data.clear()
-                                st.rerun()
-                            else:
-                                st.error("⚠️ Inserisci Nome e Cognome.")
-                                
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("➕ Aggiungi Nuovo Atleta", use_container_width=True):
-                    render_new_atleta_modal()
-
-    with col_r_right:
-        st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
-        df_r_vol = df_r.copy()
-        if not df_r_vol.empty:
-            df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
-            vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
-            vol_df = vol_agg.reset_index()
-            vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
-            fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
-            fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
-            fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
-            st.plotly_chart(fig_vol, use_container_width=True)
-        else:
-            st.info("Nessun dato di corsa nel periodo selezionato.")
-
-# ──────────────────────────────────────────────────────────────────────
-# TABS PRINCIPALI
-# ──────────────────────────────────────────────────────────────────────
-
-tab_labels = ["⚡ Analisi Velocità", "💪 Forza (VBT)",
-              "📊 Predizioni ML", "⚖️ Transfer", "🏅 PB & Gare"]
-
-tabs = st.tabs(tab_labels)
-tab1, tab2, tab3, tab4, tab5 = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
-
-
-# ══════════════════════════════════════════════════════════════════════
-# TAB 1 — ANALISI VELOCITÀ
-# ══════════════════════════════════════════════════════════════════════
-
-with tab1:
-    if len(df_r) == 0:
-        st.warning("Nessun dato di corsa nel periodo/filtri selezionati.")
-    else:
-        st.subheader("📈 Trend dei Tempi per Distanza")
-
-        if selected_athlete == "Tutta la squadra":
-            trend_df = df_r.groupby(['Data', 'Distanza'])['Tempo'].mean().reset_index()
-            trend_df['Tipo'] = 'Media squadra'
-        else:
-            trend_df = df_r.copy()
-            trend_df['Tipo'] = selected_athlete
-
-        trend_parts = []
-        for dist in sorted(trend_df['Distanza'].unique()):
-            sub = trend_df[trend_df['Distanza'] == dist].sort_values('Data').copy()
-            sub['Media Mobile (3 ses.)'] = sub['Tempo'].rolling(window=3, min_periods=1).mean()
-            trend_parts.append(sub)
-
-        if trend_parts:
-            trend_all = pd.concat(trend_parts)
-            trend_all['Distanza (m)'] = trend_all['Distanza'].astype(int).astype(str) + "m"
-
-            hover_cols = None
-            if 'Note' in trend_all.columns and selected_athlete != "Tutta la squadra":
-                hover_cols = ['Note']
-
-            fig_trend = px.line(
-                trend_all, x='Data', y='Tempo', color='Distanza (m)', markers=True,
-                hover_data=hover_cols, title="Evoluzione Cronometrica Assoluta (Distanze Chiave)",
-                labels={'Tempo': 'Tempo (sec)', 'Data': 'Data Test'},
-                template=THEME_TEMPLATE, color_discrete_sequence=NEON_COLORS
-            )
-            for dist in sorted(trend_all['Distanza'].unique()):
-                sub = trend_all[trend_all['Distanza'] == dist].sort_values('Data')
-                fig_trend.add_trace(go.Scatter(
-                    x=sub['Data'], y=sub['Media Mobile (3 ses.)'], mode='lines',
-                    line=dict(dash='dot', width=2), name=f"{int(dist)}m (Trend)", opacity=0.7
-                ))
+            mask_r = df_running['Atleta'] == atl
+            mask_v = df_vbt['Atleta'] == atl
+            last_r = df_running[mask_r]['Data'].max() if len(df_running[mask_r]) > 0 else pd.NaT
+            last_v = df_vbt[mask_v]['Data'].max() if len(df_vbt[mask_v]) > 0 else pd.NaT
             
-            # Nascondi le distanze meno comuni dalla visualizzazione base (evita l'effetto tela di ragno)
-            for trace in fig_trend.data:
-                try:
-                    name_str = trace.name
-                    if 'Trend' in name_str:
-                        d_val = int(name_str.replace("m (Trend)", ""))
-                    else:
-                        d_val = int(name_str.replace("m", ""))
-                    # Lasciamo visibili le core distances classiche e nascondiamo le altre nella legenda
-                    if d_val not in [60, 100, 150, 200, 300, 400]:
-                        trace.visible = 'legendonly'
-                except:
-                    pass
-                    
-            fig_trend.update_layout(height=500, hovermode='x unified',
-                                     legend=dict(orientation='h', y=-0.15), margin=dict(t=50))
-            st.plotly_chart(fig_trend, use_container_width=True)
-
-        col_pb, col_distr = st.columns([1.2, 1])
-
-        with col_pb:
-            with st.expander("🏆 Mostra Classifica Personal Best (PB)", expanded=False):
-                if selected_athlete == "Tutta la squadra":
-                    pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
-                    pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
-                    pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
-                    st.dataframe(pb_pivot.style.highlight_min(axis=0, color='#90e0ef')
-                                 .highlight_max(axis=0, color='#fde2e4').format("{:.2f}s"),
-                                 use_container_width=True, height=350)
-                else:
-                    pb_df = df_r.groupby('Distanza').agg(
-                        Miglior_Tempo=('Tempo', 'min'),
-                        Data_Primo_PB=('Tempo', lambda x: df_r.loc[x.idxmin(), 'Data']),
-                        Note=('Tempo', lambda x: df_r.loc[x.idxmin(), 'Note'] if 'Note' in df_r.columns else ""),
-                        Tempo_Medio=('Tempo', 'mean'),
-                        Prove_Totali=('Tempo', 'count'),
-                    ).reset_index()
-                    if 'Note' in pb_df.columns and pb_df['Note'].astype(str).str.strip().eq("").all():
-                        pb_df = pb_df.drop(columns=['Note'])
-                    pb_df['Distanza'] = pb_df['Distanza'].astype(int).astype(str) + "m"
-                    pb_df['Data_Primo_PB'] = pb_df['Data_Primo_PB'].dt.strftime('%d/%m/%Y')
-                    st.dataframe(pb_df.style.format({'Miglior_Tempo': '{:.2f}', 'Tempo_Medio': '{:.2f}'})
-                                 .highlight_min(subset=['Miglior_Tempo'], color='#90e0ef'),
-                                 use_container_width=True, height=350)
-
-        with col_distr:
-            with st.expander("📊 Consistenza delle Rilevazioni (Boxplot)", expanded=False):
-                df_r_copy = df_r.copy()
-                df_r_copy['Distanza (m)'] = df_r_copy['Distanza'].astype(int).astype(str) + "m"
-                fig_box = px.box(df_r_copy, x='Distanza (m)', y='Tempo', color='Distanza (m)',
-                                  hover_data=['Note'] if 'Note' in df_r_copy.columns else None,
-                                  template=THEME_TEMPLATE, title="Dispersione dei Tempi",
-                                  labels={'Tempo': 'Tempo (sec)'},
-                                  color_discrete_sequence=NEON_COLORS)
-                fig_box.update_layout(showlegend=False, height=350, margin=dict(t=50))
-                st.plotly_chart(fig_box, use_container_width=True)
-
-        if selected_athlete != "Tutta la squadra":
-            st.divider()
-            with st.expander("📖 Esplora Storico Risultati Completo", expanded=False):
-                st.markdown("Tutte le prestazioni registrate dall'atleta, raggruppate per distanza. **Ordinate dalla più vecchia alla più recente.** *(I filtri distanze e date del menù laterale non influenzano questa tabella, quindi potrai vedere sempre lo storico completo).*")
-                
-                df_storico = df_running[df_running['Atleta'] == selected_athlete].copy()
-                if not df_storico.empty:
-                    df_storico = df_storico.sort_values('Data', ascending=True)
-                    df_storico['Data'] = df_storico['Data'].dt.strftime('%d/%m/%Y')
-                    
-                    distanze = sorted(df_storico['Distanza'].unique())
-                    for d in distanze:
-                        sub_df = df_storico[df_storico['Distanza'] == d][['Data', 'Tempo', 'Note']]
-                        migliore = sub_df['Tempo'].min()
-                        num_prove = len(sub_df)
-                        st.markdown(f"**🏃 {int(d)}m** — {num_prove} prove | PB: {migliore:.2f}s")
-                        st.dataframe(sub_df, use_container_width=True, hide_index=True)
-                else:
-                    st.info("Nessuna prova presente per questo atleta.")
-
-
-# ══════════════════════════════════════════════════════════════════════
-# TAB 2 — FORZA E POTENZA (VBT)
-# ══════════════════════════════════════════════════════════════════════
-
-with tab2:
-    if len(df_v) == 0:
-        st.warning("Nessun dato VBT nel periodo/filtri selezionati.")
-    else:
-        df_v_ex = df_v[df_v['Esercizio'] != 'General'].copy()
-        if len(df_v_ex) == 0:
-            st.info("Solo record 'General' presenti. Seleziona esercizi specifici nella sidebar.")
-        else:
-            col_vbt1, col_vbt2 = st.columns(2)
-
-            with col_vbt1:
-                st.subheader("🏋️ Massimali Stimati (Picco)")
-                with st.expander("Dettagli grafici a barre"):
-                    st.write("Mostra i picchi massimi registrati nel periodo per ciascun esercizio.")
-
-                if selected_athlete == "Tutta la squadra":
-                    agg_df = df_v_ex.groupby(['Atleta', 'Esercizio']).agg(
-                        Potenza_max=('Potenza_max', 'max'), Forza_max=('Forza_max', 'max')
-                    ).reset_index()
-                    color_col = 'Atleta'
-                else:
-                    agg_df = df_v_ex.groupby('Esercizio').agg(
-                        Potenza_max=('Potenza_max', 'max'), Forza_max=('Forza_max', 'max')
-                    ).reset_index()
-                    color_col = 'Esercizio'
-
-                fig_bar = px.bar(agg_df, x='Esercizio', y='Potenza_max', color=color_col,
-                                  barmode='group', template=THEME_TEMPLATE,
-                                  title="Massima Espressione di Potenza (Watt)",
-                                  color_discrete_sequence=NEON_COLORS)
-                fig_bar.update_layout(height=CHART_HEIGHT - 50)
-                st.plotly_chart(fig_bar, use_container_width=True)
-
-                fig_forza = px.bar(agg_df, x='Esercizio', y='Forza_max', color=color_col,
-                                    barmode='group', template=THEME_TEMPLATE,
-                                    title="Massima Espressione di Forza (Newton)",
-                                    color_discrete_sequence=NEON_COLORS)
-                fig_forza.update_layout(height=CHART_HEIGHT - 50)
-                st.plotly_chart(fig_forza, use_container_width=True)
-
-            with col_vbt2:
-                st.subheader("📉 Profilo Forza–Velocità")
-                sel_ex = st.selectbox("Analizza la curva di un esercizio:",
-                                       options=sorted(df_v_ex['Esercizio'].unique()))
-                scatter_df = df_v_ex[df_v_ex['Esercizio'] == sel_ex].dropna(subset=['Carico', 'Vel_media'])
-
-                if len(scatter_df) > 0:
-                    fig_scatter = px.scatter(
-                        scatter_df, x='Carico', y='Vel_media',
-                        color='Atleta' if selected_athlete == "Tutta la squadra" else None,
-                        size='Potenza_media', template=THEME_TEMPLATE, hover_data=['Data'],
-                        labels={'Carico': 'Carico (kg)', 'Vel_media': 'Velocità Media (m/s)'},
-                        trendline='ols', color_discrete_sequence=NEON_COLORS
-                    )
-                    fig_scatter.update_layout(height=CHART_HEIGHT)
-                    st.plotly_chart(fig_scatter, use_container_width=True)
-
-                    from scipy import stats
-                    slope, intercept, r_val, p_val, se = stats.linregress(scatter_df['Carico'], scatter_df['Vel_media'])
-                    with st.expander("📊 Dettagli Modello (M.Q.O.)"):
-                        st.code(f"Velocità = {slope:.4f} * Carico(kg) + {intercept:.2f}\nR² (Affidabilità): {r_val**2:.3f}")
-                else:
-                    st.info("Dati insufficienti per tracciare la curva.")
-
-            st.divider()
-            st.subheader("📈 Progressione VBT Temporale")
-            metric_choice = st.radio("Metrica:", ['Vel_media', 'Vel_max', 'Potenza_media', 'Potenza_max', 'Forza_max'],
-                                      format_func=lambda x: x.replace('_', ' ').title(), horizontal=True)
-            vbt_trend = df_v_ex.dropna(subset=['Data', metric_choice])
-            if len(vbt_trend) > 0:
-                vbt_agg = vbt_trend.groupby(['Data', 'Esercizio'])[metric_choice].mean().reset_index()
-                fig_vbt_trend = px.line(vbt_agg, x='Data', y=metric_choice, color='Esercizio',
-                                         markers=True, template=THEME_TEMPLATE,
-                                         color_discrete_sequence=NEON_COLORS)
-                fig_vbt_trend.update_layout(height=400)
-                st.plotly_chart(fig_vbt_trend, use_container_width=True)
-
-
-# ══════════════════════════════════════════════════════════════════════
-# TAB 3 — CORRELAZIONI E PROIEZIONI
-# ══════════════════════════════════════════════════════════════════════
-
-with tab3:
-    st.subheader("🔗 Correlazione: Palestra ↔ Pista")
-    st.markdown("Verifica se un miglioramento di forza/potenza corrisponde a un calo cronometrico.")
-
-    col_corr1, col_corr2 = st.columns(2)
-    with col_corr1:
-        corr_dist = st.selectbox("Corsa: Distanza (Asse Y)",
-                                   options=[d for d in sorted(df_running['Distanza'].unique()) if d <= 200],
-                                   index=min(2, len([d for d in sorted(df_running['Distanza'].unique()) if d <= 200]) - 1),
-                                   format_func=lambda x: f"{int(x)}m")
-    with col_corr2:
-        corr_metric = st.selectbox("Palestra: Metrica VBT (Asse X)",
-                                    options=['Potenza_max', 'Vel_max', 'Forza_max', 'Carico'],
-                                    format_func=lambda x: x.replace('_', ' ').title())
-
-    df_r_all = df_running[df_running['Distanza'] == corr_dist].copy()
-    df_r_all['Mese'] = df_r_all['Data'].dt.to_period('M').astype(str)
-    running_monthly = df_r_all.groupby(['Atleta', 'Mese'])['Tempo'].mean().reset_index()
-
-    df_v_all = df_vbt[df_vbt['Esercizio'] != 'General'].copy()
-    df_v_all['Mese'] = df_v_all['Data'].dt.to_period('M').astype(str)
-    vbt_monthly = df_v_all.groupby(['Atleta', 'Mese'])[corr_metric].mean().reset_index()
-
-    merged = running_monthly.merge(vbt_monthly, on=['Atleta', 'Mese'], how='inner')
-
-    if len(merged) > 3:
-        fig_corr = px.scatter(merged, x=corr_metric, y='Tempo', color='Atleta',
-                               hover_data=['Mese'], template=THEME_TEMPLATE,
-                               title="Analisi di Correlazione Assoluta",
-                               trendline='ols', color_discrete_sequence=NEON_COLORS)
-        fig_corr.update_layout(height=450)
-        st.plotly_chart(fig_corr, use_container_width=True)
-
-        from scipy import stats as sp_stats
-        slope, intercept, r_val, p_val, se = sp_stats.linregress(merged[corr_metric], merged['Tempo'])
-        if slope < 0 and p_val < 0.05:
-            st.success(f"✅ Relazione inversa forte (Forza↑ → Tempo↓). R²={r_val**2:.2f}, p={p_val:.3f}")
-        elif slope < 0:
-            st.info(f"ℹ️ Tendenza corretta, dati non statisticamente forti (p={p_val:.3f}).")
-        else:
-            st.warning("⚠️ Nessun transfer positivo rilevato nel periodo.")
-    else:
-        st.info("Punti insufficienti per la correlazione.")
-
-    st.divider()
-    st.subheader("🔮 Modello Lineare di Predizione (Gara)")
-    available_dists = sorted(df_running['Distanza'].unique())
-    short_dists = [d for d in available_dists if d <= 100]
-    long_dists = [d for d in available_dists if d >= 60]
-
-    if len(short_dists) >= 2 and len(long_dists) >= 1:
-        col_p1, col_p2, col_p3 = st.columns(3)
-        feat1 = col_p1.selectbox("Parziale 1", short_dists, index=0, format_func=lambda x: f"{int(x)}m")
-        feat2 = col_p2.selectbox("Parziale 2", [d for d in short_dists if d != feat1], index=0, format_func=lambda x: f"{int(x)}m")
-        target = col_p3.selectbox("Target Gara", [d for d in long_dists if d > max(feat1, feat2)], format_func=lambda x: f"{int(x)}m")
-
-        df_f1 = df_running[df_running['Distanza'] == feat1][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 't1'})
-        df_f2 = df_running[df_running['Distanza'] == feat2][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 't2'})
-        df_tgt = df_running[df_running['Distanza'] == target][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 'target'})
-        df_model = df_f1.merge(df_f2, on=['Data', 'Atleta']).merge(df_tgt, on=['Data', 'Atleta'])
-
-        if len(df_model) >= 5:
-            X, y = df_model[['t1', 't2']].values, df_model['target'].values
-            model = LinearRegression().fit(X, y)
-            score = model.score(X, y)
-            with st.expander(f"📚 Modello di Predizione (R² = {score:.2f})"):
-                df_model['Previsto'] = model.predict(X)
-                fig_pred = px.scatter(df_model, x='target', y='Previsto', template=THEME_TEMPLATE,
-                                       title="Reale vs Stimato")
-                m_min = min(df_model['target'].min(), df_model['Previsto'].min())
-                m_max = max(df_model['target'].max(), df_model['Previsto'].max())
-                fig_pred.add_trace(go.Scatter(x=[m_min, m_max], y=[m_min, m_max], mode='lines',
-                                               line=dict(dash='dash'), name='Previsione Perfetta'))
-                st.plotly_chart(fig_pred, use_container_width=True)
-
-            st.markdown("##### Simulatore Predittivo")
-            pred_col1, pred_col2 = st.columns(2)
-            val_t1 = pred_col1.number_input(f"{int(feat1)}m (sec):", value=float(df_model['t1'].median()), step=0.05)
-            val_t2 = pred_col2.number_input(f"{int(feat2)}m (sec):", value=float(df_model['t2'].median()), step=0.05)
-            predicted = model.predict([[val_t1, val_t2]])[0]
-            st.info(f"🏁 Potenziale sui **{int(target)}m** stimato: **{predicted:.2f} secondi**")
-        else:
-            st.warning("Almeno 5 corrispondenze necessarie (stessa data + atleta su tutte le distanze).")
-    else:
-        st.error("Distanze insufficienti.")
-
-# ══════════════════════════════════════════════════════════════════════
-# TAB 4 — TRANSFER E CORRELAZIONE (GYM ↔ CORSA)
-# ══════════════════════════════════════════════════════════════════════
-
-with tab4:
-    st.subheader("⚖️ Analisi Transfer (Impatto Palestra sulla Velocità)")
-    st.markdown("Questa sezione accoppia i carichi sollevati in palestra (es. Squat) con i tempi registrati in pista raggruppati mensilmente. Ti aiuta a comprendere matematicamente se all'aumentare dei tuoi massimali in sala pesi, diminuisce il tempo di scatto (Transfer Positivo).", help="I dati vengono raggruppati per Atleta e per Mese, questo per colmare la mancata simultaneità dei due allenamenti (spesso ci si allena in sala pesi in giornate diverse rispetto alla pista).")
-
-    if len(df_v) == 0 or len(df_r) == 0:
-        st.warning("Servono sia dati di corsa che dati di palestra per calcolare il transfer.")
-    else:
-        col_c1, col_c2 = st.columns(2)
-        vbt_exercises = sorted(df_v['Esercizio'].dropna().unique())
-        run_distances = [d for d in sorted(df_r['Distanza'].unique()) if d >= 20]
-        
-        default_vbt = "Squat" if "Squat" in vbt_exercises else (vbt_exercises[0] if vbt_exercises else "")
-        ex_choice = col_c1.selectbox("Esercizio VBT Riferimento", vbt_exercises, index=vbt_exercises.index(default_vbt) if default_vbt in vbt_exercises else 0)
-        
-        default_run = 60 if 60 in run_distances else (run_distances[0] if run_distances else 20)
-        dist_choice = col_c2.selectbox("Distanza di Sprint (Transfer)", run_distances, index=run_distances.index(default_run) if default_run in run_distances else 0)
-
-        df_r_sub = df_r[df_r['Distanza'] == dist_choice].copy()
-        df_v_sub = df_v[df_v['Esercizio'] == ex_choice].copy()
-        
-        if len(df_r_sub) > 0 and len(df_v_sub) > 0:
-            df_r_sub['Mese'] = df_r_sub['Data'].dt.to_period('M')
-            df_v_sub['Mese'] = df_v_sub['Data'].dt.to_period('M')
-
-            aggr_r = df_r_sub.groupby(['Atleta', 'Mese'])['Tempo'].mean().reset_index()
-            aggr_v = df_v_sub.groupby(['Atleta', 'Mese'])['Carico'].mean().reset_index()
-
-            merged = pd.merge(aggr_r, aggr_v, on=['Atleta', 'Mese'], how='inner')
-            merged['Mese_Str'] = merged['Mese'].astype(str)
+            last_d = max(last_r, last_v) if pd.notnull(last_r) and pd.notnull(last_v) else (last_r if pd.notnull(last_r) else last_v)
+            days_ago = (pd.Timestamp.now().tz_localize(None) - last_d).days if pd.notnull(last_d) else 999
             
-            if len(merged) < 3:
-                st.info("Punti di congiunzione insufficienti per l'esercizio e sprint scelti nello stesso mese. Servono almeno 3 campioni medi mensili per attivare l'intelligenza analitica. Prova altre distanze/esercizi.")
+            if days_ago <= 3:
+                stato = "🔥 Picco"
+                color = "#E8FF3A"
+                c_badge = "background: rgba(232,255,58,0.1); color: #E8FF3A;"
+            elif days_ago <= 10:
+                stato = "✓ Buona"
+                color = "#16a34a"
+                c_badge = "background: rgba(22,163,74,0.1); color: #16a34a;"
+            elif days_ago <= 30:
+                stato = "⚠ Monitor"
+                color = "#FFB347"
+                c_badge = "background: rgba(255,179,71,0.1); color: #FFB347;"
             else:
-                import scipy.stats as stats
-                fig_corr = px.scatter(
-                    merged, x='Carico', y='Tempo', color='Mese_Str',
-                    hover_data=['Atleta'], trendline="ols",
-                    title=f"Scatter Plot: {ex_choice} vs {dist_choice}m (Medie Mensili)",
-                    labels={'Carico': f'Carico Medio Sollevato (kg)', 'Tempo': f'Tempo Medio {dist_choice}m (s)', 'Mese_Str': 'Periodo'},
-                    template=THEME_TEMPLATE
-                )
-                fig_corr.update_layout(height=450)
+                stato = "🔴 Fermo"
+                color = "#FF6B6B"
+                c_badge = "background: rgba(255,107,107,0.1); color: #FF6B6B;"
                 
-                r_val, p_val = stats.pearsonr(merged['Carico'], merged['Tempo'])
-                
-                st.plotly_chart(fig_corr, use_container_width=True)
-                
-                # AI Testo Intepretativo
-                st.markdown("### 🤖 Sintesi Intelligenza Analitica")
-                if r_val < -0.3:
-                    txt = f"**Transfer Positivo (r = {r_val:.2f})**: C'è una correlazione inversa rilevante. I dati numerici indicano che all'aumentare dei carichi ({ex_choice}), i tempi sullo sprint ({dist_choice}m) tendono organicamente a **ridursi**."
-                elif r_val > 0.3:
-                    txt = f"**Transfer Negativo (r = {r_val:.2f})**: Attenzione, i dati indicano che storicamente, nelle finestre mensili con carichi di {ex_choice} più alti, i tempi sui {dist_choice}m si sono **alzati**. Valuta un possibile sovraffaticamento o perdita di brillantezza reattiva."
+            atl_run = df_running[mask_r]
+            highlight_txt = "-"
+            if len(atl_run) > 0:
+                if 100 in atl_run['Distanza'].values:
+                    pb = atl_run[atl_run['Distanza'] == 100]['Tempo'].min()
+                    highlight_txt = f"{pb:.2f}s (100m)"
+                elif 60 in atl_run['Distanza'].values:
+                    pb = atl_run[atl_run['Distanza'] == 60]['Tempo'].min()
+                    highlight_txt = f"{pb:.2f}s (60m)"
+            
+            if highlight_txt == "-" and len(df_vbt[mask_v]) > 0:
+                 highlight_txt = f"{len(df_vbt[mask_v])} sess. VBT"
+
+            roster_data.append({
+                'nome': atl,
+                'foto': f_url,
+                'stato': stato,
+                'color': color,
+                'c_badge': c_badge,
+                'highlight': highlight_txt
+            })
+            
+        roster_df = pd.DataFrame(roster_data)
+
+        # Barra di ricerca se > 10
+        if len(roster_df) > 10:
+            search_q = st.text_input("🔍 Cerca Atleta", placeholder="Cerca nome...", label_visibility="collapsed")
+            if search_q:
+                roster_df = roster_df[roster_df['nome'].str.contains(search_q, case=False, na=False)]
+        
+        # Grid System
+        cols = st.columns(3)
+        for i, row in roster_df.iterrows():
+            col = cols[i % 3]
+            with col.container(border=True):
+                if pd.notna(row['foto']) and str(row['foto']).strip() != "":
+                    av_html = f'''<div style="width:55px; height:55px; border-radius:50%; border:2px solid {row["color"]}; overflow:hidden; margin-bottom:10px;">
+                                    <img src="{row["foto"]}" style="width:100%; height:100%; object-fit:cover; display:block;">
+                                  </div>'''
                 else:
-                    txt = f"**Risposta Neutra (r = {r_val:.2f})**: In questo storico, la forza aspecifica ({ex_choice}) è variata senza impattare linearmente o costantemente sull'espressione pura di sprint ({dist_choice}m)."
-                    
-                st.info(txt)
-        else:
-            st.warning("Non ci sono dati a sufficienza per operare questa correlazione specifica.")
-
-# ══════════════════════════════════════════════════════════════════════
-# TAB 5 — PB & GARE
-# ══════════════════════════════════════════════════════════════════════
-
-with tab5:
-    st.subheader("🏅 Storico Gare Ufficiali e Personal Best")
-    
-    from supabase_connector import get_gare_ufficiali
-    if selected_athlete == "Tutta la squadra":
-        df_gare = get_gare_ufficiali()
-    else:
-        # We need the athlete id. 
-        # atleta_info should be available in the 'if selected_athlete != "Tutta la squadra"' scope.
-        if "atleta_info" in locals() and atleta_info:
-            df_gare = get_gare_ufficiali(atleta_info["id"])
-        else:
-            df_gare = pd.DataFrame()
-
-    if st.session_state.authenticated and selected_athlete != "Tutta la squadra":
-        @st.dialog("Inserisci Risultato di Gara")
-        def render_pb_modal():
-            with st.form("form_gara", clear_on_submit=True):
-                g_spec = st.text_input("Specialità (es. 100m, Lungo)")
-                g_tempo = st.text_input("Tempo/Misura (es. 10.89, 7.54)")
-                g_vento = st.text_input("Vento (es. +1.2)", placeholder="opzionale")
-                g_luogo = st.text_input("Città/Luogo", placeholder="opzionale")
-                g_data = st.date_input("Data della Gara")
+                    inz = "".join([n[0] for n in row['nome'].split()[:2]]).upper()
+                    av_html = f'''<div style="width:55px; height:55px; border-radius:50%; border:2px solid {row["color"]}; background:#14171E; color:#FFF; font-family:'DM Mono', monospace; font-size:20px; font-weight:bold; display:flex; align-items:center; justify-content:center; margin-bottom:10px;">
+                                    {inz}
+                                  </div>'''
                 
-                if st.form_submit_button("✅ Salva Risultato", type="primary", use_container_width=True):
-                    if g_spec.strip() and g_tempo.strip():
-                        from supabase_connector import insert_gara_ufficiale
-                        ok = insert_gara_ufficiale(selected_athlete, g_spec.strip(), g_tempo.strip(), g_vento.strip(), g_luogo.strip(), g_data.strftime("%Y-%m-%d"))
-                        if ok:
-                            st.success("✅ Risultato di gara registrato!")
+                st.markdown(f'''
+                <div>
+                    {av_html}
+                    <div style="font-weight:600; font-size:1.1em; line-height:1.2; margin-bottom:2px;">{row["nome"]}</div>
+                    <div style="font-size:0.8em; color:rgba(255,255,255,0.5); margin-bottom:8px;">Velocità</div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:10px; padding:2px 6px; border-radius:4px; font-family:'DM Mono'; {row["c_badge"]}">{row["stato"]}</span>
+                        <span style="font-size:11px; color:#fff; font-family:'DM Mono'; font-weight:bold;">{row["highlight"]}</span>
+                    </div>
+                </div>
+                ''', unsafe_allow_html=True)
+                
+                if st.button("Vai", key=f"nav_{row['nome']}", use_container_width=True):
+                    st.session_state.app_athlete = row['nome']
+                    st.session_state.current_page = "Dettaglio Atleta"
+                    st.rerun()
+
+        if st.session_state.authenticated:
+            @st.dialog("Registra Nuovo Atleta")
+            def render_new_atleta_modal():
+                with st.form("new_atleta_form", clear_on_submit=True):
+                    st.markdown("**Inserisci il nuovo membro della squadra**")
+                    n1, n2 = st.columns(2)
+                    nome = n1.text_input("Nome")
+                    cognome = n2.text_input("Cognome")
+                    spec = st.text_input("Specialità (es. Velocità, Salti)", value="Velocità")
+                    if st.form_submit_button("✅ Registra Atleta", type="primary", use_container_width=True):
+                        if nome.strip() and cognome.strip():
+                            from supabase_connector import upsert_atleta
+                            upsert_atleta(nome.strip(), cognome.strip(), spec.strip())
+                            st.success("✅ Completato! (Ricaricamento...)")
                             st.cache_data.clear()
                             st.rerun()
                         else:
-                            st.error("Errore nel salvataggio del PB.")
-                    else:
-                        st.error("Inserisci Specialità e Tempo.")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("➕ Registra Nuovo PB/Gara", type="primary", use_container_width=True):
-            render_pb_modal()
+                            st.error("⚠️ Inserisci Nome e Cognome.")
+                            
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("➕ Aggiungi Nuovo Atleta", use_container_width=True):
+                render_new_atleta_modal()
+
+# ──────────────────────────────────────────────────────────────────────
+# DETTAGLIO ATLETA (TABS PRINCIPALI)
+# ──────────────────────────────────────────────────────────────────────
+
+if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
+    tab_labels = ["⚡ Analisi Velocità", "💪 Forza (VBT)",
+                  "📊 Predizioni ML", "⚖️ Transfer", "🏅 PB & Gare"]
+    
+    tabs = st.tabs(tab_labels)
+    tab1, tab2, tab3, tab4, tab5 = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
+
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TAB 1 — ANALISI VELOCITÀ
+    # ══════════════════════════════════════════════════════════════════════
+
+    with tab1:
+        if len(df_r) == 0:
+            st.warning("Nessun dato di corsa nel periodo/filtri selezionati.")
+        else:
+            st.subheader("📈 Trend dei Tempi per Distanza")
+
+            if selected_athlete == "Tutta la squadra":
+                trend_df = df_r.groupby(['Data', 'Distanza'])['Tempo'].mean().reset_index()
+                trend_df['Tipo'] = 'Media squadra'
+            else:
+                trend_df = df_r.copy()
+                trend_df['Tipo'] = selected_athlete
+
+            trend_parts = []
+            for dist in sorted(trend_df['Distanza'].unique()):
+                sub = trend_df[trend_df['Distanza'] == dist].sort_values('Data').copy()
+                sub['Media Mobile (3 ses.)'] = sub['Tempo'].rolling(window=3, min_periods=1).mean()
+                trend_parts.append(sub)
+
+            if trend_parts:
+                trend_all = pd.concat(trend_parts)
+                trend_all['Distanza (m)'] = trend_all['Distanza'].astype(int).astype(str) + "m"
+
+                hover_cols = None
+                if 'Note' in trend_all.columns and selected_athlete != "Tutta la squadra":
+                    hover_cols = ['Note']
+
+                fig_trend = px.line(
+                    trend_all, x='Data', y='Tempo', color='Distanza (m)', markers=True,
+                    hover_data=hover_cols, title="Evoluzione Cronometrica Assoluta (Distanze Chiave)",
+                    labels={'Tempo': 'Tempo (sec)', 'Data': 'Data Test'},
+                    template=THEME_TEMPLATE, color_discrete_sequence=NEON_COLORS
+                )
+                for dist in sorted(trend_all['Distanza'].unique()):
+                    sub = trend_all[trend_all['Distanza'] == dist].sort_values('Data')
+                    fig_trend.add_trace(go.Scatter(
+                        x=sub['Data'], y=sub['Media Mobile (3 ses.)'], mode='lines',
+                        line=dict(dash='dot', width=2), name=f"{int(dist)}m (Trend)", opacity=0.7
+                    ))
             
-    st.markdown("<br>", unsafe_allow_html=True)
-    if df_gare.empty:
-        st.info("Nessuna gara ufficiale registrata.")
-    else:
-        df_gare_disp = df_gare.copy()
-        if "atleta_id" in df_gare_disp.columns:
-            df_gare_disp = df_gare_disp.drop(columns=["atleta_id"])
+                # Nascondi le distanze meno comuni dalla visualizzazione base (evita l'effetto tela di ragno)
+                for trace in fig_trend.data:
+                    try:
+                        name_str = trace.name
+                        if 'Trend' in name_str:
+                            d_val = int(name_str.replace("m (Trend)", ""))
+                        else:
+                            d_val = int(name_str.replace("m", ""))
+                        # Lasciamo visibili le core distances classiche e nascondiamo le altre nella legenda
+                        if d_val not in [60, 100, 150, 200, 300, 400]:
+                            trace.visible = 'legendonly'
+                    except:
+                        pass
+                    
+                fig_trend.update_layout(height=500, hovermode='x unified',
+                                         legend=dict(orientation='h', y=-0.15), margin=dict(t=50))
+                st.plotly_chart(fig_trend, use_container_width=True)
+
+            col_pb, col_distr = st.columns([1.2, 1])
+
+            with col_pb:
+                with st.expander("🏆 Mostra Classifica Personal Best (PB)", expanded=False):
+                    if selected_athlete == "Tutta la squadra":
+                        pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
+                        pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
+                        pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
+                        st.dataframe(pb_pivot.style.highlight_min(axis=0, color='#90e0ef')
+                                     .highlight_max(axis=0, color='#fde2e4').format("{:.2f}s"),
+                                     use_container_width=True, height=350)
+                    else:
+                        pb_df = df_r.groupby('Distanza').agg(
+                            Miglior_Tempo=('Tempo', 'min'),
+                            Data_Primo_PB=('Tempo', lambda x: df_r.loc[x.idxmin(), 'Data']),
+                            Note=('Tempo', lambda x: df_r.loc[x.idxmin(), 'Note'] if 'Note' in df_r.columns else ""),
+                            Tempo_Medio=('Tempo', 'mean'),
+                            Prove_Totali=('Tempo', 'count'),
+                        ).reset_index()
+                        if 'Note' in pb_df.columns and pb_df['Note'].astype(str).str.strip().eq("").all():
+                            pb_df = pb_df.drop(columns=['Note'])
+                        pb_df['Distanza'] = pb_df['Distanza'].astype(int).astype(str) + "m"
+                        pb_df['Data_Primo_PB'] = pb_df['Data_Primo_PB'].dt.strftime('%d/%m/%Y')
+                        st.dataframe(pb_df.style.format({'Miglior_Tempo': '{:.2f}', 'Tempo_Medio': '{:.2f}'})
+                                     .highlight_min(subset=['Miglior_Tempo'], color='#90e0ef'),
+                                     use_container_width=True, height=350)
+
+            with col_distr:
+                with st.expander("📊 Consistenza delle Rilevazioni (Boxplot)", expanded=False):
+                    df_r_copy = df_r.copy()
+                    df_r_copy['Distanza (m)'] = df_r_copy['Distanza'].astype(int).astype(str) + "m"
+                    fig_box = px.box(df_r_copy, x='Distanza (m)', y='Tempo', color='Distanza (m)',
+                                      hover_data=['Note'] if 'Note' in df_r_copy.columns else None,
+                                      template=THEME_TEMPLATE, title="Dispersione dei Tempi",
+                                      labels={'Tempo': 'Tempo (sec)'},
+                                      color_discrete_sequence=NEON_COLORS)
+                    fig_box.update_layout(showlegend=False, height=350, margin=dict(t=50))
+                    st.plotly_chart(fig_box, use_container_width=True)
+
+            if selected_athlete != "Tutta la squadra":
+                st.divider()
+                with st.expander("📖 Esplora Storico Risultati Completo", expanded=False):
+                    st.markdown("Tutte le prestazioni registrate dall'atleta, raggruppate per distanza. **Ordinate dalla più vecchia alla più recente.** *(I filtri distanze e date del menù laterale non influenzano questa tabella, quindi potrai vedere sempre lo storico completo).*")
+                
+                    df_storico = df_running[df_running['Atleta'] == selected_athlete].copy()
+                    if not df_storico.empty:
+                        df_storico = df_storico.sort_values('Data', ascending=True)
+                        df_storico['Data'] = df_storico['Data'].dt.strftime('%d/%m/%Y')
+                    
+                        distanze = sorted(df_storico['Distanza'].unique())
+                        for d in distanze:
+                            sub_df = df_storico[df_storico['Distanza'] == d][['Data', 'Tempo', 'Note']]
+                            migliore = sub_df['Tempo'].min()
+                            num_prove = len(sub_df)
+                            st.markdown(f"**🏃 {int(d)}m** — {num_prove} prove | PB: {migliore:.2f}s")
+                            st.dataframe(sub_df, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Nessuna prova presente per questo atleta.")
+
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TAB 2 — FORZA E POTENZA (VBT)
+    # ══════════════════════════════════════════════════════════════════════
+
+    with tab2:
+        if len(df_v) == 0:
+            st.warning("Nessun dato VBT nel periodo/filtri selezionati.")
+        else:
+            df_v_ex = df_v[df_v['Esercizio'] != 'General'].copy()
+            if len(df_v_ex) == 0:
+                st.info("Solo record 'General' presenti. Seleziona esercizi specifici nella sidebar.")
+            else:
+                col_vbt1, col_vbt2 = st.columns(2)
+
+                with col_vbt1:
+                    st.subheader("🏋️ Massimali Stimati (Picco)")
+                    with st.expander("Dettagli grafici a barre"):
+                        st.write("Mostra i picchi massimi registrati nel periodo per ciascun esercizio.")
+
+                    if selected_athlete == "Tutta la squadra":
+                        agg_df = df_v_ex.groupby(['Atleta', 'Esercizio']).agg(
+                            Potenza_max=('Potenza_max', 'max'), Forza_max=('Forza_max', 'max')
+                        ).reset_index()
+                        color_col = 'Atleta'
+                    else:
+                        agg_df = df_v_ex.groupby('Esercizio').agg(
+                            Potenza_max=('Potenza_max', 'max'), Forza_max=('Forza_max', 'max')
+                        ).reset_index()
+                        color_col = 'Esercizio'
+
+                    fig_bar = px.bar(agg_df, x='Esercizio', y='Potenza_max', color=color_col,
+                                      barmode='group', template=THEME_TEMPLATE,
+                                      title="Massima Espressione di Potenza (Watt)",
+                                      color_discrete_sequence=NEON_COLORS)
+                    fig_bar.update_layout(height=CHART_HEIGHT - 50)
+                    st.plotly_chart(fig_bar, use_container_width=True)
+
+                    fig_forza = px.bar(agg_df, x='Esercizio', y='Forza_max', color=color_col,
+                                        barmode='group', template=THEME_TEMPLATE,
+                                        title="Massima Espressione di Forza (Newton)",
+                                        color_discrete_sequence=NEON_COLORS)
+                    fig_forza.update_layout(height=CHART_HEIGHT - 50)
+                    st.plotly_chart(fig_forza, use_container_width=True)
+
+                with col_vbt2:
+                    st.subheader("📉 Profilo Forza–Velocità")
+                    sel_ex = st.selectbox("Analizza la curva di un esercizio:",
+                                           options=sorted(df_v_ex['Esercizio'].unique()))
+                    scatter_df = df_v_ex[df_v_ex['Esercizio'] == sel_ex].dropna(subset=['Carico', 'Vel_media'])
+
+                    if len(scatter_df) > 0:
+                        fig_scatter = px.scatter(
+                            scatter_df, x='Carico', y='Vel_media',
+                            color='Atleta' if selected_athlete == "Tutta la squadra" else None,
+                            size='Potenza_media', template=THEME_TEMPLATE, hover_data=['Data'],
+                            labels={'Carico': 'Carico (kg)', 'Vel_media': 'Velocità Media (m/s)'},
+                            trendline='ols', color_discrete_sequence=NEON_COLORS
+                        )
+                        fig_scatter.update_layout(height=CHART_HEIGHT)
+                        st.plotly_chart(fig_scatter, use_container_width=True)
+
+                        from scipy import stats
+                        slope, intercept, r_val, p_val, se = stats.linregress(scatter_df['Carico'], scatter_df['Vel_media'])
+                        with st.expander("📊 Dettagli Modello (M.Q.O.)"):
+                            st.code(f"Velocità = {slope:.4f} * Carico(kg) + {intercept:.2f}\nR² (Affidabilità): {r_val**2:.3f}")
+                    else:
+                        st.info("Dati insufficienti per tracciare la curva.")
+
+                st.divider()
+                st.subheader("📈 Progressione VBT Temporale")
+                metric_choice = st.radio("Metrica:", ['Vel_media', 'Vel_max', 'Potenza_media', 'Potenza_max', 'Forza_max'],
+                                          format_func=lambda x: x.replace('_', ' ').title(), horizontal=True)
+                vbt_trend = df_v_ex.dropna(subset=['Data', metric_choice])
+                if len(vbt_trend) > 0:
+                    vbt_agg = vbt_trend.groupby(['Data', 'Esercizio'])[metric_choice].mean().reset_index()
+                    fig_vbt_trend = px.line(vbt_agg, x='Data', y=metric_choice, color='Esercizio',
+                                             markers=True, template=THEME_TEMPLATE,
+                                             color_discrete_sequence=NEON_COLORS)
+                    fig_vbt_trend.update_layout(height=400)
+                    st.plotly_chart(fig_vbt_trend, use_container_width=True)
+
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TAB 3 — CORRELAZIONI E PROIEZIONI
+    # ══════════════════════════════════════════════════════════════════════
+
+    with tab3:
+        st.subheader("🔗 Correlazione: Palestra ↔ Pista")
+        st.markdown("Verifica se un miglioramento di forza/potenza corrisponde a un calo cronometrico.")
+
+        col_corr1, col_corr2 = st.columns(2)
+        with col_corr1:
+            corr_dist = st.selectbox("Corsa: Distanza (Asse Y)",
+                                       options=[d for d in sorted(df_running['Distanza'].unique()) if d <= 200],
+                                       index=min(2, len([d for d in sorted(df_running['Distanza'].unique()) if d <= 200]) - 1),
+                                       format_func=lambda x: f"{int(x)}m")
+        with col_corr2:
+            corr_metric = st.selectbox("Palestra: Metrica VBT (Asse X)",
+                                        options=['Potenza_max', 'Vel_max', 'Forza_max', 'Carico'],
+                                        format_func=lambda x: x.replace('_', ' ').title())
+
+        df_r_all = df_running[df_running['Distanza'] == corr_dist].copy()
+        df_r_all['Mese'] = df_r_all['Data'].dt.to_period('M').astype(str)
+        running_monthly = df_r_all.groupby(['Atleta', 'Mese'])['Tempo'].mean().reset_index()
+
+        df_v_all = df_vbt[df_vbt['Esercizio'] != 'General'].copy()
+        df_v_all['Mese'] = df_v_all['Data'].dt.to_period('M').astype(str)
+        vbt_monthly = df_v_all.groupby(['Atleta', 'Mese'])[corr_metric].mean().reset_index()
+
+        merged = running_monthly.merge(vbt_monthly, on=['Atleta', 'Mese'], how='inner')
+
+        if len(merged) > 3:
+            fig_corr = px.scatter(merged, x=corr_metric, y='Tempo', color='Atleta',
+                                   hover_data=['Mese'], template=THEME_TEMPLATE,
+                                   title="Analisi di Correlazione Assoluta",
+                                   trendline='ols', color_discrete_sequence=NEON_COLORS)
+            fig_corr.update_layout(height=450)
+            st.plotly_chart(fig_corr, use_container_width=True)
+
+            from scipy import stats as sp_stats
+            slope, intercept, r_val, p_val, se = sp_stats.linregress(merged[corr_metric], merged['Tempo'])
+            if slope < 0 and p_val < 0.05:
+                st.success(f"✅ Relazione inversa forte (Forza↑ → Tempo↓). R²={r_val**2:.2f}, p={p_val:.3f}")
+            elif slope < 0:
+                st.info(f"ℹ️ Tendenza corretta, dati non statisticamente forti (p={p_val:.3f}).")
+            else:
+                st.warning("⚠️ Nessun transfer positivo rilevato nel periodo.")
+        else:
+            st.info("Punti insufficienti per la correlazione.")
+
+        st.divider()
+        st.subheader("🔮 Modello Lineare di Predizione (Gara)")
+        available_dists = sorted(df_running['Distanza'].unique())
+        short_dists = [d for d in available_dists if d <= 100]
+        long_dists = [d for d in available_dists if d >= 60]
+
+        if len(short_dists) >= 2 and len(long_dists) >= 1:
+            col_p1, col_p2, col_p3 = st.columns(3)
+            feat1 = col_p1.selectbox("Parziale 1", short_dists, index=0, format_func=lambda x: f"{int(x)}m")
+            feat2 = col_p2.selectbox("Parziale 2", [d for d in short_dists if d != feat1], index=0, format_func=lambda x: f"{int(x)}m")
+            target = col_p3.selectbox("Target Gara", [d for d in long_dists if d > max(feat1, feat2)], format_func=lambda x: f"{int(x)}m")
+
+            df_f1 = df_running[df_running['Distanza'] == feat1][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 't1'})
+            df_f2 = df_running[df_running['Distanza'] == feat2][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 't2'})
+            df_tgt = df_running[df_running['Distanza'] == target][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 'target'})
+            df_model = df_f1.merge(df_f2, on=['Data', 'Atleta']).merge(df_tgt, on=['Data', 'Atleta'])
+
+            if len(df_model) >= 5:
+                X, y = df_model[['t1', 't2']].values, df_model['target'].values
+                model = LinearRegression().fit(X, y)
+                score = model.score(X, y)
+                with st.expander(f"📚 Modello di Predizione (R² = {score:.2f})"):
+                    df_model['Previsto'] = model.predict(X)
+                    fig_pred = px.scatter(df_model, x='target', y='Previsto', template=THEME_TEMPLATE,
+                                           title="Reale vs Stimato")
+                    m_min = min(df_model['target'].min(), df_model['Previsto'].min())
+                    m_max = max(df_model['target'].max(), df_model['Previsto'].max())
+                    fig_pred.add_trace(go.Scatter(x=[m_min, m_max], y=[m_min, m_max], mode='lines',
+                                                   line=dict(dash='dash'), name='Previsione Perfetta'))
+                    st.plotly_chart(fig_pred, use_container_width=True)
+
+                st.markdown("##### Simulatore Predittivo")
+                pred_col1, pred_col2 = st.columns(2)
+                val_t1 = pred_col1.number_input(f"{int(feat1)}m (sec):", value=float(df_model['t1'].median()), step=0.05)
+                val_t2 = pred_col2.number_input(f"{int(feat2)}m (sec):", value=float(df_model['t2'].median()), step=0.05)
+                predicted = model.predict([[val_t1, val_t2]])[0]
+                st.info(f"🏁 Potenziale sui **{int(target)}m** stimato: **{predicted:.2f} secondi**")
+            else:
+                st.warning("Almeno 5 corrispondenze necessarie (stessa data + atleta su tutte le distanze).")
+        else:
+            st.error("Distanze insufficienti.")
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TAB 4 — TRANSFER E CORRELAZIONE (GYM ↔ CORSA)
+    # ══════════════════════════════════════════════════════════════════════
+
+    with tab4:
+        st.subheader("⚖️ Analisi Transfer (Impatto Palestra sulla Velocità)")
+        st.markdown("Questa sezione accoppia i carichi sollevati in palestra (es. Squat) con i tempi registrati in pista raggruppati mensilmente. Ti aiuta a comprendere matematicamente se all'aumentare dei tuoi massimali in sala pesi, diminuisce il tempo di scatto (Transfer Positivo).", help="I dati vengono raggruppati per Atleta e per Mese, questo per colmare la mancata simultaneità dei due allenamenti (spesso ci si allena in sala pesi in giornate diverse rispetto alla pista).")
+
+        if len(df_v) == 0 or len(df_r) == 0:
+            st.warning("Servono sia dati di corsa che dati di palestra per calcolare il transfer.")
+        else:
+            col_c1, col_c2 = st.columns(2)
+            vbt_exercises = sorted(df_v['Esercizio'].dropna().unique())
+            run_distances = [d for d in sorted(df_r['Distanza'].unique()) if d >= 20]
         
-        # Pretty display in dataframe
-        st.dataframe(df_gare_disp, use_container_width=True, hide_index=True)
+            default_vbt = "Squat" if "Squat" in vbt_exercises else (vbt_exercises[0] if vbt_exercises else "")
+            ex_choice = col_c1.selectbox("Esercizio VBT Riferimento", vbt_exercises, index=vbt_exercises.index(default_vbt) if default_vbt in vbt_exercises else 0)
+        
+            default_run = 60 if 60 in run_distances else (run_distances[0] if run_distances else 20)
+            dist_choice = col_c2.selectbox("Distanza di Sprint (Transfer)", run_distances, index=run_distances.index(default_run) if default_run in run_distances else 0)
 
-st.divider()
+            df_r_sub = df_r[df_r['Distanza'] == dist_choice].copy()
+            df_v_sub = df_v[df_v['Esercizio'] == ex_choice].copy()
+        
+            if len(df_r_sub) > 0 and len(df_v_sub) > 0:
+                df_r_sub['Mese'] = df_r_sub['Data'].dt.to_period('M')
+                df_v_sub['Mese'] = df_v_sub['Data'].dt.to_period('M')
 
-# ──────────────────────────────────────────────────────────────────────
-# ESPORTAZIONE DATI (CSV)
-# ──────────────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-div[data-testid="stExpander"] {
-    border-color: rgba(232,255,58,0.3) !important;
-}
-div[data-testid="stExpander"] summary {
-    color: #E8FF3A !important;
-}
-</style>
-""", unsafe_allow_html=True)
+                aggr_r = df_r_sub.groupby(['Atleta', 'Mese'])['Tempo'].mean().reset_index()
+                aggr_v = df_v_sub.groupby(['Atleta', 'Mese'])['Carico'].mean().reset_index()
 
-with st.expander("📥 Export Dati (CSV)"):
-    st.markdown("Scarica i record filtrati (per atleta e date selezionate).")
-    e_col1, e_col2, e_col3 = st.columns([1,1,2])
-    with e_col1:
-        st.download_button("🏃 Scarica CSV Corsa", data=convert_df_to_csv(df_r), file_name='dataset_corsa.csv', mime='text/csv')
-    with e_col2:
-        st.download_button("🏋️ Scarica CSV VBT", data=convert_df_to_csv(df_v), file_name='dataset_vbt.csv', mime='text/csv')
+                merged = pd.merge(aggr_r, aggr_v, on=['Atleta', 'Mese'], how='inner')
+                merged['Mese_Str'] = merged['Mese'].astype(str)
+            
+                if len(merged) < 3:
+                    st.info("Punti di congiunzione insufficienti per l'esercizio e sprint scelti nello stesso mese. Servono almeno 3 campioni medi mensili per attivare l'intelligenza analitica. Prova altre distanze/esercizi.")
+                else:
+                    import scipy.stats as stats
+                    fig_corr = px.scatter(
+                        merged, x='Carico', y='Tempo', color='Mese_Str',
+                        hover_data=['Atleta'], trendline="ols",
+                        title=f"Scatter Plot: {ex_choice} vs {dist_choice}m (Medie Mensili)",
+                        labels={'Carico': f'Carico Medio Sollevato (kg)', 'Tempo': f'Tempo Medio {dist_choice}m (s)', 'Mese_Str': 'Periodo'},
+                        template=THEME_TEMPLATE
+                    )
+                    fig_corr.update_layout(height=450)
+                
+                    r_val, p_val = stats.pearsonr(merged['Carico'], merged['Tempo'])
+                
+                    st.plotly_chart(fig_corr, use_container_width=True)
+                
+                    # AI Testo Intepretativo
+                    st.markdown("### 🤖 Sintesi Intelligenza Analitica")
+                    if r_val < -0.3:
+                        txt = f"**Transfer Positivo (r = {r_val:.2f})**: C'è una correlazione inversa rilevante. I dati numerici indicano che all'aumentare dei carichi ({ex_choice}), i tempi sullo sprint ({dist_choice}m) tendono organicamente a **ridursi**."
+                    elif r_val > 0.3:
+                        txt = f"**Transfer Negativo (r = {r_val:.2f})**: Attenzione, i dati indicano che storicamente, nelle finestre mensili con carichi di {ex_choice} più alti, i tempi sui {dist_choice}m si sono **alzati**. Valuta un possibile sovraffaticamento o perdita di brillantezza reattiva."
+                    else:
+                        txt = f"**Risposta Neutra (r = {r_val:.2f})**: In questo storico, la forza aspecifica ({ex_choice}) è variata senza impattare linearmente o costantemente sull'espressione pura di sprint ({dist_choice}m)."
+                    
+                    st.info(txt)
+            else:
+                st.warning("Non ci sono dati a sufficienza per operare questa correlazione specifica.")
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TAB 5 — PB & GARE
+    # ══════════════════════════════════════════════════════════════════════
+
+    with tab5:
+        st.subheader("🏅 Storico Gare Ufficiali e Personal Best")
+    
+        from supabase_connector import get_gare_ufficiali
+        if selected_athlete == "Tutta la squadra":
+            df_gare = get_gare_ufficiali()
+        else:
+            # We need the athlete id. 
+            # atleta_info should be available in the 'if selected_athlete != "Tutta la squadra"' scope.
+            if "atleta_info" in locals() and atleta_info:
+                df_gare = get_gare_ufficiali(atleta_info["id"])
+            else:
+                df_gare = pd.DataFrame()
+
+        if st.session_state.authenticated and selected_athlete != "Tutta la squadra":
+            @st.dialog("Inserisci Risultato di Gara")
+            def render_pb_modal():
+                with st.form("form_gara", clear_on_submit=True):
+                    g_spec = st.text_input("Specialità (es. 100m, Lungo)")
+                    g_tempo = st.text_input("Tempo/Misura (es. 10.89, 7.54)")
+                    g_vento = st.text_input("Vento (es. +1.2)", placeholder="opzionale")
+                    g_luogo = st.text_input("Città/Luogo", placeholder="opzionale")
+                    g_data = st.date_input("Data della Gara")
+                
+                    if st.form_submit_button("✅ Salva Risultato", type="primary", use_container_width=True):
+                        if g_spec.strip() and g_tempo.strip():
+                            from supabase_connector import insert_gara_ufficiale
+                            ok = insert_gara_ufficiale(selected_athlete, g_spec.strip(), g_tempo.strip(), g_vento.strip(), g_luogo.strip(), g_data.strftime("%Y-%m-%d"))
+                            if ok:
+                                st.success("✅ Risultato di gara registrato!")
+                                st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error("Errore nel salvataggio del PB.")
+                        else:
+                            st.error("Inserisci Specialità e Tempo.")
+        
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("➕ Registra Nuovo PB/Gara", type="primary", use_container_width=True):
+                render_pb_modal()
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        if df_gare.empty:
+            st.info("Nessuna gara ufficiale registrata.")
+        else:
+            df_gare_disp = df_gare.copy()
+            if "atleta_id" in df_gare_disp.columns:
+                df_gare_disp = df_gare_disp.drop(columns=["atleta_id"])
+        
+            # Pretty display in dataframe
+            st.dataframe(df_gare_disp, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # ──────────────────────────────────────────────────────────────────────
+    # ESPORTAZIONE DATI (CSV)
+    # ──────────────────────────────────────────────────────────────────────
+    st.markdown("""
+    <style>
+    div[data-testid="stExpander"] {
+        border-color: rgba(232,255,58,0.3) !important;
+    }
+    div[data-testid="stExpander"] summary {
+        color: #E8FF3A !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    with st.expander("📥 Export Dati (CSV)"):
+        st.markdown("Scarica i record filtrati (per atleta e date selezionate).")
+        e_col1, e_col2, e_col3 = st.columns([1,1,2])
+        with e_col1:
+            st.download_button("🏃 Scarica CSV Corsa", data=convert_df_to_csv(df_r), file_name='dataset_corsa.csv', mime='text/csv')
+        with e_col2:
+            st.download_button("🏋️ Scarica CSV VBT", data=convert_df_to_csv(df_v), file_name='dataset_vbt.csv', mime='text/csv')
 
 
-st.caption("Dashboard Atletica · v3 Cloud · Powered by Supabase + Streamlit")
+    st.caption("Dashboard Atletica · v3 Cloud · Powered by Supabase + Streamlit")
