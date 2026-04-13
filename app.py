@@ -793,8 +793,8 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
     c3 = make_kpi_card("Record (VBT)", len(df_v), f"↑ {nuovi_vbt} freschi" if nuovi_vbt > 0 else "Nessun nuovo PB", "pos" if nuovi_vbt > 0 else "neu", "🏋️")
     c4 = make_kpi_card("Atleti a Sistema", df_r['Atleta'].nunique() if len(df_r) > 0 else 0, "Attivi nel periodo", "neu", "👥")
     
-    c5 = make_kpi_card("Atleti in PB", len(atleti_pb), f"🌟 Formidabile" if atleti_pb > 0 else "Costanza", "pos" if atleti_pb > 0 else "neu", "🏅", "kpi-glow" if atleti_pb > 0 else "")
-    c6 = make_kpi_card("Inattivi (>7 gg)", len(inattivi), "Da richiamare!" if inattivi else "Ottimi, nessuno fermo", "neg" if inattivi else "pos", "⚠️", "kpi-alert" if inattivi else "")
+    c5 = make_kpi_card("Atleti in PB", len(atleti_pb), f"🌟 Formidabile" if len(atleti_pb) > 0 else "Costanza", "pos" if len(atleti_pb) > 0 else "neu", "🏅", "kpi-glow" if len(atleti_pb) > 0 else "")
+    c6 = make_kpi_card("Inattivi (>7 gg)", len(inattivi), "Da richiamare!" if len(inattivi) > 0 else "Ottimi, nessuno fermo", "neg" if len(inattivi) > 0 else "pos", "⚠️", "kpi-alert" if len(inattivi) > 0 else "")
     c7 = make_kpi_card("Media (Sett.)", f"{media_sess:.1f}", "Sess / Atleta", "neu", "📉")
     c8 = make_kpi_card("Volume Squadra", f"{km_curr:.1f} km", f"↑ {delta_km:+.1f}km ({p_km:+.0f}%)" if delta_km > 0 else (f"↓ {delta_km:+.1f}km ({p_km:+.0f}%)" if delta_km < 0 else "Invariato"), "pos" if delta_km > 0 else ("neg" if delta_km < 0 else "neu"), "🛣️")
 
