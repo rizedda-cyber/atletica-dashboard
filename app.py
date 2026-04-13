@@ -698,7 +698,7 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
     if selected_athlete in velocisti_puri:
         is_400_runner = False
         
-    num_allenamenti = df_r['Data'].nunique() if len(df_r) > 0 else 0
+    num_allenamenti = df_r['Data'].dt.date.nunique() if len(df_r) > 0 else 0
     kpi1.metric("Allenamenti In Pista", f"{num_allenamenti} sessioni")
     
     if is_400_runner:
@@ -733,9 +733,9 @@ elif st.session_state.current_page == "Home":
     mask_prev_v = (df_vbt['Data'].dt.date >= prev_start_d.date()) & (df_vbt['Data'].dt.date <= prev_end_d.date())
     df_v_prev = df_vbt[mask_prev_v]
 
-    # KPI 1. Sessioni (con Delta)
-    sess_curr = df_r['Data'].nunique() if len(df_r) > 0 else 0
-    sess_prev = df_r_prev['Data'].nunique() if len(df_r_prev) > 0 else 0
+    # KPI 1. Sessioni (Presenze Atleti, calcolato come combinazioni Atleta-Giorno)
+    sess_curr = df_r.groupby(['Atleta', df_r['Data'].dt.date]).ngroups if len(df_r) > 0 else 0
+    sess_prev = df_r_prev.groupby(['Atleta', df_r_prev['Data'].dt.date]).ngroups if len(df_r_prev) > 0 else 0
     delta_sess = sess_curr - sess_prev
 
     # KPI 2. Prove
