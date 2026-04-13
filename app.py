@@ -23,6 +23,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from sklearn.linear_model import LinearRegression
 from pathlib import Path
 from data_loader import load_all_data
@@ -797,6 +798,127 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
         c4 = make_kpi_card("Record 200m", f"{d3:.2f}s" if d3 != "-" else "-", "Miglior Tempo", "neu" if d3 == "-" else "pos", "🔥", "kpi-glow" if d3 != "-" else "")
         
     st.markdown(f'<div class="kpi-grid">{c1}{c2}{c3}{c4}</div>', unsafe_allow_html=True)
+
+    # ──────────────────────────────────────────────────────────────────
+    # NUOVA SEZIONE: TONNELLAGGIO VS PERFORMANCE
+    # ──────────────────────────────────────────────────────────────────
+    st.markdown("<hr class='gold'>", unsafe_allow_html=True)
+    
+    col_t_title, col_t_sel = st.columns([3, 1])
+    with col_t_title:
+        st.markdown("<h3 style='margin-bottom: 0;'>🏋️ Analisi Tonnellaggio vs Performance</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='color:rgba(255,255,255,0.5); font-size: 0.95em; margin-top: 5px;'>Impatto del volume di pesistica (kg totali sollevati a settimana) sui miglioramenti cronometrici in pista.</p>", unsafe_allow_html=True)
+    with col_t_sel:
+        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+        dist_ref = st.selectbox("Distanza Gara (Pista)", options=[60, 80, 100, 150, 200, 300, 400], index=0)
+        
+    if not df_v.empty:
+        # Calcolo Tonnellaggio (Carico x Serie x Ripetizioni)
+        df_v_tonn = df_v.copy()
+        df_v_tonn['Carico'] = pd.to_numeric(df_v_tonn['Carico'], errors='coerce').fillna(0)
+        df_v_tonn['Serie'] = pd.to_numeric(df_v_tonn['Serie'], errors='coerce').fillna(0)
+        df_v_tonn['Ripetizioni'] = pd.to_numeric(df_v_tonn['Ripetizioni'], errors='coerce').fillna(0)
+        df_v_tonn['Tonnellaggio'] = df_v_tonn['Carico'] * df_v_tonn['Serie'] * df_v_tonn['Ripetizioni']
+        
+        # Aggregazione per Settimana
+        df_v_tonn['Week'] = df_v_tonn['Data'].dt.to_period('W-MON').dt.start_time
+        tonn_weekly = df_v_tonn.groupby('Week')['Tonnellaggio'].sum().reset_index()
+        
+        # Tempi Corsa per Settimana
+        df_r_ref = df_r[df_r['Distanza'] == dist_ref].copy()
+        if not df_r_ref.empty:
+            df_r_ref['Week'] = df_r_ref['Data'].dt.to_period('W-MON').dt.start_time
+            time_weekly = df_r_ref.groupby('Week')['Tempo'].min().reset_index()
+        else:
+            time_weekly = pd.DataFrame(columns=['Week', 'Tempo'])
+            
+        merged = pd.merge(tonn_weekly, time_weekly, on='Week', how='outer').sort_values('Week').reset_index(drop=True)
+        
+        if not merged.empty:
+            merged['Week_Label'] = merged['Week'].dt.strftime('%d %b')
+            
+            best_time = merged['Tempo'].min()
+            merged['is_PB'] = merged['Tempo'] == best_time
+            
+            picco_kg = merged['Tonnellaggio'].max()
+            picco_kg_str = f"{picco_kg:,.0f} kg".replace(",", ".") if pd.notna(picco_kg) and picco_kg > 0 else "-"
+            best_time_str = f"{best_time:.2f}s" if pd.notna(best_time) else "-"
+            
+            k1 = make_kpi_card("Picco Volume VBT", picco_kg_str, "Massimale Settimanale", "neu", "🏋️", "kpi-glow")
+            k2 = make_kpi_card(f"Miglior {dist_ref}m Stagione", best_time_str, "Personal Best", "pos" if pd.notna(best_time) else "neu", "⚡", "kpi-glow" if pd.notna(best_time) else "")
+            
+            st.markdown(f'<div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">{k1}{k2}</div>', unsafe_allow_html=True)
+            
+            fig = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            fig.add_trace(
+                go.Bar(
+                    x=merged['Week_Label'], y=merged['Tonnellaggio'],
+                    name="Tonnellaggio (kg)",
+                    marker_color="rgba(74, 158, 255, 0.45)",
+                    marker_line_color="#4A9EFF",
+                    marker_line_width=2,
+                    opacity=1
+                ),
+                secondary_y=False,
+            )
+            
+            valid_times = merged.dropna(subset=['Tempo'])
+            if not valid_times.empty:
+                fig.add_trace(
+                    go.Scatter(
+                        x=valid_times['Week_Label'], y=valid_times['Tempo'],
+                        name=f"Tempo {dist_ref}m",
+                        mode='lines+markers',
+                        line=dict(color="#FFFFFF", width=3.5),
+                        marker=dict(size=8, color="#0A0D14", line=dict(width=2, color="#FFFFFF")),
+                        connectgaps=True
+                    ),
+                    secondary_y=True,
+                )
+                
+                pb_points = valid_times[valid_times['is_PB'] == True]
+                if not pb_points.empty:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=pb_points['Week_Label'], y=pb_points['Tempo'],
+                            mode='markers',
+                            name="Miglior Tempo",
+                            marker=dict(size=14, color="#B8FF8A", line=dict(width=3, color="rgba(184,255,138,0.3)")),
+                            showlegend=False
+                        ),
+                        secondary_y=True,
+                    )
+            
+            fig.update_layout(
+                template=THEME_TEMPLATE,
+                height=420,
+                margin=dict(l=0, r=0, t=10, b=30),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)"
+            )
+            
+            fig.update_yaxes(title_text="Volume (kg)", secondary_y=False, showgrid=False, zeroline=False, color="#4A9EFF")
+            if not valid_times.empty:
+                # Inverti asse in modo che i tempi minori (più veloci) siano verso l'alto
+                fig.update_yaxes(title_text=f"Tempo (s)", secondary_y=True, autorange="reversed", showgrid=True, gridcolor="rgba(255,255,255,0.05)", zeroline=False)
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.markdown(f'''
+            <div style="background: rgba(232,255,58,0.04); border: 1px solid rgba(232,255,58,0.15); border-left: 3px solid #E8FF3A; padding: 18px; border-radius: 12px; margin-top: 10px;">
+                <div style="font-family: 'DM Mono', monospace; font-size: 11px; color: #E8FF3A; letter-spacing: 2px; margin-bottom: 8px;">💡 INSIGHT ALLENATORE — L'EFFETTO LAG</div>
+                <p style="color: rgba(255,255,255,0.7); font-size: 14px; margin: 0; line-height: 1.5;">Osserva il divario temporale. In letteratura, il picco del tonnellaggio si manifesta fisiologicamente sotto forma di Personal Best in pista con un <strong>Lag (ritardo) che varia dalle 3 alle 8 settimane</strong> 
+                dopo aver effettuato un opportuno <span style="color:#FF9A3A; font-weight: bold;">ciclo di scarico</span> prima di gareggiare. Cerca di allineare gli scarichi al calo delle barre blu per sprigionare la performance.
+                </p>
+            </div>
+            ''', unsafe_allow_html=True)
+            
+        else:
+            st.info("Non ci sono dati sufficienti per incrociare tonnellaggio e tempi in questo periodo.")
+    else:
+        st.info("Nessuna sessione di pesistica (VBT) inserita per questo atleta nel periodo.")
 
 elif st.session_state.current_page == "Home":
     # ────────────────────────────────────────────────────────────────
