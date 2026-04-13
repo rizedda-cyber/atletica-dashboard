@@ -165,32 +165,68 @@ st.markdown("""
     
     [data-baseweb="tab-highlight"] { display: none !important; }
     
-    /* Menu Hamburger: Alta Visibilità (Supporta nuove versioni Streamlit) */
+    /* Pulsante ESPANDI MENU (Hamburger Header) */
     [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapsedControl"] {
+    [data-testid="stSidebarCollapsedControl"],
+    header button[kind="header"] {
         background-color: #E8FF3A !important;
-        border-radius: 50% !important;
-        padding: 10px !important;
+        border-radius: 8px !important;
+        padding: 5px 12px 5px 12px !important;
         margin: 10px 0 0 10px !important;
         opacity: 1 !important;
         box-shadow: 0 4px 15px rgba(232,255,58,0.5) !important;
         border: 2px solid #0A0D14 !important;
-        transform: scale(1.1);
+        width: auto !important;
+        height: auto !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         transition: all 0.2s ease;
     }
     
     [data-testid="collapsedControl"] svg,
-    [data-testid="stSidebarCollapsedControl"] svg {
+    [data-testid="stSidebarCollapsedControl"] svg,
+    header button[kind="header"] svg {
+        display: none !important;
+    }
+    
+    [data-testid="collapsedControl"]::after,
+    [data-testid="stSidebarCollapsedControl"]::after,
+    header button[kind="header"]::after {
+        content: "☰ ESPANDI" !important;
         color: #0A0D14 !important;
-        fill: #0A0D14 !important;
-        width: 30px !important;
-        height: 30px !important;
+        font-weight: 900 !important;
+        font-size: 15px !important;
+        font-family: 'DM Mono', monospace !important;
+        letter-spacing: 0.5px !important;
     }
     
     [data-testid="collapsedControl"]:hover,
-    [data-testid="stSidebarCollapsedControl"]:hover {
+    [data-testid="stSidebarCollapsedControl"]:hover,
+    header button[kind="header"]:hover {
         background-color: #d1e82e !important;
-        transform: scale(1.2);
+        transform: scale(1.05);
+    }
+
+    /* Pulsante COMPRIMI MENU (Dentro la Sidebar) */
+    section[data-testid="stSidebar"] header button {
+        background-color: #FF4B4B !important;
+        border-radius: 8px !important;
+        padding: 5px 12px !important;
+        width: auto !important;
+        height: auto !important;
+        border: 2px solid #0A0D14 !important;
+        margin-left: auto;
+    }
+    section[data-testid="stSidebar"] header button svg {
+        display: none !important;
+    }
+    section[data-testid="stSidebar"] header button::after {
+        content: "✖ COMPRIMI" !important;
+        color: white !important;
+        font-weight: 900 !important;
+        font-size: 13px !important;
+        font-family: inherit !important;
     }
 
     /* Premium Glass KPI Cards */
