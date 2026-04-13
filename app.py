@@ -127,22 +127,26 @@ st.markdown("""
 
     /* Tabs to Pill Buttons Style */
     [data-baseweb="tab-list"] {
-        gap: 12px;
+        gap: 8px;
         background-color: transparent !important;
+        overflow-x: auto !important;
+        padding-bottom: 15px !important; /* Spazio per la scrollbar */
     }
     [data-baseweb="tab"] {
-        background-color: rgba(255,255,255,0.05) !important;
-        border-radius: 12px !important;
-        padding: 5px 16px !important;
-        color: rgba(255,255,255,0.7) !important;
-        border: 1px solid rgba(255,255,255,0.1) !important;
+        background-color: #14171E !important;
+        border-radius: 8px !important;
+        padding: 12px 20px !important;
+        color: #FFFFFF !important;
+        border: 2px solid rgba(255,255,255,0.1) !important;
         font-family: 'DM Sans', sans-serif !important;
         font-weight: 700 !important;
+        font-size: 1.1em !important;
+        white-space: nowrap !important;
     }
     [data-baseweb="tab"][aria-selected="true"] {
         background-color: #E8FF3A !important;
         color: #0A0D14 !important;
-        border: none !important;
+        border: 2px solid #E8FF3A !important;
     }
     [data-baseweb="tab"]:hover {
         background-color: rgba(232,255,58,0.2) !important;
@@ -933,6 +937,7 @@ elif st.session_state.current_page == "Atleti":
                 if st.button("Vai", key=f"nav_{row['nome']}", use_container_width=True):
                     st.session_state.app_athlete = row['nome']
                     st.session_state.current_page = "Dettaglio Atleta"
+                    st.session_state.navigated_to_athlete = True
                     st.rerun()
 
         if st.session_state.authenticated:
@@ -963,6 +968,21 @@ elif st.session_state.current_page == "Atleti":
 # ──────────────────────────────────────────────────────────────────────
 
 if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
+    if st.session_state.get('navigated_to_athlete', False):
+        import streamlit.components.v1 as components
+        components.html("""
+            <script>
+                var parent = window.parent;
+                if (parent) {
+                    var mainView = parent.document.querySelector('.main');
+                    if (mainView) {
+                        mainView.scrollTo({top: 0, behavior: 'instant'});
+                    }
+                }
+            </script>
+        """, height=0, width=0)
+        st.session_state.navigated_to_athlete = False
+
     tab_labels = ["⚡ Analisi Velocità", "💪 Forza (VBT)",
                   "📊 Predizioni ML", "⚖️ Transfer", "🏅 PB & Gare"]
     
