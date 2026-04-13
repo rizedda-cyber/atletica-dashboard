@@ -178,8 +178,8 @@ st.markdown("""
     [data-testid="stSidebarCollapsedControl"] {
         background-color: #E8FF3A !important;
         border-radius: 8px !important;
-        padding: 5px 12px 5px 12px !important;
-        margin: 10px 0 0 10px !important;
+        padding: 5px 12px !important;
+        margin: 5px !important;
         opacity: 1 !important;
         box-shadow: 0 4px 15px rgba(232,255,58,0.5) !important;
         border: 2px solid #0A0D14 !important;
@@ -189,9 +189,6 @@ st.markdown("""
         align-items: center !important;
         justify-content: center !important;
         transition: all 0.2s ease;
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
         z-index: 999999 !important;
     }
     
