@@ -1553,12 +1553,25 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
         vt1, vt2 = st.tabs(["🚀 Predizione Gara (Forward)", "🎯 Calcolatore Obiettivo (Reverse)"])
         
         with vt1:
-            st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 15px;'>INSERISCI I TUOI TEMPI (Auto-compilati con lo storico PB)</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 10px;'>MODALITÀ DI STIMA</div>", unsafe_allow_html=True)
+            mod_stima = st.selectbox(
+                "Scegli con quali dati pre-compilare il modello:",
+                ["Usa tutti i PB disponibili", "Forza previsione partendo dai 30m", "Forza previsione partendo dai 60m", "Inserimento manuale (campi vuoti)"],
+                label_visibility="collapsed"
+            )
+            
+            # Applica i filtri sui PB a seconda della modalità scelta
+            p_val_30 = pb_30 if mod_stima in ["Usa tutti i PB disponibili", "Forza previsione partendo dai 30m"] else None
+            p_val_60 = pb_60 if mod_stima in ["Usa tutti i PB disponibili", "Forza previsione partendo dai 60m"] else None
+            p_val_100 = pb_100 if mod_stima == "Usa tutti i PB disponibili" else None
+            p_val_200 = pb_200 if mod_stima == "Usa tutti i PB disponibili" else None
+
+            st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-top: 5px; margin-bottom: 15px;'>INSERISCI I TUOI TEMPI</div>", unsafe_allow_html=True)
             i1, i2, i3, i4 = st.columns(4)
-            t30 = i1.number_input("30m (fermo) - s", value=pb_30, step=0.05, format="%.2f")
-            t60 = i2.number_input("60m (fermo) - s", value=pb_60, step=0.05, format="%.2f")
-            t100 = i3.number_input("100m - s", value=pb_100, step=0.05, format="%.2f")
-            t200 = i4.number_input("200m - s", value=pb_200, step=0.05, format="%.2f")
+            t30 = i1.number_input("30m (fermo) - s", value=p_val_30, step=0.05, format="%.2f")
+            t60 = i2.number_input("60m (fermo) - s", value=p_val_60, step=0.05, format="%.2f")
+            t100 = i3.number_input("100m - s", value=p_val_100, step=0.05, format="%.2f")
+            t200 = i4.number_input("200m - s", value=p_val_200, step=0.05, format="%.2f")
             
             p30 = t30 if (t30 and t30>0) else None
             p60 = t60 if (t60 and t60>0) else None
