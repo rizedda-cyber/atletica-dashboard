@@ -355,6 +355,26 @@ if "current_page" not in st.session_state:
 if "page_just_changed" not in st.session_state:
     st.session_state.page_just_changed = False
 
+# ── HACK: Scroll-to-top puro HTML e Autochiusura ──
+if st.session_state.page_just_changed:
+    # 1. Autofocus Input (Scroll to top garantito dai browser su form elements muti)
+    # 2. CSS Animation per nascondere visivamente l'overlay sidebar su terminali mobile per far vedere il contenuto aggiornato
+    st.markdown("""
+        <input type="text" autofocus style="position:absolute; top:0; left:0; opacity:0; width:1px; height:1px; z-index:-1; pointer-events:none;">
+        <style>
+            @media (max-width: 768px) {
+                [data-testid="stSidebar"] {
+                    display: none !important;
+                }
+                div[data-testid="stSidebarOverlay"] {
+                    display: none !important;
+                }
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.session_state.page_just_changed = False
+
 
 
 def get_team_pin() -> str:
@@ -2051,22 +2071,3 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
 
 
 
-# ── HACK: Scroll-to-top puro HTML e Autochiusura ──
-if st.session_state.page_just_changed:
-    # 1. Autofocus Input (Scroll to top garantito dai browser su form elements muti)
-    # 2. CSS Animation per nascondere visivamente l'overlay sidebar su terminali mobile per far vedere il contenuto aggiornato
-    st.markdown("""
-        <input type="text" autofocus style="position:absolute; top:0; left:0; opacity:0; width:1px; height:1px; z-index:-1; pointer-events:none;">
-        <style>
-            @media (max-width: 768px) {
-                [data-testid="stSidebar"] {
-                    display: none !important;
-                }
-                div[data-testid="stSidebarOverlay"] {
-                    display: none !important;
-                }
-            }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    st.session_state.page_just_changed = False
