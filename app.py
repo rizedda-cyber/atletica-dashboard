@@ -355,73 +355,6 @@ if "current_page" not in st.session_state:
 if "page_just_changed" not in st.session_state:
     st.session_state.page_just_changed = False
 
-# ── JS globale: scroll-to-top + chiusura sidebar mobile dopo navigazione ──
-if st.session_state.page_just_changed:
-    import streamlit.components.v1 as components
-    components.html("""
-    <script>
-    (function() {
-        // Funzione che prova a scrollare verso l'alto tutti i
-        // possibili container scrollabili di Streamlit (cambia tra versioni)
-        function forceScrollTop() {
-            var doc = window.parent.document;
-            var win = window.parent;
-
-            // Lista di tutti i selettori possibili nelle varie versioni Streamlit
-            var selectors = [
-                '[data-testid="stMainBlockContainer"]',
-                '[data-testid="stAppViewBlockContainer"]',
-                '[data-testid="stAppViewContainer"]',
-                'section.main',
-                '.main',
-                '#root',
-                'body'
-            ];
-
-            selectors.forEach(function(sel) {
-                try {
-                    var el = doc.querySelector(sel);
-                    if (el) {
-                        el.scrollTop = 0;
-                        if (el.scrollTo) el.scrollTo({top: 0, behavior: 'instant'});
-                    }
-                } catch(e) {}
-            });
-
-            // Scroll anche sulla window del parent
-            try {
-                win.scrollTo({top: 0, behavior: 'instant'});
-                win.scrollTop = 0;
-                doc.documentElement.scrollTop = 0;
-                doc.body.scrollTop = 0;
-            } catch(e) {}
-        }
-
-        // Funzione per chiudere la sidebar (mobile: sidebar overlay)
-        function closeSidebar() {
-            try {
-                var doc = window.parent.document;
-                var closeBtn =
-                    doc.querySelector('section[data-testid="stSidebar"] [data-testid="stSidebarCloseButton"]') ||
-                    doc.querySelector('[data-testid="stSidebarCloseButton"]') ||
-                    doc.querySelector('section[data-testid="stSidebar"] header button');
-                if (closeBtn) closeBtn.click();
-            } catch(e) {}
-        }
-
-        // Primo tentativo immediato
-        forceScrollTop();
-
-        // Tentativi multipli progressivi: Streamlit aggiorna il DOM in più passate
-        // e il browser potrebbe ripristinare la posizione dopo ogni rendering.
-        setTimeout(function() { forceScrollTop(); closeSidebar(); }, 80);
-        setTimeout(function() { forceScrollTop(); }, 250);
-        setTimeout(function() { forceScrollTop(); }, 500);
-        setTimeout(function() { forceScrollTop(); }, 900);
-    })();
-    </script>
-    """, height=1, scrolling=False)
-    st.session_state.page_just_changed = False
 
 
 def get_team_pin() -> str:
@@ -1245,43 +1178,6 @@ elif st.session_state.current_page == "Home":
 st.divider()
 
 if st.session_state.current_page == "Home":
-    st.markdown("<h3 style='margin-bottom:0;'>🏆 CLASSIFICA PERSONAL BEST (PB) SQUADRA</h3>", unsafe_allow_html=True)
-    if len(df_r) > 0:
-        pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
-        pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
-        pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
-        
-        def bg_min(s):
-            return ['background-color: #90e0ef; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.min())]
-
-        def bg_max(s):
-            return ['background-color: #fde2e4; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.max())]
-
-        styled_pb = pb_pivot.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - ")\
-                                  .apply(bg_min, axis=0)\
-                                  .apply(bg_max, axis=0)
-                                  
-        st.dataframe(styled_pb, use_container_width=True, height=500)
-    else:
-        st.info("Nessuna prova presente.")
-        
-    st.divider()
-
-    st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
-    df_r_vol = df_r.copy()
-    if not df_r_vol.empty:
-        df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
-        vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
-        vol_df = vol_agg.reset_index()
-        vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
-        fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
-        fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
-        fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
-        st.plotly_chart(fig_vol, use_container_width=True)
-    else:
-        st.info("Nessun dato di corsa nel periodo selezionato.")
-        
-    st.divider()
     with st.expander("📅 Riepilogo Dettagliato Allenamenti (Vista Excel)", expanded=False):
         st.markdown("Spulcia le tabelle inserite giorno per giorno. Le colonne si espandono in base a quante prove sono state svolte sulla singola distanza nell'arco della seduta.")
         if not df_r.empty:
@@ -1397,6 +1293,46 @@ if st.session_state.current_page == "Home":
         else:
             st.info("Nessun dato registrato o presente nei filtri.")
 
+
+    st.divider()
+
+    st.markdown("<h3 style='margin-bottom:0;'>🏆 CLASSIFICA PERSONAL BEST (PB) SQUADRA</h3>", unsafe_allow_html=True)
+    if len(df_r) > 0:
+        pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
+        pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
+        pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
+        
+        def bg_min(s):
+            return ['background-color: #90e0ef; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.min())]
+
+        def bg_max(s):
+            return ['background-color: #fde2e4; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.max())]
+
+        styled_pb = pb_pivot.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - ")\
+                                  .apply(bg_min, axis=0)\
+                                  .apply(bg_max, axis=0)
+                                  
+        st.dataframe(styled_pb, use_container_width=True, height=500)
+    else:
+        st.info("Nessuna prova presente.")
+        
+    st.divider()
+
+    st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
+    df_r_vol = df_r.copy()
+    if not df_r_vol.empty:
+        df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
+        vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
+        vol_df = vol_agg.reset_index()
+        vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
+        fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
+        fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
+        fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
+        st.plotly_chart(fig_vol, use_container_width=True)
+    else:
+        st.info("Nessun dato di corsa nel periodo selezionato.")
+        
+    st.divider()
 elif st.session_state.current_page == "Atleti":
     from supabase_connector import get_atleti
     df_atleti = get_atleti()
@@ -2112,3 +2048,80 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
 
 
     st.caption("Dashboard Atletica · v3 Cloud · Powered by Supabase + Streamlit")
+
+
+
+# ── JS globale: scroll-to-top + chiusura sidebar mobile dopo navigazione ──
+if st.session_state.page_just_changed:
+    import streamlit.components.v1 as components
+    import time
+    
+    # Inseriamo un timestamp per forzare Streamlit a creare un NUOVO iframe
+    # altrimenti il browser non rieseguirà lo script se la stringa HTML è identica.
+    t_id = time.time()
+    
+    components.html(f"""
+    <script>
+    (function() {
+        // Run ID: {t_id}
+        // Funzione che prova a scrollare verso l'alto tutti i
+        // possibili container scrollabili di Streamlit (cambia tra versioni)
+        function forceScrollTop() {
+            var doc = window.parent.document;
+            var win = window.parent;
+
+            // Lista di tutti i selettori possibili nelle varie versioni Streamlit
+            var selectors = [
+                '[data-testid="stMainBlockContainer"]',
+                '[data-testid="stAppViewBlockContainer"]',
+                '[data-testid="stAppViewContainer"]',
+                'section.main',
+                '.main',
+                '#root',
+                'body'
+            ];
+
+            selectors.forEach(function(sel) {
+                try {
+                    var el = doc.querySelector(sel);
+                    if (el) {
+                        el.scrollTop = 0;
+                        if (el.scrollTo) el.scrollTo({top: 0, behavior: 'instant'});
+                    }
+                } catch(e) {}
+            });
+
+            // Scroll anche sulla window del parent
+            try {
+                win.scrollTo({top: 0, behavior: 'instant'});
+                win.scrollTop = 0;
+                doc.documentElement.scrollTop = 0;
+                doc.body.scrollTop = 0;
+            } catch(e) {}
+        }
+
+        // Funzione per chiudere la sidebar (mobile: sidebar overlay)
+        function closeSidebar() {
+            try {
+                var doc = window.parent.document;
+                var closeBtn =
+                    doc.querySelector('section[data-testid="stSidebar"] [data-testid="stSidebarCloseButton"]') ||
+                    doc.querySelector('[data-testid="stSidebarCloseButton"]') ||
+                    doc.querySelector('section[data-testid="stSidebar"] header button');
+                if (closeBtn) closeBtn.click();
+            } catch(e) {}
+        }
+
+        // Primo tentativo immediato
+        forceScrollTop();
+
+        // Tentativi multipli progressivi: Streamlit aggiorna il DOM in più passate
+        // e il browser potrebbe ripristinare la posizione dopo ogni rendering.
+        setTimeout(function() { forceScrollTop(); closeSidebar(); }, 80);
+        setTimeout(function() { forceScrollTop(); }, 250);
+        setTimeout(function() { forceScrollTop(); }, 500);
+        setTimeout(function() { forceScrollTop(); }, 900);
+    })();
+    </script>
+    """, height=1, scrolling=False)
+    st.session_state.page_just_changed = False
