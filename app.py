@@ -2064,63 +2064,56 @@ if st.session_state.page_just_changed:
     <script>
     (function() {
         // Run ID: """ + str(t_id) + """
-        // Funzione che prova a scrollare verso l'alto tutti i
-        // possibili container scrollabili di Streamlit (cambia tra versioni)
-        function forceScrollTop() {
-            var doc = window.parent.document;
-            var win = window.parent;
+        var win = window.parent;
+        var doc = win.document;
 
-            // Lista di tutti i selettori possibili nelle varie versioni Streamlit
-            var selectors = [
-                '[data-testid="stMainBlockContainer"]',
-                '[data-testid="stAppViewBlockContainer"]',
-                '[data-testid="stAppViewContainer"]',
-                'section.main',
-                '.main',
-                '#root',
-                'body'
-            ];
-
-            selectors.forEach(function(sel) {
-                try {
-                    var el = doc.querySelector(sel);
-                    if (el) {
-                        el.scrollTop = 0;
-                        if (el.scrollTo) el.scrollTo({top: 0, behavior: 'instant'});
-                    }
-                } catch(e) {}
-            });
-
-            // Scroll anche sulla window del parent
+        // ── 1. CHIUSURA SIDEBAR MOBILE ──
+        // Lancia nativamente l'evento tastiera ESC che Streamlit riconosce per chiudere overlayers
+        doc.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Escape', 'code': 'Escape', 'keyCode': 27, 'bubbles': true}));
+        
+        // Cerca i bottoni di chiusura visibili nel layout mobile (sia il close button esplicito che i toggle header)
+        setTimeout(function() {
             try {
+                var sb = doc.querySelector('[data-testid="stSidebar"]');
+                if (sb) {
+                    var btns = sb.querySelectorAll('button');
+                    btns.forEach(function(b) {
+                        try {
+                            // Su mobile il bottone di chiusura spesso non ha testo o etichette chiare ma sta nel header della sidebar
+                            if (b.getAttribute('title') === 'Close sidebar' || b.getAttribute('aria-label') === 'Close sidebar' || b.getAttribute('aria-expanded') === 'true') {
+                                b.click();
+                            }
+                        } catch(e) {}
+                    });
+                }
+            } catch(e) {}
+        }, 150);
+
+        // ── 2. BLOCCO AGGRESSIVO SCROLL-TO-TOP ──
+        // L'engine React di Streamlit salva la posizione verticale del container all'uscita della pagina X 
+        // e lo riapplica quando pagina Y finisce di renderizzare.
+        // Usiamo un animFrame loop per forzare l'asse a 0 persistentemente per 1.5 secondi abbattendo l'anchor di React.
+        var startTime = Date.now();
+        function lockScrollTop() {
+            try {
+                // Window e Body
                 win.scrollTo({top: 0, behavior: 'instant'});
-                win.scrollTop = 0;
                 doc.documentElement.scrollTop = 0;
                 doc.body.scrollTop = 0;
+                
+                // Main Container Streamlit (vero responsabile dello scrolling scroll-y overflow)
+                var mainBlocks = doc.querySelectorAll('.main, [data-testid="stMainBlockContainer"], [data-testid="stAppViewContainer"], [data-testid="stAppViewBlockContainer"]');
+                mainBlocks.forEach(function(el) {
+                    if (el) el.scrollTop = 0;
+                });
             } catch(e) {}
+
+            // Ripete ossessivamente a 60fps finché non passa un secondo e mezzo dal click
+            if (Date.now() - startTime < 1200) {
+                requestAnimationFrame(lockScrollTop);
+            }
         }
-
-        // Funzione per chiudere la sidebar (mobile: sidebar overlay)
-        function closeSidebar() {
-            try {
-                var doc = window.parent.document;
-                var closeBtn =
-                    doc.querySelector('section[data-testid="stSidebar"] [data-testid="stSidebarCloseButton"]') ||
-                    doc.querySelector('[data-testid="stSidebarCloseButton"]') ||
-                    doc.querySelector('section[data-testid="stSidebar"] header button');
-                if (closeBtn) closeBtn.click();
-            } catch(e) {}
-        }
-
-        // Primo tentativo immediato
-        forceScrollTop();
-
-        // Tentativi multipli progressivi: Streamlit aggiorna il DOM in più passate
-        // e il browser potrebbe ripristinare la posizione dopo ogni rendering.
-        setTimeout(function() { forceScrollTop(); closeSidebar(); }, 80);
-        setTimeout(function() { forceScrollTop(); }, 250);
-        setTimeout(function() { forceScrollTop(); }, 500);
-        setTimeout(function() { forceScrollTop(); }, 900);
+        lockScrollTop();
     })();
     </script>
     """, height=1, scrolling=False)
