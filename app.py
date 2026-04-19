@@ -70,6 +70,34 @@ st.markdown("""
     }
     html, body { overscroll-behavior: none; }
     
+    /* ── FIX MOBILE LOGIN: tastiera non deve coprire il PIN box ──
+       Su mobile quando si apre la tastiera virtuale il viewport si comprime.
+       Usiamo scroll-padding e un layout che porta il form in cima. */
+    @media (max-width: 768px) {
+        /* Evita che la cover spinga il form troppo in basso */
+        .cover {
+            padding: 20px 16px !important;
+            margin-bottom: 12px !important;
+        }
+        .cover-logo {
+            width: 80px !important;
+            height: 80px !important;
+            margin-bottom: 12px !important;
+        }
+        .cover-title { font-size: 36px !important; }
+        .cover-subtitle { font-size: 13px !important; margin-bottom: 20px !important; }
+        /* Il form di login è posizionato più in alto */
+        [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
+            align-items: flex-start !important;
+        }
+        /* Bottone Accedi: sticky in basso nel form così rimane visibile sopra la tastiera */
+        [data-testid="stFormSubmitButton"] > button {
+            position: sticky !important;
+            bottom: 8px !important;
+            z-index: 9999 !important;
+        }
+    }
+    
     .cover::before {
         content: ''; position: absolute; inset: 0;
         background: radial-gradient(ellipse at 30% 20%, rgba(232,255,58,0.06) 0%, transparent 60%),
@@ -282,6 +310,11 @@ st.markdown("""
             width: 100%;
         }
     }
+    
+    /* ── SMOOTH NAV: elimina flash-of-content durante cambio pagina ── */
+    [data-testid="stMainBlockContainer"] {
+        scroll-behavior: smooth;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -319,6 +352,76 @@ if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 if "current_page" not in st.session_state:
     st.session_state.current_page = "Home"
+if "page_just_changed" not in st.session_state:
+    st.session_state.page_just_changed = False
+
+# ── JS globale: scroll-to-top + chiusura sidebar mobile dopo navigazione ──
+if st.session_state.page_just_changed:
+    import streamlit.components.v1 as components
+    components.html("""
+    <script>
+    (function() {
+        // Funzione che prova a scrollare verso l'alto tutti i
+        // possibili container scrollabili di Streamlit (cambia tra versioni)
+        function forceScrollTop() {
+            var doc = window.parent.document;
+            var win = window.parent;
+
+            // Lista di tutti i selettori possibili nelle varie versioni Streamlit
+            var selectors = [
+                '[data-testid="stMainBlockContainer"]',
+                '[data-testid="stAppViewBlockContainer"]',
+                '[data-testid="stAppViewContainer"]',
+                'section.main',
+                '.main',
+                '#root',
+                'body'
+            ];
+
+            selectors.forEach(function(sel) {
+                try {
+                    var el = doc.querySelector(sel);
+                    if (el) {
+                        el.scrollTop = 0;
+                        if (el.scrollTo) el.scrollTo({top: 0, behavior: 'instant'});
+                    }
+                } catch(e) {}
+            });
+
+            // Scroll anche sulla window del parent
+            try {
+                win.scrollTo({top: 0, behavior: 'instant'});
+                win.scrollTop = 0;
+                doc.documentElement.scrollTop = 0;
+                doc.body.scrollTop = 0;
+            } catch(e) {}
+        }
+
+        // Funzione per chiudere la sidebar (mobile: sidebar overlay)
+        function closeSidebar() {
+            try {
+                var doc = window.parent.document;
+                var closeBtn =
+                    doc.querySelector('section[data-testid="stSidebar"] [data-testid="stSidebarCloseButton"]') ||
+                    doc.querySelector('[data-testid="stSidebarCloseButton"]') ||
+                    doc.querySelector('section[data-testid="stSidebar"] header button');
+                if (closeBtn) closeBtn.click();
+            } catch(e) {}
+        }
+
+        // Primo tentativo immediato
+        forceScrollTop();
+
+        // Tentativi multipli progressivi: Streamlit aggiorna il DOM in più passate
+        // e il browser potrebbe ripristinare la posizione dopo ogni rendering.
+        setTimeout(function() { forceScrollTop(); closeSidebar(); }, 80);
+        setTimeout(function() { forceScrollTop(); }, 250);
+        setTimeout(function() { forceScrollTop(); }, 500);
+        setTimeout(function() { forceScrollTop(); }, 900);
+    })();
+    </script>
+    """, height=1, scrolling=False)
+    st.session_state.page_just_changed = False
 
 
 def get_team_pin() -> str:
@@ -357,15 +460,45 @@ if not st.session_state.authenticated:
     </div>
     ''', unsafe_allow_html=True)
     
+    # JS: quando il PIN input riceve il focus (tastiera si apre su mobile),
+    # scrolla in modo che il bottone Accedi rimanga visibile sopra la tastiera.
+    import streamlit.components.v1 as components
+    components.html("""
+    <script>
+    (function() {
+        function fixLoginScroll() {
+            var parent = window.parent;
+            if (!parent) return;
+            // Trova tutti gli input di tipo password nella pagina padre
+            var inputs = parent.document.querySelectorAll('input[type="password"]');
+            inputs.forEach(function(inp) {
+                inp.addEventListener('focus', function() {
+                    // Scrolla la pagina principale verso il basso per portare
+                    // il bottone Login in vista sopra la tastiera
+                    setTimeout(function() {
+                        var submitBtn = parent.document.querySelector('[data-testid="stFormSubmitButton"]');
+                        if (submitBtn) {
+                            submitBtn.scrollIntoView({behavior: 'smooth', block: 'center'});
+                        }
+                    }, 350);
+                });
+            });
+        }
+        // Ritarda l'attacco del listener per attendere il DOM di Streamlit
+        setTimeout(fixLoginScroll, 800);
+    })();
+    </script>
+    """, height=0, scrolling=False)
+    
     st.markdown("<br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         with st.container(border=True):
             st.markdown("<h4 style='text-align: center;'>Login Squadra</h4>", unsafe_allow_html=True)
-
-            pin_input = st.text_input("Codice di Accesso", type="password", placeholder="PIN o Password...", label_visibility="collapsed")
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🔐 Accedi", type="primary", use_container_width=True):
+            with st.form("login_form"):
+                pin_input = st.text_input("Codice di Accesso", type="password", placeholder="PIN o Password...", label_visibility="collapsed", key="pin_field")
+                submitted_login = st.form_submit_button("🔐 Accedi", type="primary", use_container_width=True)
+            if submitted_login:
                 if pin_input.strip() == get_team_pin().strip():
                     st.session_state.authenticated = True
                     st.rerun()
@@ -430,15 +563,18 @@ with st.sidebar:
     if st.button("🏠 Home Squadra", use_container_width=True, type="primary" if st.session_state.current_page == "Home" else "secondary"):
         st.session_state.current_page = "Home"
         st.session_state.app_athlete = "Tutta la squadra"
+        st.session_state.page_just_changed = True
         st.rerun()
 
     if st.button("👥 Tutti gli Atleti", use_container_width=True, type="primary" if st.session_state.current_page == "Atleti" else "secondary"):
         st.session_state.current_page = "Atleti"
         st.session_state.app_athlete = "Tutta la squadra"
+        st.session_state.page_just_changed = True
         st.rerun()
 
     if st.button("➕ Inserisci Allenamento", use_container_width=True, type="primary" if st.session_state.current_page == "Inserimento" else "secondary"):
         st.session_state.current_page = "Inserimento"
+        st.session_state.page_just_changed = True
         st.rerun()
 
     if st.session_state.current_page == "Dettaglio Atleta":
@@ -668,6 +804,13 @@ def make_kpi_card(title, value, delta_text, trend, icon, val_class=""):
 
 if st.session_state.current_page == "Inserimento":
     st.markdown("## ➕ Inserisci Nuovo Allenamento")
+    
+    # Mostra messaggio di conferma se c'è (persiste attraverso il rerun)
+    if st.session_state.get('upload_success_msg'):
+        msg = st.session_state.pop('upload_success_msg')
+        st.success(msg)
+        st.balloons()
+    
     if DATA_SOURCE != "cloud":
         st.warning("⚠️ La dashboard sta usando i dati locali (Excel). L'inserimento richiede la connessione al cloud.")
     else:
@@ -691,7 +834,7 @@ if st.session_state.current_page == "Inserimento":
 
                 st.markdown("---")
                 st.markdown("**Prove effettuate**")
-                distanze_opts = [30, 40, 50, 60, 80, 100, 120, 150, 200, 300, 400]
+                distanze_opts = [30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400]
                 prove = []
                 for i in range(1, 13):
                     if i > 1:
@@ -722,11 +865,16 @@ if st.session_state.current_page == "Inserimento":
                             except:
                                 errori += 1
                         if successi > 0:
-                            st.success(f"✅ {successi} prove salvate per {atleta_sel}!")
+                            data_label = data_sel.strftime('%d/%m/%Y')
+                            st.session_state['upload_success_msg'] = (
+                                f"✅ Allenamento caricato! **{successi} {'prove' if successi > 1 else 'prova'}** "
+                                f"salvate per **{atleta_sel}** in data {data_label}. "
+                                f"I dati sono visibili a tutta la squadra. 🏋️"
+                            )
                             st.cache_data.clear()
                             st.rerun()
                         if errori > 0:
-                            st.warning(f"⚠️ {errori} prove non salvate (controlla il formato).")
+                            st.warning(f"⚠️ {errori} prove non salvate (controlla il formato tempo).")
 
         elif tipo_form == "🏋️ Palestra (VBT)":
             from supabase_connector import insert_sessione_vbt
@@ -756,7 +904,11 @@ if st.session_state.current_page == "Inserimento":
                     else:
                         ok = insert_sessione_vbt(atleta_sel, data_sel.strftime("%Y-%m-%d"), esercizio_sel, carico, vel_media or None, vel_max or None, pot_media or None, pot_max or None, forza_max or None, int(serie), int(rip))
                         if ok:
-                            st.success(f"✅ Sessione VBT salvata per {atleta_sel}!")
+                            data_label = data_sel.strftime('%d/%m/%Y')
+                            st.session_state['upload_success_msg'] = (
+                                f"✅ Sessione palestra caricata! Allenamento VBT di **{atleta_sel}** "
+                                f"del {data_label} salvato con successo nel cloud. 💪"
+                            )
                             st.cache_data.clear()
                             st.rerun()
                         else:
@@ -1157,16 +1309,89 @@ if st.session_state.current_page == "Home":
                 
                 df_day = df_r_opt[df_r_opt['Data_date'] == sel_giorno].copy()
                 if not df_day.empty:
-                    df_day = df_day.sort_values(by=['Distanza', 'Data']) # Mantieni eventuale ordine cronologico e alfabetico
-                    df_day['Ripetizione'] = df_day.groupby(['Atleta', 'Distanza']).cumcount() + 1
-                    pivot_day = df_day.pivot_table(index='Atleta', columns=['Distanza', 'Ripetizione'], values='Tempo', aggfunc='first')
-                    # Flatten the MultiIndex of the columns
-                    new_cols = []
-                    for dist, rep in pivot_day.columns:
-                        new_cols.append(f"{int(dist)}m - Pr. {rep}")
-                    pivot_day.columns = new_cols
+                    # ── ORDINE DI INSERIMENTO ───────────────────────────────────────────
+                    # Usa l'id Supabase (auto-increment) per preservare l'ordine originale
+                    # di inserimento da parte degli atleti (es. 20-30-40-20-30-40)
+                    if 'id' in df_day.columns:
+                        df_day = df_day.sort_values(by='id', ascending=True)
+                    # else: mantieni l'ordine in cui arrivano dal DataFrame (già data desc, ma
+                    # all'interno della stessa data l'ordine del DB sarà quello di inserimento)
+                    df_day = df_day.reset_index(drop=True)
                     
-                    st.dataframe(pivot_day.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - "), use_container_width=True)
+                    # Numero progressivo ripetizione per ogni (Atleta, Distanza)
+                    df_day['Ripetizione'] = df_day.groupby(['Atleta', 'Distanza']).cumcount() + 1
+                    
+                    # ── DIVISIONE IN GRUPPI PER SET DI DISTANZE ────────────────────────
+                    # Raggruppa gli atleti che fanno distanze simili nella stessa tabella.
+                    # Algoritmo: Jaccard similarity tra i set di distanze di ogni atleta.
+                    atleti_distanze = df_day.groupby('Atleta')['Distanza'].apply(set).to_dict()
+                    
+                    def jaccard_sim(s1, s2):
+                        if not s1 or not s2:
+                            return 0.0
+                        return len(s1 & s2) / len(s1 | s2)
+                    
+                    # Greedy grouping: ogni atleta finisce nel primo gruppo compatibile (≥40% overlap)
+                    groups = []
+                    assigned = set()
+                    for atleta_a, dists_a in atleti_distanze.items():
+                        if atleta_a in assigned:
+                            continue
+                        group = [atleta_a]
+                        group_dists = set(dists_a)
+                        assigned.add(atleta_a)
+                        for atleta_b, dists_b in atleti_distanze.items():
+                            if atleta_b in assigned:
+                                continue
+                            if jaccard_sim(group_dists, dists_b) >= 0.4:
+                                group.append(atleta_b)
+                                group_dists = group_dists | dists_b
+                                assigned.add(atleta_b)
+                        groups.append(group)
+                    
+                    # ── VISUALIZZAZIONE: una tabella per gruppo ─────────────────────────
+                    show_group_labels = len(groups) > 1
+                    for g_idx, group_atleti in enumerate(groups):
+                        df_group = df_day[df_day['Atleta'].isin(group_atleti)].copy()
+                        distanze_gruppo = sorted(df_group['Distanza'].unique())
+                        dist_label = " · ".join(f"{int(d)}m" for d in distanze_gruppo)
+                        
+                        if show_group_labels:
+                            st.markdown(
+                                f"<div style='margin: 16px 0 6px 0; padding: 6px 14px; "
+                                f"background: rgba(232,255,58,0.05); border-left: 3px solid #E8FF3A; "
+                                f"border-radius: 4px; font-family: DM Mono, monospace; font-size: 11px; "
+                                f"color: #E8FF3A; letter-spacing: 1px;'>"
+                                f"GRUPPO {g_idx + 1} — {dist_label}</div>",
+                                unsafe_allow_html=True
+                            )
+                        
+                        # Costruisci le colonne nell'ordine in cui compaiono nel dataset
+                        # (ordine di inserimento, non per distanza crescente)
+                        cols_seen = []
+                        for _, row_p in df_group.iterrows():
+                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
+                            if col_name not in cols_seen:
+                                cols_seen.append(col_name)
+                        
+                        # Costruisci manualmente il pivot rispettando l'ordine
+                        pivot_rows = {}
+                        for _, row_p in df_group.iterrows():
+                            atl = row_p['Atleta']
+                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
+                            if atl not in pivot_rows:
+                                pivot_rows[atl] = {}
+                            pivot_rows[atl][col_name] = row_p['Tempo']
+                        
+                        pivot_day = pd.DataFrame(pivot_rows).T
+                        # Riordina le colonne nell'ordine originale di inserimento
+                        pivot_day = pivot_day.reindex(columns=[c for c in cols_seen if c in pivot_day.columns])
+                        pivot_day.index.name = 'Atleta'
+                        
+                        st.dataframe(
+                            pivot_day.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - "),
+                            use_container_width=True
+                        )
                 else:
                     st.info("Nessuna prova in questa data.")
         else:
@@ -1271,7 +1496,7 @@ elif st.session_state.current_page == "Atleti":
                 if st.button("Vai", key=f"nav_{row['nome']}", use_container_width=True):
                     st.session_state.app_athlete = row['nome']
                     st.session_state.current_page = "Dettaglio Atleta"
-                    st.session_state.navigated_to_athlete = True
+                    st.session_state.page_just_changed = True
                     st.rerun()
 
         if st.session_state.authenticated:
@@ -1302,21 +1527,6 @@ elif st.session_state.current_page == "Atleti":
 # ──────────────────────────────────────────────────────────────────────
 
 if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
-    if st.session_state.get('navigated_to_athlete', False):
-        import streamlit.components.v1 as components
-        components.html("""
-            <script>
-                var parent = window.parent;
-                if (parent) {
-                    var mainView = parent.document.querySelector('.main');
-                    if (mainView) {
-                        mainView.scrollTo({top: 0, behavior: 'instant'});
-                    }
-                }
-            </script>
-        """, height=0, width=0)
-        st.session_state.navigated_to_athlete = False
-
     tab_labels = ["⚡ Analisi Velocità", "💪 Forza (VBT)",
                   "📊 Predizioni ML", "⚖️ Transfer", "🏅 PB & Gare"]
     
