@@ -962,7 +962,7 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
         st.markdown("<p style='color:rgba(255,255,255,0.5); font-size: 0.95em; margin-top: 5px;'>Impatto del volume di pesistica (kg totali sollevati a settimana) sui miglioramenti cronometrici in pista.</p>", unsafe_allow_html=True)
     with col_t_sel:
         st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
-        dist_ref = st.selectbox("Distanza Gara (Pista)", options=[60, 80, 100, 150, 200, 300, 400], index=0)
+        dist_ref = st.selectbox("Distanza Gara (Pista)", options=[60, 80, 100, 150, 200, 250, 300, 400], index=0)
         
     if not df_v.empty:
         # Calcolo Tonnellaggio (Carico x Serie x Ripetizioni)
@@ -1587,7 +1587,7 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
                         else:
                             d_val = int(name_str.replace("m", ""))
                         # Lasciamo visibili le core distances classiche e nascondiamo le altre nella legenda
-                        if d_val not in [60, 100, 150, 200, 300, 400]:
+                        if d_val not in [60, 100, 150, 200, 250, 300, 400]:
                             trace.visible = 'legendonly'
                     except:
                         pass
@@ -1826,7 +1826,7 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
         with vt2:
             st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 15px;'>CALCOLO DEL GAP DAI TUOI PB REALI</div>", unsafe_allow_html=True)
             tr1, tr2 = st.columns([1, 2])
-            tgt_dist = tr1.selectbox("Gara Obiettivo:", ["80m", "100m", "200m", "400m"])
+            tgt_dist = tr1.selectbox("Gara Obiettivo:", ["80m", "100m", "200m", "250m", "400m"])
             tgt_t = tr2.number_input("Tempo Bersaglio Sperato (s):", value=None, step=0.10, placeholder="Es. inserisci 10.85 per i 100m")
             
             p_tgt = tgt_t if (tgt_t and tgt_t > 0) else None
