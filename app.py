@@ -2060,10 +2060,10 @@ if st.session_state.page_just_changed:
     # altrimenti il browser non rieseguirà lo script se la stringa HTML è identica.
     t_id = time.time()
     
-    components.html(f"""
+    components.html("""
     <script>
     (function() {
-        // Run ID: {t_id}
+        // Run ID: """ + str(t_id) + """
         // Funzione che prova a scrollare verso l'alto tutti i
         // possibili container scrollabili di Streamlit (cambia tra versioni)
         function forceScrollTop() {
