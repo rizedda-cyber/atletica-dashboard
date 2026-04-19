@@ -2051,68 +2051,22 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
 
 
 
-# ── JS globale: scroll-to-top + chiusura sidebar mobile dopo navigazione ──
+# ── HACK: Scroll-to-top puro HTML e Autochiusura ──
 if st.session_state.page_just_changed:
-    import time
-    t_id = time.time()
+    # 1. Autofocus Input (Scroll to top garantito dai browser su form elements muti)
+    # 2. CSS Animation per nascondere visivamente l'overlay sidebar su terminali mobile per far vedere il contenuto aggiornato
+    st.markdown("""
+        <input type="text" autofocus style="position:absolute; top:0; left:0; opacity:0; width:1px; height:1px; z-index:-1; pointer-events:none;">
+        <style>
+            @media (max-width: 768px) {
+                [data-testid="stSidebar"] {
+                    display: none !important;
+                }
+                div[data-testid="stSidebarOverlay"] {
+                    display: none !important;
+                }
+            }
+        </style>
+    """, unsafe_allow_html=True)
     
-    js_code = f"""
-    <script>
-    (function() {{
-        // Cerca di chiudere la sidebar
-        try {{
-            var doc = window.parent ? window.parent.document : document;
-            var sb = doc.querySelector('[data-testid="stSidebar"]');
-            if (sb) {{
-                var btns = sb.querySelectorAll('button');
-                var closed = false;
-                btns.forEach(function(b) {{
-                    var t = (b.getAttribute('title') || '').toLowerCase();
-                    var a = (b.getAttribute('aria-label') || '').toLowerCase();
-                    var exp = b.getAttribute('aria-expanded');
-                    if (t.includes('close') || t.includes('collapse') || a.includes('close') || a.includes('collapse') || exp === 'true') {{
-                        b.click();
-                        closed = true;
-                    }}
-                }});
-                
-                // Forza scomparsa della sidebar se il bottone non c'è
-                if(!closed && window.innerWidth < 768) {{
-                    sb.style.display = 'none';
-                }}
-            }}
-        }} catch(e) {{}}
-
-        // Blocca lo scroll a 0 in modo aggressivo
-        var start = Date.now();
-        function lock() {{
-            try {{
-                var doc = window.parent ? window.parent.document : document;
-                var win = window.parent || window;
-                win.scrollTo(0, 0);
-                doc.documentElement.scrollTop = 0;
-                doc.body.scrollTop = 0;
-                var mains = doc.querySelectorAll('.main, [data-testid="stMainBlockContainer"], [data-testid="stAppViewContainer"]');
-                mains.forEach(function(el) {{ el.scrollTop = 0; }});
-            }} catch(e) {{}}
-            if (Date.now() - start < 1000) {{
-                requestAnimationFrame(lock);
-            }}
-        }}
-        lock();
-    }})();
-    // RunID: {t_id}
-    </script>
-    <!-- Fallback puramente HTML per vecchie versioni in caso di iframe -->
-    <a href="#" autofocus style="opacity:0; position:absolute; top:0; left:0; width:1px; height:1px;"></a>
-    """
-    
-    try:
-        # In Streamlit >= 1.34 st.html valuta gli script nel DOM primario senza iframe
-        st.html(js_code)
-    except AttributeError:
-        # Fallback per Streamlit < 1.34
-        import streamlit.components.v1 as components
-        components.html(js_code, height=0)
-        
     st.session_state.page_just_changed = False
