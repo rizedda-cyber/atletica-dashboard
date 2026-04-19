@@ -2053,68 +2053,53 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
 
 # ── JS globale: scroll-to-top + chiusura sidebar mobile dopo navigazione ──
 if st.session_state.page_just_changed:
-    import streamlit.components.v1 as components
     import time
-    
-    # Inseriamo un timestamp per forzare Streamlit a creare un NUOVO iframe
-    # altrimenti il browser non rieseguirà lo script se la stringa HTML è identica.
     t_id = time.time()
     
-    components.html("""
+    js_code = f"""
     <script>
-    (function() {
-        // Run ID: """ + str(t_id) + """
-        var win = window.parent;
-        var doc = win.document;
+    (function() {{
+        // Cerca di chiudere la sidebar
+        try {{
+            var sb = window.parent.document.querySelector('[data-testid="stSidebar"]');
+            if (sb) {{
+                var btns = sb.querySelectorAll('button');
+                btns.forEach(function(b) {{
+                    if (b.getAttribute('title') === 'Close sidebar' || b.getAttribute('aria-label') === 'Close sidebar') {{
+                        b.click();
+                    }}
+                }});
+            }}
+        }} catch(e) {{}}
 
-        // ── 1. CHIUSURA SIDEBAR MOBILE ──
-        // Lancia nativamente l'evento tastiera ESC che Streamlit riconosce per chiudere overlayers
-        doc.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Escape', 'code': 'Escape', 'keyCode': 27, 'bubbles': true}));
-        
-        // Cerca i bottoni di chiusura visibili nel layout mobile (sia il close button esplicito che i toggle header)
-        setTimeout(function() {
-            try {
-                var sb = doc.querySelector('[data-testid="stSidebar"]');
-                if (sb) {
-                    var btns = sb.querySelectorAll('button');
-                    btns.forEach(function(b) {
-                        try {
-                            // Su mobile il bottone di chiusura spesso non ha testo o etichette chiare ma sta nel header della sidebar
-                            if (b.getAttribute('title') === 'Close sidebar' || b.getAttribute('aria-label') === 'Close sidebar' || b.getAttribute('aria-expanded') === 'true') {
-                                b.click();
-                            }
-                        } catch(e) {}
-                    });
-                }
-            } catch(e) {}
-        }, 150);
-
-        // ── 2. BLOCCO AGGRESSIVO SCROLL-TO-TOP ──
-        // L'engine React di Streamlit salva la posizione verticale del container all'uscita della pagina X 
-        // e lo riapplica quando pagina Y finisce di renderizzare.
-        // Usiamo un animFrame loop per forzare l'asse a 0 persistentemente per 1.5 secondi abbattendo l'anchor di React.
-        var startTime = Date.now();
-        function lockScrollTop() {
-            try {
-                // Window e Body
-                win.scrollTo({top: 0, behavior: 'instant'});
-                doc.documentElement.scrollTop = 0;
-                doc.body.scrollTop = 0;
-                
-                // Main Container Streamlit (vero responsabile dello scrolling scroll-y overflow)
-                var mainBlocks = doc.querySelectorAll('.main, [data-testid="stMainBlockContainer"], [data-testid="stAppViewContainer"], [data-testid="stAppViewBlockContainer"]');
-                mainBlocks.forEach(function(el) {
-                    if (el) el.scrollTop = 0;
-                });
-            } catch(e) {}
-
-            // Ripete ossessivamente a 60fps finché non passa un secondo e mezzo dal click
-            if (Date.now() - startTime < 1200) {
-                requestAnimationFrame(lockScrollTop);
-            }
-        }
-        lockScrollTop();
-    })();
+        // Blocca lo scroll a 0 in modo aggressivo
+        var start = Date.now();
+        function lock() {{
+            try {{
+                window.parent.scrollTo(0, 0);
+                window.parent.document.documentElement.scrollTop = 0;
+                window.parent.document.body.scrollTop = 0;
+                var mains = window.parent.document.querySelectorAll('.main, [data-testid="stMainBlockContainer"], [data-testid="stAppViewContainer"]');
+                mains.forEach(function(el) {{ el.scrollTop = 0; }});
+            }} catch(e) {{}}
+            if (Date.now() - start < 1000) {{
+                requestAnimationFrame(lock);
+            }}
+        }}
+        lock();
+    }})();
+    // RunID: {t_id}
     </script>
-    """, height=1, scrolling=False)
+    <!-- Fallback puramente HTML per vecchie versioni in caso di iframe -->
+    <a href="#" autofocus style="opacity:0; position:absolute; top:0; left:0; width:1px; height:1px;"></a>
+    """
+    
+    try:
+        # In Streamlit >= 1.34 st.html valuta gli script nel DOM primario senza iframe
+        st.html(js_code)
+    except AttributeError:
+        # Fallback per Streamlit < 1.34
+        import streamlit.components.v1 as components
+        components.html(js_code, height=0)
+        
     st.session_state.page_just_changed = False
