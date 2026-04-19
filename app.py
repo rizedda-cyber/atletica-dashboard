@@ -858,6 +858,12 @@ if st.session_state.current_page == "Inserimento":
                             st.error("❌ Errore nel salvataggio.")
 
 elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
+    # Pulsante per tornare indietro in cima alla pagina (Spostato per massima visibilità)
+    if st.button("← Torna all'elenco atleti", use_container_width=True, type="primary"):
+        st.session_state.current_page = "Atleti"
+        st.session_state.page_just_changed = True
+        st.rerun()
+    st.markdown("<br>", unsafe_allow_html=True)
     pb_corse = df_r.groupby('Distanza')['Tempo'].min()
     
     is_400_runner = False
@@ -1473,11 +1479,6 @@ elif st.session_state.current_page == "Atleti":
 # ──────────────────────────────────────────────────────────────────────
 
 if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
-    # Pulsante per tornare indietro in cima alla pagina
-    if st.button("← Torna all'elenco atleti", use_container_width=True):
-        st.session_state.current_page = "Atleti"
-        st.session_state.page_just_changed = True
-        st.rerun()
         
     st.markdown(f"## 👤 {selected_athlete}")
     st.markdown("---")
