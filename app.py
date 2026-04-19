@@ -2061,14 +2061,25 @@ if st.session_state.page_just_changed:
     (function() {{
         // Cerca di chiudere la sidebar
         try {{
-            var sb = window.parent.document.querySelector('[data-testid="stSidebar"]');
+            var doc = window.parent ? window.parent.document : document;
+            var sb = doc.querySelector('[data-testid="stSidebar"]');
             if (sb) {{
                 var btns = sb.querySelectorAll('button');
+                var closed = false;
                 btns.forEach(function(b) {{
-                    if (b.getAttribute('title') === 'Close sidebar' || b.getAttribute('aria-label') === 'Close sidebar') {{
+                    var t = (b.getAttribute('title') || '').toLowerCase();
+                    var a = (b.getAttribute('aria-label') || '').toLowerCase();
+                    var exp = b.getAttribute('aria-expanded');
+                    if (t.includes('close') || t.includes('collapse') || a.includes('close') || a.includes('collapse') || exp === 'true') {{
                         b.click();
+                        closed = true;
                     }}
                 }});
+                
+                // Forza scomparsa della sidebar se il bottone non c'è
+                if(!closed && window.innerWidth < 768) {{
+                    sb.style.display = 'none';
+                }}
             }}
         }} catch(e) {{}}
 
@@ -2076,10 +2087,12 @@ if st.session_state.page_just_changed:
         var start = Date.now();
         function lock() {{
             try {{
-                window.parent.scrollTo(0, 0);
-                window.parent.document.documentElement.scrollTop = 0;
-                window.parent.document.body.scrollTop = 0;
-                var mains = window.parent.document.querySelectorAll('.main, [data-testid="stMainBlockContainer"], [data-testid="stAppViewContainer"]');
+                var doc = window.parent ? window.parent.document : document;
+                var win = window.parent || window;
+                win.scrollTo(0, 0);
+                doc.documentElement.scrollTop = 0;
+                doc.body.scrollTop = 0;
+                var mains = doc.querySelectorAll('.main, [data-testid="stMainBlockContainer"], [data-testid="stAppViewContainer"]');
                 mains.forEach(function(el) {{ el.scrollTop = 0; }});
             }} catch(e) {{}}
             if (Date.now() - start < 1000) {{
