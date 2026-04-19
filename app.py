@@ -593,7 +593,7 @@ with col_d2:
                         file_name='dati_vbt_filtrati.csv', mime='text/csv')
 
 
-if selected_athlete != "Tutta la squadra":
+if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "Dettaglio Atleta":
     from supabase_connector import get_atleta_by_nome
     atleta_info = get_atleta_by_nome(selected_athlete)
     
@@ -860,6 +860,7 @@ if st.session_state.current_page == "Inserimento":
 elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
     # Pulsante per tornare indietro in cima alla pagina (Spostato per massima visibilità)
     if st.button("← Torna all'elenco atleti", use_container_width=True, type="primary"):
+        st.session_state.app_athlete = "Tutta la squadra"
         st.session_state.current_page = "Atleti"
         st.session_state.page_just_changed = True
         st.rerun()
