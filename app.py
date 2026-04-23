@@ -497,7 +497,26 @@ if not df_running.empty:
 if "app_athlete" not in st.session_state:
     st.session_state.app_athlete = "Tutta la squadra"
 
-all_athletes = sorted(set(df_running['Atleta'].unique()) | set(df_vbt['Atleta'].unique()))
+last_active_dates = {}
+if not df_running.empty:
+    last_r = df_running.groupby('Atleta')['Data'].max().to_dict()
+    last_active_dates.update(last_r)
+if not df_vbt.empty:
+    last_v = df_vbt.groupby('Atleta')['Data'].max().to_dict()
+    for atl, data in last_v.items():
+        if atl in last_active_dates and pd.notnull(last_active_dates[atl]) and pd.notnull(data):
+            last_active_dates[atl] = max(last_active_dates[atl], data)
+        elif pd.notnull(data):
+            last_active_dates[atl] = data
+
+def get_sort_key(atl):
+    dt = last_active_dates.get(atl)
+    if pd.isnull(dt): return (0, atl)
+    return (dt.timestamp(), atl)
+
+all_athletes_set = set(df_running['Atleta'].unique()) if not df_running.empty else set()
+if not df_vbt.empty: all_athletes_set |= set(df_vbt['Atleta'].unique())
+all_athletes = sorted(list(all_athletes_set), key=lambda x: (-get_sort_key(x)[0], x))
 
 with st.sidebar:
     st.markdown("### 🏃 Menu Navigazione")
@@ -762,7 +781,7 @@ if st.session_state.current_page == "Inserimento":
         tipo_form = st.radio("Seleziona attività:", ["🏃 Pista (corsa)", "🏋️ Palestra (VBT)"], horizontal=True, key="tipo_allenamento")
         st.divider()
         
-        atleti_list = sorted(set(df_running['Atleta'].unique()) | set(df_vbt['Atleta'].unique()))
+        atleti_list = all_athletes
         default_atleta_idx = 0
         if selected_athlete != "Tutta la squadra" and selected_athlete in atleti_list:
             default_atleta_idx = atleti_list.index(selected_athlete)
@@ -1408,10 +1427,13 @@ elif st.session_state.current_page == "Atleti":
                 'stato': stato,
                 'color': color,
                 'c_badge': c_badge,
-                'highlight': highlight_txt
+                'highlight': highlight_txt,
+                'days_ago': days_ago
             })
             
         roster_df = pd.DataFrame(roster_data)
+        if not roster_df.empty:
+            roster_df = roster_df.sort_values(by=['days_ago', 'nome']).reset_index(drop=True).drop(columns=['days_ago'])
 
         # Barra di ricerca se > 10
         if len(roster_df) > 10:
@@ -1420,37 +1442,39 @@ elif st.session_state.current_page == "Atleti":
                 roster_df = roster_df[roster_df['nome'].str.contains(search_q, case=False, na=False)]
         
         # Grid System
-        cols = st.columns(3)
-        for i, row in roster_df.iterrows():
-            col = cols[i % 3]
-            with col.container(border=True):
-                if pd.notna(row['foto']) and str(row['foto']).strip() != "":
-                    av_html = f'''<div style="width:55px; height:55px; border-radius:50%; border:2px solid {row["color"]}; overflow:hidden; margin-bottom:10px;">
-                                    <img src="{row["foto"]}" style="width:100%; height:100%; object-fit:cover; display:block;">
-                                  </div>'''
-                else:
-                    inz = "".join([n[0] for n in row['nome'].split()[:2]]).upper()
-                    av_html = f'''<div style="width:55px; height:55px; border-radius:50%; border:2px solid {row["color"]}; background:#14171E; color:#FFF; font-family:'DM Mono', monospace; font-size:20px; font-weight:bold; display:flex; align-items:center; justify-content:center; margin-bottom:10px;">
-                                    {inz}
-                                  </div>'''
-                
-                st.markdown(f'''
-                <div>
-                    {av_html}
-                    <div style="font-weight:600; font-size:1.1em; line-height:1.2; margin-bottom:2px;">{row["nome"]}</div>
-                    <div style="font-size:0.8em; color:rgba(255,255,255,0.5); margin-bottom:8px;">Velocità</div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="font-size:10px; padding:2px 6px; border-radius:4px; font-family:'DM Mono'; {row["c_badge"]}">{row["stato"]}</span>
-                        <span style="font-size:11px; color:#fff; font-family:'DM Mono'; font-weight:bold;">{row["highlight"]}</span>
-                    </div>
-                </div>
-                ''', unsafe_allow_html=True)
-                
-                if st.button("Vai", key=f"nav_{row['nome']}", use_container_width=True):
-                    st.session_state.app_athlete = row['nome']
-                    st.session_state.current_page = "Dettaglio Atleta"
-                    st.session_state.page_just_changed = True
-                    st.rerun()
+        for i in range(0, len(roster_df), 3):
+            cols = st.columns(3)
+            for j in range(3):
+                if i + j < len(roster_df):
+                    row = roster_df.iloc[i + j]
+                    with cols[j].container(border=True):
+                        if pd.notna(row['foto']) and str(row['foto']).strip() != "":
+                            av_html = f'''<div style="width:55px; height:55px; border-radius:50%; border:2px solid {row["color"]}; overflow:hidden; margin-bottom:10px;">
+                                            <img src="{row["foto"]}" style="width:100%; height:100%; object-fit:cover; display:block;">
+                                          </div>'''
+                        else:
+                            inz = "".join([n[0] for n in row['nome'].split()[:2]]).upper()
+                            av_html = f'''<div style="width:55px; height:55px; border-radius:50%; border:2px solid {row["color"]}; background:#14171E; color:#FFF; font-family:'DM Mono', monospace; font-size:20px; font-weight:bold; display:flex; align-items:center; justify-content:center; margin-bottom:10px;">
+                                            {inz}
+                                          </div>'''
+                        
+                        st.markdown(f'''
+                        <div>
+                            {av_html}
+                            <div style="font-weight:600; font-size:1.1em; line-height:1.2; margin-bottom:2px;">{row["nome"]}</div>
+                            <div style="font-size:0.8em; color:rgba(255,255,255,0.5); margin-bottom:8px;">Velocità</div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="font-size:10px; padding:2px 6px; border-radius:4px; font-family:'DM Mono'; {row["c_badge"]}">{row["stato"]}</span>
+                                <span style="font-size:11px; color:#fff; font-family:'DM Mono'; font-weight:bold;">{row["highlight"]}</span>
+                            </div>
+                        </div>
+                        ''', unsafe_allow_html=True)
+                        
+                        if st.button("Vai", key=f"nav_{row['nome']}", use_container_width=True):
+                            st.session_state.app_athlete = row['nome']
+                            st.session_state.current_page = "Dettaglio Atleta"
+                            st.session_state.page_just_changed = True
+                            st.rerun()
 
         if st.session_state.authenticated:
             @st.dialog("Registra Nuovo Atleta")
