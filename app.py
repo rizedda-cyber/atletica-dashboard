@@ -548,29 +548,30 @@ with st.sidebar:
     st.markdown("### 🏃 Menu Navigazione")
     
     st.markdown("<br>", unsafe_allow_html=True)
-    # Se l'atleta è in sessione personale, blocca la navigazione su altre pagine
+    # Se l'atleta è in sessione personale, mostra il badge di stato
     if st.session_state.is_athlete_session:
         nome_corto = st.session_state.logged_athlete_name.split()[0] if st.session_state.logged_athlete_name else "Atleta"
         st.markdown(f"<div style='padding:10px; background:rgba(232,255,58,0.08); border:1px solid rgba(232,255,58,0.3); border-radius:8px; text-align:center; margin-bottom:8px;'>"
                     f"<div style='font-size:0.75em; color:rgba(255,255,255,0.4); font-family:DM Mono; letter-spacing:1px;'>ACCESSO PERSONALE</div>"
                     f"<div style='font-weight:700; color:#E8FF3A;'>{nome_corto}</div></div>", unsafe_allow_html=True)
-    else:
-        if st.button("🏠 Home Squadra", use_container_width=True, type="primary" if st.session_state.current_page == "Home" else "secondary"):
-            st.session_state.current_page = "Home"
-            st.session_state.app_athlete = "Tutta la squadra"
-            st.session_state.page_just_changed = True
-            st.rerun()
 
-        if st.button("👥 Tutti gli Atleti", use_container_width=True, type="primary" if st.session_state.current_page == "Atleti" else "secondary"):
-            st.session_state.current_page = "Atleti"
-            st.session_state.app_athlete = "Tutta la squadra"
-            st.session_state.page_just_changed = True
-            st.rerun()
+    # Pulsanti di navigazione - Sempre visibili
+    if st.button("🏠 Home Squadra", use_container_width=True, type="primary" if st.session_state.current_page == "Home" else "secondary"):
+        st.session_state.current_page = "Home"
+        st.session_state.app_athlete = "Tutta la squadra"
+        st.session_state.page_just_changed = True
+        st.rerun()
 
-        if st.button("➕ Inserisci Allenamento", use_container_width=True, type="primary" if st.session_state.current_page == "Inserimento" else "secondary"):
-            st.session_state.current_page = "Inserimento"
-            st.session_state.page_just_changed = True
-            st.rerun()
+    if st.button("👥 Tutti gli Atleti", use_container_width=True, type="primary" if st.session_state.current_page == "Atleti" else "secondary"):
+        st.session_state.current_page = "Atleti"
+        st.session_state.app_athlete = "Tutta la squadra"
+        st.session_state.page_just_changed = True
+        st.rerun()
+
+    if st.button("➕ Inserisci Allenamento", use_container_width=True, type="primary" if st.session_state.current_page == "Inserimento" else "secondary"):
+        st.session_state.current_page = "Inserimento"
+        st.session_state.page_just_changed = True
+        st.rerun()
 
     if st.session_state.current_page == "Dettaglio Atleta":
         st.button("👤 Dettaglio Atleta", use_container_width=True, type="primary")
@@ -880,7 +881,11 @@ if st.session_state.current_page == "Inserimento":
             with st.form("form_corsa", clear_on_submit=True):
                 st.markdown("**Sessione in Pista**")
                 col_a, col_b = st.columns(2)
-                atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_corsa")
+                if st.session_state.is_athlete_session:
+                    atleta_sel = st.session_state.logged_athlete_name
+                    col_a.markdown(f"**Atleta:** {atleta_sel}")
+                else:
+                    atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_corsa")
                 data_sel = col_b.date_input("Data", key="data_corsa")
 
                 st.markdown("---")
@@ -933,7 +938,11 @@ if st.session_state.current_page == "Inserimento":
             with st.form("form_vbt", clear_on_submit=True):
                 st.markdown("**Sessione in Palestra (VBT)**")
                 col_a, col_b = st.columns(2)
-                atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_vbt")
+                if st.session_state.is_athlete_session:
+                    atleta_sel = st.session_state.logged_athlete_name
+                    col_a.markdown(f"**Atleta:** {atleta_sel}")
+                else:
+                    atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_vbt")
                 data_sel = col_b.date_input("Data", key="data_vbt")
                 st.markdown("---")
                 esercizio_sel = st.selectbox("Esercizio", options=esercizi_noti, key="esercizio_sel")
