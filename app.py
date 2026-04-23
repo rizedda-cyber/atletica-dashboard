@@ -796,11 +796,11 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
         if btn2.button("✏️ Modifica Dati", key="cambia_dati_btn", use_container_width=True):
             render_edit_profile_modal()
 
-    # ── BANNER IMPOSTA PIN PERSONALE (solo se sessione atleta senza PIN impostato) ──
-    if st.session_state.is_athlete_session and atleta_info and not atleta_info.get('pin_personale'):
+    # ── BANNER IMPOSTA PIN PERSONALE (permette a chi entra col PIN squadra di "reclamare" il profilo) ──
+    if not st.session_state.is_admin and atleta_info and not atleta_info.get('pin_personale'):
         st.markdown("<br>", unsafe_allow_html=True)
         with st.container(border=True):
-            st.markdown("🔐 **Non hai ancora un PIN personale.** Impostane uno per proteggere il tuo profilo. La prossima volta potrai accedere direttamente con il tuo PIN, senza usare quello della squadra.")
+            st.markdown(f"🔐 **Sei {atleta_info['nome_completo']}?** Imposta un PIN personale per proteggere il tuo profilo e poter modificare i tuoi dati e i tuoi tempi.")
             with st.form("form_set_pin", clear_on_submit=True):
                 c_p1, c_p2 = st.columns(2)
                 p1 = c_p1.text_input("Scegli un PIN", type="password", placeholder="Almeno 4 caratteri", key="new_pin_1")
