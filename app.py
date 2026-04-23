@@ -350,6 +350,10 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
+if "is_athlete_session" not in st.session_state:
+    st.session_state.is_athlete_session = False
+if "logged_athlete_name" not in st.session_state:
+    st.session_state.logged_athlete_name = None
 if "current_page" not in st.session_state:
     st.session_state.current_page = "Home"
 if "page_just_changed" not in st.session_state:
@@ -438,20 +442,42 @@ if not st.session_state.authenticated:
     with col2:
         with st.container(border=True):
             st.markdown("<h4 style='text-align: center;'>Login Squadra</h4>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; color:rgba(255,255,255,0.4); font-size:0.85em;'>PIN squadra · PIN personale · Password admin</p>", unsafe_allow_html=True)
             with st.form("login_form"):
                 pin_input = st.text_input("Codice di Accesso", type="password", placeholder="PIN o Password...", label_visibility="collapsed", key="pin_field")
                 submitted_login = st.form_submit_button("🔐 Accedi", type="primary", use_container_width=True)
             if submitted_login:
-                if pin_input.strip() == get_team_pin().strip():
+                pin_str = pin_input.strip()
+                if pin_str == get_team_pin().strip():
+                    # PIN squadra — accesso in sola lettura
                     st.session_state.authenticated = True
+                    st.session_state.is_admin = False
+                    st.session_state.is_athlete_session = False
+                    st.session_state.logged_athlete_name = None
                     st.rerun()
-                elif get_admin_password() and pin_input.strip() == get_admin_password().strip():
+                elif get_admin_password() and pin_str == get_admin_password().strip():
+                    # Password admin
                     st.session_state.authenticated = True
                     st.session_state.is_admin = True
+                    st.session_state.is_athlete_session = False
+                    st.session_state.logged_athlete_name = None
                     st.rerun()
                 else:
-                    st.error("❌ Codice errato")
-    st.stop() # Ferma il caricamento dell'app finché non c'è login
+                    # Prova PIN personale atleta
+                    from supabase_connector import get_atleta_by_pin
+                    atleta_trovato = get_atleta_by_pin(pin_str)
+                    if atleta_trovato:
+                        st.session_state.authenticated = True
+                        st.session_state.is_admin = False
+                        st.session_state.is_athlete_session = True
+                        st.session_state.logged_athlete_name = atleta_trovato["nome_completo"]
+                        st.session_state.app_athlete = atleta_trovato["nome_completo"]
+                        st.session_state.current_page = "Dettaglio Atleta"
+                        st.session_state.page_just_changed = True
+                        st.rerun()
+                    else:
+                        st.error("❌ Codice errato")
+    st.stop()  # Ferma il caricamento dell'app finché non c'è login
 
 # ──────────────────────────────────────────────────────────────────────
 # CARICAMENTO DATI (Supabase → fallback Excel)
@@ -522,22 +548,29 @@ with st.sidebar:
     st.markdown("### 🏃 Menu Navigazione")
     
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🏠 Home Squadra", use_container_width=True, type="primary" if st.session_state.current_page == "Home" else "secondary"):
-        st.session_state.current_page = "Home"
-        st.session_state.app_athlete = "Tutta la squadra"
-        st.session_state.page_just_changed = True
-        st.rerun()
+    # Se l'atleta è in sessione personale, blocca la navigazione su altre pagine
+    if st.session_state.is_athlete_session:
+        nome_corto = st.session_state.logged_athlete_name.split()[0] if st.session_state.logged_athlete_name else "Atleta"
+        st.markdown(f"<div style='padding:10px; background:rgba(232,255,58,0.08); border:1px solid rgba(232,255,58,0.3); border-radius:8px; text-align:center; margin-bottom:8px;'>"
+                    f"<div style='font-size:0.75em; color:rgba(255,255,255,0.4); font-family:DM Mono; letter-spacing:1px;'>ACCESSO PERSONALE</div>"
+                    f"<div style='font-weight:700; color:#E8FF3A;'>{nome_corto}</div></div>", unsafe_allow_html=True)
+    else:
+        if st.button("🏠 Home Squadra", use_container_width=True, type="primary" if st.session_state.current_page == "Home" else "secondary"):
+            st.session_state.current_page = "Home"
+            st.session_state.app_athlete = "Tutta la squadra"
+            st.session_state.page_just_changed = True
+            st.rerun()
 
-    if st.button("👥 Tutti gli Atleti", use_container_width=True, type="primary" if st.session_state.current_page == "Atleti" else "secondary"):
-        st.session_state.current_page = "Atleti"
-        st.session_state.app_athlete = "Tutta la squadra"
-        st.session_state.page_just_changed = True
-        st.rerun()
+        if st.button("👥 Tutti gli Atleti", use_container_width=True, type="primary" if st.session_state.current_page == "Atleti" else "secondary"):
+            st.session_state.current_page = "Atleti"
+            st.session_state.app_athlete = "Tutta la squadra"
+            st.session_state.page_just_changed = True
+            st.rerun()
 
-    if st.button("➕ Inserisci Allenamento", use_container_width=True, type="primary" if st.session_state.current_page == "Inserimento" else "secondary"):
-        st.session_state.current_page = "Inserimento"
-        st.session_state.page_just_changed = True
-        st.rerun()
+        if st.button("➕ Inserisci Allenamento", use_container_width=True, type="primary" if st.session_state.current_page == "Inserimento" else "secondary"):
+            st.session_state.current_page = "Inserimento"
+            st.session_state.page_just_changed = True
+            st.rerun()
 
     if st.session_state.current_page == "Dettaglio Atleta":
         st.button("👤 Dettaglio Atleta", use_container_width=True, type="primary")
@@ -562,16 +595,48 @@ with st.sidebar:
         st.markdown('<div style="text-align:center;"><span class="cloud-badge cloud-ok">☁️ Supabase Connesso</span></div>', unsafe_allow_html=True)
     else:
         st.markdown('<div style="text-align:center;"><span class="cloud-badge cloud-local">📂 Dati Locali (Excel)</span></div>', unsafe_allow_html=True)
-        
+
+    # ── PANNELLO ADMIN: GESTIONE PIN ──────────────────────────────────
+    if st.session_state.is_admin and DATA_SOURCE == "cloud":
+        st.divider()
+        with st.expander("🔑 Gestione PIN Atleti", expanded=False):
+            from supabase_connector import get_all_pins, set_atleta_pin
+            df_pins = get_all_pins()
+            if not df_pins.empty:
+                for _, pr in df_pins.iterrows():
+                    pin_val = pr.get('pin_personale') or ''
+                    c1, c2, c3 = st.columns([3, 2, 1])
+                    c1.markdown(f"<div style='padding-top:6px; font-size:0.9em;'>{pr['nome_completo']}</div>", unsafe_allow_html=True)
+                    nuovo_pin = c2.text_input("", value=pin_val, placeholder="nessun PIN",
+                                              label_visibility="collapsed", key=f"pin_inp_{pr['id']}")
+                    if c3.button("💾", key=f"pin_save_{pr['id']}", help="Salva PIN"):
+                        set_atleta_pin(pr['id'], nuovo_pin if nuovo_pin.strip() else None)
+                        st.success(f"✅ PIN di {pr['nome_completo'].split()[0]} aggiornato")
+                        st.rerun()
+            else:
+                st.info("Nessun atleta nel DB.")
+
     st.markdown("<br>", unsafe_allow_html=True)
-    role_label = "👑 Admin" if st.session_state.is_admin else "🟢 Esci / Log Out"
-    if st.button(f"🚪 {role_label}", key="btn_logout", use_container_width=True):
+    if st.session_state.is_athlete_session:
+        role_label = f"🏃 {st.session_state.logged_athlete_name.split()[0]}"
+    elif st.session_state.is_admin:
+        role_label = "👑 Admin"
+    else:
+        role_label = "🟢 Ospite"
+    if st.button(f"🚪 {role_label} — Esci", key="btn_logout", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.is_admin = False
+        st.session_state.is_athlete_session = False
+        st.session_state.logged_athlete_name = None
         st.session_state.current_page = "Home"
+        st.session_state.app_athlete = "Tutta la squadra"
         st.rerun()
 
 selected_athlete = st.session_state.app_athlete
+
+# can_edit: True se si è admin o in sessione personale atleta.
+# False se si è entrati solo con il PIN squadra (accesso in sola lettura).
+can_edit = st.session_state.is_admin or st.session_state.is_athlete_session
 
 @st.cache_data
 def convert_df_to_csv(df):
@@ -724,12 +789,36 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
         </div>
     ''', unsafe_allow_html=True)
     
-    if st.session_state.authenticated:
+    if can_edit:
         btn1, btn2, empty_space = st.columns([2, 2, 6])
         if btn1.button("📸 Cambia Foto", key="cambia_foto_btn", use_container_width=True):
             render_photo_modal()
         if btn2.button("✏️ Modifica Dati", key="cambia_dati_btn", use_container_width=True):
             render_edit_profile_modal()
+
+    # ── BANNER IMPOSTA PIN PERSONALE (solo se sessione atleta senza PIN impostato) ──
+    if st.session_state.is_athlete_session and atleta_info and not atleta_info.get('pin_personale'):
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("🔐 **Non hai ancora un PIN personale.** Impostane uno per proteggere il tuo profilo. La prossima volta potrai accedere direttamente con il tuo PIN, senza usare quello della squadra.")
+            with st.form("form_set_pin", clear_on_submit=True):
+                c_p1, c_p2 = st.columns(2)
+                p1 = c_p1.text_input("Scegli un PIN", type="password", placeholder="Almeno 4 caratteri", key="new_pin_1")
+                p2 = c_p2.text_input("Conferma PIN", type="password", placeholder="Ripeti il PIN", key="new_pin_2")
+                if st.form_submit_button("🔐 Imposta PIN Personale", type="primary", use_container_width=True):
+                    if not p1.strip() or len(p1.strip()) < 4:
+                        st.error("⚠️ Il PIN deve essere di almeno 4 caratteri.")
+                    elif p1.strip() != p2.strip():
+                        st.error("⚠️ I PIN non coincidono.")
+                    else:
+                        from supabase_connector import set_atleta_pin
+                        ok = set_atleta_pin(atleta_info['id'], p1.strip())
+                        if ok:
+                            st.success("✅ PIN personale impostato! Dalla prossima sessione potrai accedere direttamente con questo PIN.")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error("❌ Errore nel salvataggio del PIN. Riprova.")
 else:
     b64_string_logo = ""
     try:
@@ -1634,6 +1723,86 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
                             st.dataframe(sub_df, use_container_width=True, hide_index=True)
                     else:
                         st.info("Nessuna prova presente per questo atleta.")
+
+            # ── SEZIONE CORREZIONE TEMPI (solo per atleta in sessione o admin) ──
+            if can_edit and selected_athlete != "Tutta la squadra":
+                st.divider()
+                with st.expander("✏️ Correggi o Elimina un Tempo", expanded=False):
+                    st.markdown(
+                        "Qui puoi correggere un tempo inserito per errore o eliminare una prova. "
+                        "**Le modifiche sono permanenti nel database.** Usa con attenzione."
+                    )
+                    # Admin può scegliere l'atleta, atleta vede solo i propri
+                    if st.session_state.is_admin:
+                        all_atl_list = sorted(df_running['Atleta'].unique().tolist())
+                        target_atleta = st.selectbox("Atleta", options=all_atl_list,
+                                                     index=all_atl_list.index(selected_athlete) if selected_athlete in all_atl_list else 0,
+                                                     key="corr_atleta_sel")
+                    else:
+                        target_atleta = selected_athlete
+
+                    df_corr = df_running[df_running['Atleta'] == target_atleta].copy()
+                    if not df_corr.empty and 'id' in df_corr.columns:
+                        df_corr = df_corr.sort_values('Data', ascending=False).head(50)
+                        df_corr['Label'] = (
+                            df_corr['Data'].dt.strftime('%d/%m/%Y') + " — " +
+                            df_corr['Distanza'].astype(int).astype(str) + "m — " +
+                            df_corr['Tempo'].apply(lambda x: f"{x:.2f}s") +
+                            df_corr['Note'].apply(lambda n: f" ({n})" if pd.notna(n) and str(n).strip() else "")
+                        )
+                        label_to_id = dict(zip(df_corr['Label'], df_corr['id']))
+                        label_to_tempo = dict(zip(df_corr['Label'], df_corr['Tempo']))
+                        label_to_nota = dict(zip(df_corr['Label'], df_corr['Note'].fillna('')))
+
+                        sel_label = st.selectbox("Seleziona la prova da modificare", options=df_corr['Label'].tolist(), key="corr_sel_prova")
+
+                        if sel_label:
+                            sel_id = label_to_id[sel_label]
+                            sel_tempo = label_to_tempo[sel_label]
+                            sel_nota = label_to_nota[sel_label]
+
+                            cc1, cc2 = st.columns(2)
+                            with cc1:
+                                with st.form("form_correggi_tempo", clear_on_submit=False):
+                                    nuovo_tempo_str = st.text_input("Nuovo Tempo (secondi)", value=f"{sel_tempo:.2f}", key="corr_tempo_inp")
+                                    nuova_nota = st.text_input("Note", value=sel_nota, key="corr_nota_inp")
+                                    if st.form_submit_button("💾 Salva Correzione", type="primary", use_container_width=True):
+                                        try:
+                                            from data_loader import parse_time
+                                            parsed = parse_time(nuovo_tempo_str)
+                                            if parsed is None:
+                                                nuovo_t = float(nuovo_tempo_str.replace(',', '.'))
+                                            else:
+                                                nuovo_t = parsed['tempo']
+                                            from supabase_connector import update_sessione_corsa
+                                            ok = update_sessione_corsa(sel_id, nuovo_t, nuova_nota.strip())
+                                            if ok:
+                                                st.success("✅ Tempo corretto con successo!")
+                                                st.cache_data.clear()
+                                                st.rerun()
+                                            else:
+                                                st.error("❌ Errore nel salvataggio.")
+                                        except Exception as e:
+                                            st.error(f"❌ Formato tempo non valido: {e}")
+                            with cc2:
+                                st.markdown("<br>", unsafe_allow_html=True)
+                                if st.button("🗑️ Elimina questa prova", type="secondary", use_container_width=True, key="corr_delete_btn"):
+                                    st.session_state['_confirm_delete_id'] = sel_id
+                                    st.session_state['_confirm_delete_label'] = sel_label
+                                if st.session_state.get('_confirm_delete_id') == sel_id:
+                                    st.warning(f"⚠️ Sei sicuro di voler eliminare: **{sel_label}**?")
+                                    if st.button("✅ Sì, elimina definitivamente", type="primary", key="corr_confirm_del", use_container_width=True):
+                                        from supabase_connector import delete_sessione_corsa
+                                        delete_sessione_corsa(sel_id)
+                                        st.session_state.pop('_confirm_delete_id', None)
+                                        st.session_state.pop('_confirm_delete_label', None)
+                                        st.success("🗑️ Prova eliminata.")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                    elif 'id' not in df_corr.columns:
+                        st.info("La correzione tempi è disponibile solo con i dati dal cloud (Supabase).")
+                    else:
+                        st.info("Nessuna prova trovata per questo atleta.")
 
 
     # ══════════════════════════════════════════════════════════════════════

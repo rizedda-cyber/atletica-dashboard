@@ -114,6 +114,63 @@ def update_atleta_profile(atleta_id: int, data_nascita: str = None, peso: float 
 
 
 # ──────────────────────────────────────────────────────────────────────
+# PIN PERSONALI ATLETI
+# ──────────────────────────────────────────────────────────────────────
+
+def get_atleta_by_pin(pin: str) -> dict | None:
+    """
+    Cerca un atleta che ha impostato questo PIN personale.
+    Restituisce il record atleta (dict) o None se non trovato.
+    Il PIN è salvato in chiaro per consentire il recupero da parte dell'admin.
+    """
+    if not pin or not pin.strip():
+        return None
+    supabase = get_supabase()
+    try:
+        response = supabase.table("atleti") \
+            .select("*") \
+            .eq("pin_personale", pin.strip()) \
+            .limit(1) \
+            .execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"Errore get_atleta_by_pin: {e}")
+        return None
+
+
+def set_atleta_pin(atleta_id: int, pin: str) -> bool:
+    """
+    Imposta o aggiorna il PIN personale di un atleta.
+    Passa pin=None per resettare (rimuovere) il PIN.
+    """
+    supabase = get_supabase()
+    try:
+        payload = {"pin_personale": pin.strip() if pin else None}
+        response = supabase.table("atleti").update(payload).eq("id", atleta_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        print(f"Errore set_atleta_pin: {e}")
+        return False
+
+
+def get_all_pins() -> pd.DataFrame:
+    """
+    Restituisce tutti gli atleti con il loro PIN personale (solo per admin).
+    """
+    supabase = get_supabase()
+    try:
+        response = supabase.table("atleti") \
+            .select("id, nome_completo, pin_personale") \
+            .order("cognome") \
+            .execute()
+        if response.data:
+            return pd.DataFrame(response.data)
+    except Exception as e:
+        print(f"Errore get_all_pins: {e}")
+    return pd.DataFrame(columns=["id", "nome_completo", "pin_personale"])
+
+
+# ──────────────────────────────────────────────────────────────────────
 # SESSIONI CORSA
 # ──────────────────────────────────────────────────────────────────────
 
@@ -204,6 +261,35 @@ def bulk_insert_sessioni_corsa(records: list[dict]) -> int:
         return 0
     response = supabase.table("sessioni_corsa").insert(records).execute()
     return len(response.data) if response.data else 0
+
+
+def update_sessione_corsa(sessione_id: int, nuovo_tempo_sec: float = None, nuova_nota: str = None) -> bool:
+    """Aggiorna il tempo e/o la nota di una sessione di corsa esistente."""
+    supabase = get_supabase()
+    payload = {}
+    if nuovo_tempo_sec is not None:
+        payload["tempo_sec"] = nuovo_tempo_sec
+    if nuova_nota is not None:
+        payload["nota"] = nuova_nota
+    if not payload:
+        return True
+    try:
+        response = supabase.table("sessioni_corsa").update(payload).eq("id", sessione_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        print(f"Errore update_sessione_corsa: {e}")
+        return False
+
+
+def delete_sessione_corsa(sessione_id: int) -> bool:
+    """Elimina definitivamente una sessione di corsa dal database."""
+    supabase = get_supabase()
+    try:
+        response = supabase.table("sessioni_corsa").delete().eq("id", sessione_id).execute()
+        return True
+    except Exception as e:
+        print(f"Errore delete_sessione_corsa: {e}")
+        return False
 
 
 # ──────────────────────────────────────────────────────────────────────
