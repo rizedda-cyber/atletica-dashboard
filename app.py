@@ -379,10 +379,12 @@ def get_team_pin() -> str:
     return "1234"
 
 def get_admin_password() -> str:
-    if "TEAM_PASSWORD" in st.secrets:
-        return str(st.secrets["TEAM_PASSWORD"])
-    if "secrets" in st.secrets and "TEAM_PASSWORD" in st.secrets["secrets"]:
-        return str(st.secrets["secrets"]["TEAM_PASSWORD"])
+    # Prova prima ADMIN_PASSWORD, poi TEAM_PASSWORD come fallback
+    for key in ["ADMIN_PASSWORD", "TEAM_PASSWORD"]:
+        if key in st.secrets:
+            return str(st.secrets[key])
+        if "secrets" in st.secrets and key in st.secrets["secrets"]:
+            return str(st.secrets["secrets"][key])
     return ""
 
 # ──────────────────────────────────────────────────────────────────────
@@ -448,22 +450,25 @@ if not st.session_state.authenticated:
                 submitted_login = st.form_submit_button("🔐 Accedi", type="primary", use_container_width=True)
             if submitted_login:
                 pin_str = pin_input.strip()
-                if pin_str == get_team_pin().strip():
-                    # PIN squadra — accesso in sola lettura
-                    st.session_state.authenticated = True
-                    st.session_state.is_admin = False
-                    st.session_state.is_athlete_session = False
-                    st.session_state.logged_athlete_name = None
-                    st.rerun()
-                elif get_admin_password() and pin_str == get_admin_password().strip():
-                    # Password admin
+                # 1. CONTROLLO ADMIN (Precedenza massima)
+                admin_pass = get_admin_password().strip()
+                if admin_pass and pin_str == admin_pass:
                     st.session_state.authenticated = True
                     st.session_state.is_admin = True
                     st.session_state.is_athlete_session = False
                     st.session_state.logged_athlete_name = None
                     st.rerun()
+
+                # 2. CONTROLLO SQUADRA
+                elif pin_str == get_team_pin().strip():
+                    st.session_state.authenticated = True
+                    st.session_state.is_admin = False
+                    st.session_state.is_athlete_session = False
+                    st.session_state.logged_athlete_name = None
+                    st.rerun()
+
+                # 3. CONTROLLO PIN PERSONALE ATLETA
                 else:
-                    # Prova PIN personale atleta
                     from supabase_connector import get_atleta_by_pin
                     atleta_trovato = get_atleta_by_pin(pin_str)
                     if atleta_trovato:
