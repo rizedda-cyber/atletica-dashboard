@@ -1691,30 +1691,43 @@ elif st.session_state.current_page == "Atleti":
             for j in range(3):
                 if i + j < len(roster_df):
                     row = roster_df.iloc[i + j]
-                    with cols[j].container(border=True):
+                    with cols[j].container(border=False):
                         if pd.notna(row['foto']) and str(row['foto']).strip() != "":
-                            av_html = f'''<div style="width:55px; height:55px; border-radius:50%; border:2px solid {row["color"]}; overflow:hidden; margin-bottom:10px;">
+                            av_html = f'''<div style="width:60px; height:60px; border-radius:50%; border:3px solid {row["color"]}; overflow:hidden; position:relative; z-index:10; box-shadow: 0 4px 12px rgba({row["color"]}, 0.3);">
                                             <img src="{row["foto"]}" style="width:100%; height:100%; object-fit:cover; display:block;">
                                           </div>'''
                         else:
                             inz = "".join([n[0] for n in row['nome'].split()[:2]]).upper()
-                            av_html = f'''<div style="width:55px; height:55px; border-radius:50%; border:2px solid {row["color"]}; background:#14171E; color:#FFF; font-family:'DM Mono', monospace; font-size:20px; font-weight:bold; display:flex; align-items:center; justify-content:center; margin-bottom:10px;">
+                            av_html = f'''<div style="width:60px; height:60px; border-radius:50%; border:3px solid {row["color"]}; background: linear-gradient(135deg, {row["color"]}20, {row["color"]}05); color:#fff; font-family:'Bebas Neue', sans-serif; font-size:24px; font-weight:bold; display:flex; align-items:center; justify-content:center; position:relative; z-index:10; box-shadow: 0 4px 12px {row["color"]}30; letter-spacing:1px;">
                                             {inz}
                                           </div>'''
-                        
+
                         st.markdown(f'''
-                        <div>
-                            {av_html}
-                            <div style="font-weight:600; font-size:1.1em; line-height:1.2; margin-bottom:2px;">{row["nome"]}</div>
-                            <div style="font-size:0.8em; color:rgba(255,255,255,0.5); margin-bottom:8px;">Velocità</div>
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <span style="font-size:10px; padding:2px 6px; border-radius:4px; font-family:'DM Mono'; {row["c_badge"]}">{row["stato"]}</span>
-                                <span style="font-size:11px; color:#fff; font-family:'DM Mono'; font-weight:bold;">{row["highlight"]}</span>
+                        <div style="position: relative; background: rgba(255,255,255,0.02); border: 1px solid {row["color"]}40; border-radius: 14px; padding: 18px; transition: all 0.3s ease; cursor: pointer; backdrop-filter: blur(10px); overflow: hidden;">
+                            <!-- Background icon semi-trasparente -->
+                            <div style="position: absolute; right: -10px; top: -20px; font-size: 120px; opacity: 0.04; color: {row["color"]}; z-index: 0; user-select: none;">👤</div>
+
+                            <!-- Contenuto card -->
+                            <div style="position: relative; z-index: 2;">
+                                {av_html}
+
+                                <div style="margin-top: 12px;">
+                                    <div style="font-weight: 700; font-size: 1.05em; line-height: 1.3; margin-bottom: 4px; color: #FFF; font-family: 'DM Sans', sans-serif;">{row["nome"]}</div>
+                                    <div style="font-size: 0.75em; color: rgba(255,255,255,0.4); margin-bottom: 10px; font-family: 'DM Mono', monospace; letter-spacing: 0.5px; text-transform: uppercase;">VELOCITÀ</div>
+
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; font-family: 'DM Mono', monospace; font-weight: 700; width: max-content; {row["c_badge"]}">{row["stato"]}</span>
+                                        <span style="font-size: 11px; color: {row["color"]}; font-family: 'DM Mono', monospace; font-weight: bold;">{row["highlight"]}</span>
+                                    </div>
+                                </div>
                             </div>
+
+                            <!-- Border gradient effect -->
+                            <div style="position: absolute; inset: 0; border: 1px solid; border-image: linear-gradient(135deg, {row["color"]}60, {row["color"]}20) 1; border-radius: 14px; opacity: 0; transition: opacity 0.3s ease;" data-hover="border"></div>
                         </div>
                         ''', unsafe_allow_html=True)
-                        
-                        if st.button("Vai", key=f"nav_{row['nome']}", use_container_width=True):
+
+                        if st.button("Vai", key=f"nav_{row['nome']}", use_container_width=True, type="primary" if row["color"] == "#E8FF3A" else "secondary"):
                             st.session_state.app_athlete = row['nome']
                             st.session_state.current_page = "Dettaglio Atleta"
                             st.session_state.page_just_changed = True
@@ -1748,9 +1761,12 @@ elif st.session_state.current_page == "Atleti":
 # ──────────────────────────────────────────────────────────────────────
 
 if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
-        
-    st.markdown(f"## 👤 {selected_athlete}")
-    st.markdown("---")
+
+    # ── MOSTRA TITOLO ATLETA SOLO se NON sei in profilo personale ──
+    # (Se in profilo personale, il benvenuto è già mostrato sopra)
+    if not (st.session_state.is_athlete_session and st.session_state.logged_athlete_name == selected_athlete):
+        st.markdown(f"## 👤 {selected_athlete}")
+        st.markdown("---")
     tab_labels = ["⚡ Analisi Velocità", "💪 Forza (VBT)",
                   "📊 Predizioni ML", "⚖️ Transfer", "🏅 PB & Gare"]
     
