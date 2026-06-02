@@ -297,6 +297,12 @@ st.markdown("""
         -webkit-text-fill-color: #FFFFFF !important;
     }
 
+    /* ── FIX DUPLICATO NOME PROFILO: Evita duplicazione durante scroll ──
+       Questo assicura che il nome dell'atleta non venga renderizzato due volte */
+    main [data-testid="stMainBlockContainer"] h1:nth-of-type(2) {
+        display: none !important;
+    }
+
     @media (min-width: 768px) {
         .mobile-divider {
             display: none !important;
@@ -578,8 +584,19 @@ with st.sidebar:
         st.session_state.page_just_changed = True
         st.rerun()
 
-    if st.session_state.current_page == "Dettaglio Atleta":
-        st.button("👤 Dettaglio Atleta", use_container_width=True, type="primary")
+    # ── PULSANTE PROFILO ATLETA ──────────────────────────────────────
+    if st.session_state.is_athlete_session:
+        if st.session_state.current_page == "Dettaglio Atleta":
+            # Già sulla pagina del profilo - mostra bottone statico
+            st.button("👤 Dettaglio Atleta", use_container_width=True, type="primary")
+        else:
+            # Su altre pagine - offri bottone per tornare al profilo
+            nome_atleta = st.session_state.logged_athlete_name
+            if st.button(f"👤 Torna al Mio Profilo", use_container_width=True, type="primary"):
+                st.session_state.current_page = "Dettaglio Atleta"
+                st.session_state.app_athlete = nome_atleta
+                st.session_state.page_just_changed = True
+                st.rerun()
 
     st.divider()
 
@@ -980,12 +997,20 @@ if st.session_state.current_page == "Inserimento":
                             st.error("❌ Errore nel salvataggio.")
 
 elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
-    # Pulsante per tornare indietro in cima alla pagina (Spostato per massima visibilità)
-    if st.button("← Torna all'elenco atleti", use_container_width=True, type="primary"):
-        st.session_state.app_athlete = "Tutta la squadra"
-        st.session_state.current_page = "Atleti"
-        st.session_state.page_just_changed = True
-        st.rerun()
+    # ── BREADCRUMB E NAVIGAZIONE PROFILO ──────────────────────────────────
+    nav_col1, nav_col2 = st.columns([1, 1])
+    with nav_col1:
+        if st.button("← Torna all'elenco atleti", use_container_width=True, type="secondary"):
+            st.session_state.app_athlete = "Tutta la squadra"
+            st.session_state.current_page = "Atleti"
+            st.session_state.page_just_changed = True
+            st.rerun()
+
+    # Se sei in sessione personale, mostra il breadcrumb visivo
+    if st.session_state.is_athlete_session and st.session_state.logged_athlete_name == selected_athlete:
+        with nav_col2:
+            st.markdown("📍 **Profilo Personale**", help="Stai visualizzando il tuo profilo personale")
+
     st.markdown("<br>", unsafe_allow_html=True)
     pb_corse = df_r.groupby('Distanza')['Tempo'].min()
     
