@@ -800,10 +800,10 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
 
 
     st.markdown(f'''
-        <div style="display: flex; align-items: flex-start; gap: 24px; margin-bottom: 8px;">
+        <div style="display: flex; align-items: flex-start; gap: 24px; margin-bottom: 8px;" data-athlete-profile="{primo_nome}">
             {avatar_html}
-            <div style="padding-top: 5px;">
-                <h1 style="margin: 0 0 6px 0; padding: 0; line-height: 1;">👋 {benvenuto_text}, {primo_nome}!</h1>
+            <div style="padding-top: 5px; flex: 1;">
+                <h1 style="margin: 0 0 6px 0; padding: 0; line-height: 1; font-size: 2.5em;">👋 {benvenuto_text}, {primo_nome}!</h1>
                 <p style="margin: 0 0 10px 0; color: #E8FF3A; font-family: 'DM Mono', monospace; font-size: 0.9em; font-weight: 600; letter-spacing: 0.5px;">PROFILO ATLETA{eta_txt}{peso_txt}</p>
                 <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 1.05em; line-height: 1.35; max-width: 600px;">
                     {bio_text if bio_text else "Nessuna biografia inserita."}
@@ -918,7 +918,13 @@ if st.session_state.current_page == "Inserimento":
                     if i > 1:
                         st.markdown("<hr class='mobile-divider'>", unsafe_allow_html=True)
                     c1, c2, c3 = st.columns([1, 1, 2])
-                    dist_i = c1.selectbox(f"🎯 PROVA {i} (Distanza)", ["-"] + [f"{d}m" for d in distanze_opts], key=f"dist_{i}")
+                    dist_i = c1.selectbox(f"🎯 PROVA {i} (Distanza)", ["-"] + [f"{d}m" for d in distanze_opts] + ["Altro"], key=f"dist_{i}")
+
+                    # Se seleziona "Altro", mostra input per distanza custom
+                    if dist_i == "Altro":
+                        dist_custom = c1.number_input(f"Inserisci distanza (m)", min_value=1, max_value=10000, value=180, key=f"dist_custom_{i}")
+                        dist_i = f"{dist_custom}m"
+
                     tempo_i = c2.text_input(f"⏱️ TEMPO {i}", key=f"tempo_{i}", placeholder="es. 7.12")
                     nota_i = c3.text_input(f"📝 NOTE {i}", key=f"nota_{i}", placeholder="es. vento, elettrico...")
                     if dist_i != "-" and tempo_i.strip():
@@ -1259,16 +1265,27 @@ elif st.session_state.current_page == "Home":
             nuovi_vbt += 1
 
     # KPI Row 2 calcoli
-    # 1. Atleti con PB nel periodo
+    # 1. Atleti con PB nel periodo (SOLO se attivi negli ultimi 30 giorni)
     storico_pb = df_running[df_running['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Distanza'])['Tempo'].min().to_dict()
+
+    # Calcola atleti attivi negli ultimi 30 giorni per filtrare falsi positivi
+    ultimi_30gg = pd.Timestamp.now().tz_localize(None) - pd.Timedelta(days=30)
+    df_r_30gg = df_r[df_r['Data'] >= ultimi_30gg].copy()
+    atleti_attivi_30gg = set(df_r_30gg['Atleta'].unique()) if not df_r_30gg.empty else set()
+
     atleti_pb = set()
     for idx, row in df_r.iterrows():
+        # Verifica che l'atleta sia attivo negli ultimi 30 giorni
+        if row['Atleta'] not in atleti_attivi_30gg:
+            continue
+
         k = (row['Atleta'], row['Distanza'])
         if k in storico_pb:
             if row['Tempo'] < storico_pb[k]:
                 atleti_pb.add(row['Atleta'])
                 storico_pb[k] = row['Tempo']
         else:
+            # Distanza nuova: conta come PB solo se registrata negli ultimi 30 giorni
             atleti_pb.add(row['Atleta'])
             storico_pb[k] = row['Tempo']
             
@@ -1302,10 +1319,12 @@ elif st.session_state.current_page == "Home":
 
     st.markdown(f'<div class="kpi-grid">{c1}{c2}{c3}{c4}{c5}{c6}{c7}{c8}</div>', unsafe_allow_html=True)
     
-    # NOTIFICHE AUTOMATICHE E COMPLEANNI
+    # ══════════════════════════════════════════════════════════════════════
+    # NOTIFICHE AUTOMATICHE, COMPLEANNI E ALERT STRUTTURATO
+    # ══════════════════════════════════════════════════════════════════════
     st.markdown("<hr class='gold'>", unsafe_allow_html=True)
     st.markdown("#### 🔔 Alert & Notifiche Group")
-    
+
     # ── LOGICA COMPLEANNI ──
     from supabase_connector import get_atleti
     df_atleti_full = get_atleti()
@@ -1322,22 +1341,119 @@ elif st.session_state.current_page == "Home":
                     pass
     if compleanni:
         txt_h = "è il compleanno di" if len(compleanni) == 1 else "sono i compleanni di"
-        st.success(f"🎈 **Tanti auguri!** Oggi {txt_h}: **{', '.join(compleanni)}**! 🎉")
+        st.markdown(f"""
+        <div style="background: rgba(232,255,58,0.15); border: 2px solid #E8FF3A; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <span style="font-size: 28px;">🎈</span>
+                <div>
+                    <div style="color: #E8FF3A; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 11px;">COMPLEANNO</div>
+                    <div style="color: #fff; font-size: 0.95em; margin-top: 2px;">
+                        Oggi {txt_h}: <strong>{', '.join(compleanni)}</strong>! 🎉
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── ALERT PERFORMANCE E MONITORAGGIO ──
     alert_col1, alert_col2 = st.columns(2)
+
     with alert_col1:
+        # ALERT PB
         if atleti_pb:
             txt = " e altri" if len(atleti_pb) > 3 else ""
-            st.success(f"🏆 **Record infranti:** {', '.join(list(atleti_pb)[:3])} {txt} hanno battuto il PB!")
+            pb_list = ', '.join(list(atleti_pb)[:3]) + txt
+            st.markdown(f"""
+            <div style="background: rgba(184,255,138,0.1); border-left: 4px solid #B8FF8A; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+                <div style="display: flex; gap: 10px; align-items: flex-start;">
+                    <span style="font-size: 24px; margin-top: 2px;">🏆</span>
+                    <div style="flex: 1;">
+                        <div style="color: #B8FF8A; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">RECORD INFRANTI</div>
+                        <div style="color: #fff; font-size: 0.9em;">
+                            <strong>{pb_list}</strong> hanno battuto il PB in questo periodo! 🔥
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.info("ℹ️ Nessun nuovo PB in questo periodo. Continuate a spingere!")
+            st.markdown(f"""
+            <div style="background: rgba(255,255,255,0.02); border-left: 4px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+                <div style="display: flex; gap: 10px; align-items: flex-start;">
+                    <span style="font-size: 24px;">💪</span>
+                    <div style="flex: 1;">
+                        <div style="color: rgba(255,255,255,0.5); font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">NESSUN NUOVO PB</div>
+                        <div style="color: rgba(255,255,255,0.7); font-size: 0.9em;">
+                            Continuate a spingere! Il prossimo record è vicino.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # ALERT VOLUME
         if p_km > 0:
-            st.info(f"📈 **Volume in crescita:** La squadra ha aumentato i km del {p_km:+.1f}% rispetto al periodo precedente.")
+            st.markdown(f"""
+            <div style="background: rgba(100,200,255,0.1); border-left: 4px solid #64C8FF; border-radius: 8px; padding: 14px;">
+                <div style="display: flex; gap: 10px; align-items: flex-start;">
+                    <span style="font-size: 24px;">📈</span>
+                    <div style="flex: 1;">
+                        <div style="color: #64C8FF; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">VOLUME IN CRESCITA</div>
+                        <div style="color: #fff; font-size: 0.9em;">
+                            La squadra ha aumentato i km di <strong>{p_km:+.1f}%</strong> vs il periodo precedente.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
     with alert_col2:
+        # ALERT INATTIVI (più importante)
         if inattivi:
             txt2 = " e altri" if len(inattivi) > 3 else ""
-            st.warning(f"⚠️ **Attenzione:** {', '.join(inattivi[:3])} {txt2} non si allenano da oltre 7 giorni.")
+            inattivi_list = ', '.join(inattivi[:3]) + txt2
+            st.markdown(f"""
+            <div style="background: rgba(255,75,75,0.15); border-left: 4px solid #FF6B6B; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+                <div style="display: flex; gap: 10px; align-items: flex-start;">
+                    <span style="font-size: 24px;">⚠️</span>
+                    <div style="flex: 1;">
+                        <div style="color: #FF6B6B; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">ATLETI INATTIVI (>7 GG)</div>
+                        <div style="color: #fff; font-size: 0.9em;">
+                            <strong>{inattivi_list}</strong> non si allenano da più di una settimana. Richiedere contatti! 📞
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.success("Tutti gli atleti sono attivi di recente! 🎉")
+            st.markdown(f"""
+            <div style="background: rgba(22,163,74,0.1); border-left: 4px solid #16a34a; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+                <div style="display: flex; gap: 10px; align-items: flex-start;">
+                    <span style="font-size: 24px;">✅</span>
+                    <div style="flex: 1;">
+                        <div style="color: #16a34a; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">SQUADRA ATTIVA</div>
+                        <div style="color: #fff; font-size: 0.9em;">
+                            Tutti gli atleti si allenano regolarmente. Ottimo lavoro! 🎉
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Spazio per futuri alert
+        st.markdown(f"""
+        <div style="background: rgba(255,255,255,0.02); border-left: 4px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 24px;">📊</span>
+                <div style="flex: 1;">
+                    <div style="color: rgba(255,255,255,0.5); font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">PERIODO ANALIZZATO</div>
+                    <div style="color: rgba(255,255,255,0.7); font-size: 0.9em;">
+                        Dal {start_d.strftime('%d/%m/%Y')} al {end_date.strftime('%d/%m/%Y')} ({duration_days} giorni)
+                    </div>
+                </div>
+            </div>
+        </div>
+        """  , unsafe_allow_html=True)
 
 st.divider()
 
@@ -2160,146 +2276,4 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
 
     with tab4:
         st.subheader("⚖️ Analisi Transfer (Impatto Palestra sulla Velocità)")
-        st.markdown("Questa sezione accoppia i carichi sollevati in palestra (es. Squat) con i tempi registrati in pista raggruppati mensilmente. Ti aiuta a comprendere matematicamente se all'aumentare dei tuoi massimali in sala pesi, diminuisce il tempo di scatto (Transfer Positivo).", help="I dati vengono raggruppati per Atleta e per Mese, questo per colmare la mancata simultaneità dei due allenamenti (spesso ci si allena in sala pesi in giornate diverse rispetto alla pista).")
-
-        if len(df_v) == 0 or len(df_r) == 0:
-            st.warning("Servono sia dati di corsa che dati di palestra per calcolare il transfer.")
-        else:
-            col_c1, col_c2 = st.columns(2)
-            vbt_exercises = sorted(df_v['Esercizio'].dropna().unique())
-            run_distances = [d for d in sorted(df_r['Distanza'].unique()) if d >= 20]
-        
-            default_vbt = "Squat" if "Squat" in vbt_exercises else (vbt_exercises[0] if vbt_exercises else "")
-            ex_choice = col_c1.selectbox("Esercizio VBT Riferimento", vbt_exercises, index=vbt_exercises.index(default_vbt) if default_vbt in vbt_exercises else 0)
-        
-            default_run = 60 if 60 in run_distances else (run_distances[0] if run_distances else 20)
-            dist_choice = col_c2.selectbox("Distanza di Sprint (Transfer)", run_distances, index=run_distances.index(default_run) if default_run in run_distances else 0)
-
-            df_r_sub = df_r[df_r['Distanza'] == dist_choice].copy()
-            df_v_sub = df_v[df_v['Esercizio'] == ex_choice].copy()
-        
-            if len(df_r_sub) > 0 and len(df_v_sub) > 0:
-                df_r_sub['Mese'] = df_r_sub['Data'].dt.to_period('M')
-                df_v_sub['Mese'] = df_v_sub['Data'].dt.to_period('M')
-
-                aggr_r = df_r_sub.groupby(['Atleta', 'Mese'])['Tempo'].mean().reset_index()
-                aggr_v = df_v_sub.groupby(['Atleta', 'Mese'])['Carico'].mean().reset_index()
-
-                merged = pd.merge(aggr_r, aggr_v, on=['Atleta', 'Mese'], how='inner')
-                merged['Mese_Str'] = merged['Mese'].astype(str)
-            
-                if len(merged) < 3:
-                    st.info("Punti di congiunzione insufficienti per l'esercizio e sprint scelti nello stesso mese. Servono almeno 3 campioni medi mensili per attivare l'intelligenza analitica. Prova altre distanze/esercizi.")
-                else:
-                    import scipy.stats as stats
-                    fig_corr = px.scatter(
-                        merged, x='Carico', y='Tempo', color='Mese_Str',
-                        hover_data=['Atleta'], trendline="ols",
-                        title=f"Scatter Plot: {ex_choice} vs {dist_choice}m (Medie Mensili)",
-                        labels={'Carico': f'Carico Medio Sollevato (kg)', 'Tempo': f'Tempo Medio {dist_choice}m (s)', 'Mese_Str': 'Periodo'},
-                        template=THEME_TEMPLATE
-                    )
-                    fig_corr.update_layout(height=450)
-                
-                    r_val, p_val = stats.pearsonr(merged['Carico'], merged['Tempo'])
-                
-                    st.plotly_chart(fig_corr, use_container_width=True)
-                
-                    # AI Testo Intepretativo
-                    st.markdown("### 🤖 Sintesi Intelligenza Analitica")
-                    if r_val < -0.3:
-                        txt = f"**Transfer Positivo (r = {r_val:.2f})**: C'è una correlazione inversa rilevante. I dati numerici indicano che all'aumentare dei carichi ({ex_choice}), i tempi sullo sprint ({dist_choice}m) tendono organicamente a **ridursi**."
-                    elif r_val > 0.3:
-                        txt = f"**Transfer Negativo (r = {r_val:.2f})**: Attenzione, i dati indicano che storicamente, nelle finestre mensili con carichi di {ex_choice} più alti, i tempi sui {dist_choice}m si sono **alzati**. Valuta un possibile sovraffaticamento o perdita di brillantezza reattiva."
-                    else:
-                        txt = f"**Risposta Neutra (r = {r_val:.2f})**: In questo storico, la forza aspecifica ({ex_choice}) è variata senza impattare linearmente o costantemente sull'espressione pura di sprint ({dist_choice}m)."
-                    
-                    st.info(txt)
-            else:
-                st.warning("Non ci sono dati a sufficienza per operare questa correlazione specifica.")
-
-    # ══════════════════════════════════════════════════════════════════════
-    # TAB 5 — PB & GARE
-    # ══════════════════════════════════════════════════════════════════════
-
-    with tab5:
-        st.subheader("🏅 Storico Gare Ufficiali e Personal Best")
-    
-        from supabase_connector import get_gare_ufficiali
-        if selected_athlete == "Tutta la squadra":
-            df_gare = get_gare_ufficiali()
-        else:
-            # We need the athlete id. 
-            # atleta_info should be available in the 'if selected_athlete != "Tutta la squadra"' scope.
-            if "atleta_info" in locals() and atleta_info:
-                df_gare = get_gare_ufficiali(atleta_info["id"])
-            else:
-                df_gare = pd.DataFrame()
-
-        if st.session_state.authenticated and selected_athlete != "Tutta la squadra":
-            @st.dialog("Inserisci Risultato di Gara")
-            def render_pb_modal():
-                with st.form("form_gara", clear_on_submit=True):
-                    g_spec = st.text_input("Specialità (es. 100m, Lungo)")
-                    g_tempo = st.text_input("Tempo/Misura (es. 10.89, 7.54)")
-                    g_vento = st.text_input("Vento (es. +1.2)", placeholder="opzionale")
-                    g_luogo = st.text_input("Città/Luogo", placeholder="opzionale")
-                    g_data = st.date_input("Data della Gara")
-                
-                    if st.form_submit_button("✅ Salva Risultato", type="primary", use_container_width=True):
-                        if g_spec.strip() and g_tempo.strip():
-                            from supabase_connector import insert_gara_ufficiale
-                            ok = insert_gara_ufficiale(selected_athlete, g_spec.strip(), g_tempo.strip(), g_vento.strip(), g_luogo.strip(), g_data.strftime("%Y-%m-%d"))
-                            if ok:
-                                st.success("✅ Risultato di gara registrato!")
-                                st.cache_data.clear()
-                                st.rerun()
-                            else:
-                                st.error("Errore nel salvataggio del PB.")
-                        else:
-                            st.error("Inserisci Specialità e Tempo.")
-        
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("➕ Registra Nuovo PB/Gara", type="primary", use_container_width=True):
-                render_pb_modal()
-            
-        st.markdown("<br>", unsafe_allow_html=True)
-        if df_gare.empty:
-            st.info("Nessuna gara ufficiale registrata.")
-        else:
-            df_gare_disp = df_gare.copy()
-            if "atleta_id" in df_gare_disp.columns:
-                df_gare_disp = df_gare_disp.drop(columns=["atleta_id"])
-        
-            # Pretty display in dataframe
-            st.dataframe(df_gare_disp, use_container_width=True, hide_index=True)
-
-    st.divider()
-
-    # ──────────────────────────────────────────────────────────────────────
-    # ESPORTAZIONE DATI (CSV)
-    # ──────────────────────────────────────────────────────────────────────
-    st.markdown("""
-    <style>
-    div[data-testid="stExpander"] {
-        border-color: rgba(232,255,58,0.3) !important;
-    }
-    div[data-testid="stExpander"] summary {
-        color: #E8FF3A !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    with st.expander("📥 Export Dati (CSV)"):
-        st.markdown("Scarica i record filtrati (per atleta e date selezionate).")
-        e_col1, e_col2, e_col3 = st.columns([1,1,2])
-        with e_col1:
-            st.download_button("🏃 Scarica CSV Corsa", data=convert_df_to_csv(df_r), file_name='dataset_corsa.csv', mime='text/csv')
-        with e_col2:
-            st.download_button("🏋️ Scarica CSV VBT", data=convert_df_to_csv(df_v), file_name='dataset_vbt.csv', mime='text/csv')
-
-
-    st.caption("Dashboard Atletica · v3 Cloud · Powered by Supabase + Streamlit")
-
-
-
+        st.markdown("Questa sezione accoppia i carichi sollevati in palestra (es. Squat) con i tempi registrati in pista raggruppati mensilmente. Ti aiuta a comprendere matematicamente se all'aumentare dei tuoi massimali in sala pesi, diminuisce il tempo di scatto (Transfer Positivo).", help="I dati vengono raggruppati per Atleta e per Mese, questo per colmare la mancata simultaneità dei due allenamenti (spesso ci si allena in 
