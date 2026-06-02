@@ -1691,36 +1691,32 @@ elif st.session_state.current_page == "Atleti":
             for j in range(3):
                 if i + j < len(roster_df):
                     row = roster_df.iloc[i + j]
-                    with cols[j].container(border=False):
+                    with cols[j].container(border=True):
+                        # Avatar con border color-coded e senza foto con gradient
                         if pd.notna(row['foto']) and str(row['foto']).strip() != "":
-                            av_html = f'''<div style="width:60px; height:60px; border-radius:50%; border:3px solid {row["color"]}; overflow:hidden; position:relative; z-index:10; box-shadow: 0 4px 12px rgba({row["color"]}, 0.3);">
+                            av_html = f'''<div style="width:70px; height:70px; border-radius:50%; border:4px solid {row["color"]}; overflow:hidden; margin-bottom:12px; box-shadow: 0 0 20px {row["color"]}40;">
                                             <img src="{row["foto"]}" style="width:100%; height:100%; object-fit:cover; display:block;">
                                           </div>'''
                         else:
                             inz = "".join([n[0] for n in row['nome'].split()[:2]]).upper()
-                            av_html = f'''<div style="width:60px; height:60px; border-radius:50%; border:3px solid {row["color"]}; background: linear-gradient(135deg, {row["color"]}20, {row["color"]}05); color:#fff; font-family:'Bebas Neue', sans-serif; font-size:24px; font-weight:bold; display:flex; align-items:center; justify-content:center; position:relative; z-index:10; box-shadow: 0 4px 12px {row["color"]}30; letter-spacing:1px;">
+                            av_html = f'''<div style="width:70px; height:70px; border-radius:50%; border:4px solid {row["color"]}; background: radial-gradient(circle at 30% 30%, {row["color"]}30, {row["color"]}10); color:#FFF; font-family:'Bebas Neue', sans-serif; font-size:28px; font-weight:bold; display:flex; align-items:center; justify-content:center; margin-bottom:12px; box-shadow: 0 0 20px {row["color"]}40; letter-spacing:2px;">
                                             {inz}
                                           </div>'''
 
                         st.markdown(f'''
-                        <div style="position: relative; background: rgba(255,255,255,0.02); border: 1px solid {row["color"]}40; border-radius: 14px; padding: 18px; transition: all 0.3s ease; cursor: pointer; backdrop-filter: blur(10px); overflow: hidden;">
-                            <div style="position: absolute; right: -10px; top: -20px; font-size: 120px; opacity: 0.04; color: {row["color"]}; z-index: 0; user-select: none;">👤</div>
-                            <div style="position: relative; z-index: 2;">
-                                {av_html}
-                                <div style="margin-top: 12px;">
-                                    <div style="font-weight: 700; font-size: 1.05em; line-height: 1.3; margin-bottom: 4px; color: #FFF; font-family: 'DM Sans', sans-serif;">{row["nome"]}</div>
-                                    <div style="font-size: 0.75em; color: rgba(255,255,255,0.4); margin-bottom: 10px; font-family: 'DM Mono', monospace; letter-spacing: 0.5px; text-transform: uppercase;">VELOCITÀ</div>
-                                    <div style="display: flex; flex-direction: column; gap: 6px;">
-                                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; font-family: 'DM Mono', monospace; font-weight: 700; width: max-content; {row["c_badge"]}">{row["stato"]}</span>
-                                        <span style="font-size: 11px; color: {row["color"]}; font-family: 'DM Mono', monospace; font-weight: bold;">{row["highlight"]}</span>
-                                    </div>
-                                </div>
+                        <div style="position: relative; padding: 6px;">
+                            <div style="position: absolute; right: 8px; top: 8px; font-size: 80px; opacity: 0.06; color: {row["color"]}; user-select: none; pointer-events: none;">👤</div>
+                            {av_html}
+                            <div style="font-weight: 700; font-size: 1.1em; line-height: 1.3; margin-bottom: 6px; color: #E8EDF5;">{row["nome"]}</div>
+                            <div style="font-size: 0.7em; color: rgba(255,255,255,0.4); margin-bottom: 12px; font-family: 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; font-weight: 600;">● VELOCITÀ</div>
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                                <span style="font-size: 11px; padding: 5px 10px; border-radius: 6px; font-family: 'DM Mono', monospace; font-weight: 700; {row["c_badge"]}">{row["stato"]}</span>
+                                <span style="font-size: 12px; color: {row["color"]}; font-family: 'DM Mono', monospace; font-weight: bold;">{row["highlight"]}</span>
                             </div>
-                            <div style="position: absolute; inset: 0; border: 1px solid; border-image: linear-gradient(135deg, {row["color"]}60, {row["color"]}20) 1; border-radius: 14px; opacity: 0; transition: opacity 0.3s ease;"></div>
                         </div>
                         ''', unsafe_allow_html=True)
 
-                        if st.button("Vai", key=f"nav_{row['nome']}", use_container_width=True, type="primary" if row["color"] == "#E8FF3A" else "secondary"):
+                        if st.button("🔍 Vai al Profilo", key=f"nav_{row['nome']}", use_container_width=True):
                             st.session_state.app_athlete = row['nome']
                             st.session_state.current_page = "Dettaglio Atleta"
                             st.session_state.page_just_changed = True
@@ -2279,152 +2275,4 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
         else:
             st.error("Distanze insufficienti.")
 
-    # ══════════════════════════════════════════════════════════════════════
-    # TAB 4 — TRANSFER E CORRELAZIONE (GYM ↔ CORSA)
-    # ══════════════════════════════════════════════════════════════════════
-
-    with tab4:
-        st.subheader("⚖️ Analisi Transfer (Impatto Palestra sulla Velocità)")
-        st.markdown("Questa sezione accoppia i carichi sollevati in palestra (es. Squat) con i tempi registrati in pista raggruppati mensilmente. Ti aiuta a comprendere matematicamente se all'aumentare dei tuoi massimali in sala pesi, diminuisce il tempo di scatto (Transfer Positivo).", help="I dati vengono raggruppati per Atleta e per Mese, questo per colmare la mancata simultaneità dei due allenamenti (spesso ci si allena in sala pesi in giornate diverse rispetto alla pista).")
-
-        if len(df_v) == 0 or len(df_r) == 0:
-            st.warning("Servono sia dati di corsa che dati di palestra per calcolare il transfer.")
-        else:
-            col_c1, col_c2 = st.columns(2)
-            vbt_exercises = sorted(df_v['Esercizio'].dropna().unique())
-            run_distances = [d for d in sorted(df_r['Distanza'].unique()) if d >= 20]
-        
-            default_vbt = "Squat" if "Squat" in vbt_exercises else (vbt_exercises[0] if vbt_exercises else "")
-            ex_choice = col_c1.selectbox("Esercizio VBT Riferimento", vbt_exercises, index=vbt_exercises.index(default_vbt) if default_vbt in vbt_exercises else 0)
-        
-            default_run = 60 if 60 in run_distances else (run_distances[0] if run_distances else 20)
-            dist_choice = col_c2.selectbox("Distanza di Sprint (Transfer)", run_distances, index=run_distances.index(default_run) if default_run in run_distances else 0)
-
-            df_r_sub = df_r[df_r['Distanza'] == dist_choice].copy()
-            df_v_sub = df_v[df_v['Esercizio'] == ex_choice].copy()
-        
-            if len(df_r_sub) > 0 and len(df_v_sub) > 0:
-                df_r_sub['Mese'] = df_r_sub['Data'].dt.to_period('M')
-                df_v_sub['Mese'] = df_v_sub['Data'].dt.to_period('M')
-
-                aggr_r = df_r_sub.groupby(['Atleta', 'Mese'])['Tempo'].mean().reset_index()
-                aggr_v = df_v_sub.groupby(['Atleta', 'Mese'])['Carico'].mean().reset_index()
-
-                merged = pd.merge(aggr_r, aggr_v, on=['Atleta', 'Mese'], how='inner')
-                merged['Mese_Str'] = merged['Mese'].astype(str)
-            
-                if len(merged) < 3:
-                    st.info("Punti di congiunzione insufficienti per l'esercizio e sprint scelti nello stesso mese. Servono almeno 3 campioni medi mensili per attivare l'intelligenza analitica. Prova altre distanze/esercizi.")
-                else:
-                    import scipy.stats as stats
-                    fig_corr = px.scatter(
-                        merged, x='Carico', y='Tempo', color='Mese_Str',
-                        hover_data=['Atleta'], trendline="ols",
-                        title=f"Scatter Plot: {ex_choice} vs {dist_choice}m (Medie Mensili)",
-                        labels={'Carico': f'Carico Medio Sollevato (kg)', 'Tempo': f'Tempo Medio {dist_choice}m (s)', 'Mese_Str': 'Periodo'},
-                        template=THEME_TEMPLATE
-                    )
-                    fig_corr.update_layout(height=450)
-                
-                    r_val, p_val = stats.pearsonr(merged['Carico'], merged['Tempo'])
-                
-                    st.plotly_chart(fig_corr, use_container_width=True)
-                
-                    # AI Testo Intepretativo
-                    st.markdown("### 🤖 Sintesi Intelligenza Analitica")
-                    if r_val < -0.3:
-                        txt = f"**Transfer Positivo (r = {r_val:.2f})**: C'è una correlazione inversa rilevante. I dati numerici indicano che all'aumentare dei carichi ({ex_choice}), i tempi sullo sprint ({dist_choice}m) tendono organicamente a **ridursi**."
-                    elif r_val > 0.3:
-                        txt = f"**Transfer Negativo (r = {r_val:.2f})**: Attenzione, i dati indicano che storicamente, nelle finestre mensili con carichi di {ex_choice} più alti, i tempi sui {dist_choice}m si sono **alzati**. Valuta un possibile sovraffaticamento o perdita di brillantezza reattiva."
-                    else:
-                        txt = f"**Risposta Neutra (r = {r_val:.2f})**: In questo storico, la forza aspecifica ({ex_choice}) è variata senza impattare linearmente o costantemente sull'espressione pura di sprint ({dist_choice}m)."
-                    
-                    st.info(txt)
-            else:
-                st.warning("Non ci sono dati a sufficienza per operare questa correlazione specifica.")
-
-    # ══════════════════════════════════════════════════════════════════════
-    # TAB 5 — PB & GARE
-    # ══════════════════════════════════════════════════════════════════════
-
-    with tab5:
-        st.subheader("🏅 Storico Gare Ufficiali e Personal Best")
-    
-        from supabase_connector import get_gare_ufficiali
-        if selected_athlete == "Tutta la squadra":
-            df_gare = get_gare_ufficiali()
-        else:
-            # We need the athlete id. 
-            # atleta_info should be available in the 'if selected_athlete != "Tutta la squadra"' scope.
-            if "atleta_info" in locals() and atleta_info:
-                df_gare = get_gare_ufficiali(atleta_info["id"])
-            else:
-                df_gare = pd.DataFrame()
-
-        if st.session_state.authenticated and selected_athlete != "Tutta la squadra":
-            @st.dialog("Inserisci Risultato di Gara")
-            def render_pb_modal():
-                with st.form("form_gara", clear_on_submit=True):
-                    g_spec = st.text_input("Specialità (es. 100m, Lungo)")
-                    g_tempo = st.text_input("Tempo/Misura (es. 10.89, 7.54)")
-                    g_vento = st.text_input("Vento (es. +1.2)", placeholder="opzionale")
-                    g_luogo = st.text_input("Città/Luogo", placeholder="opzionale")
-                    g_data = st.date_input("Data della Gara")
-                
-                    if st.form_submit_button("✅ Salva Risultato", type="primary", use_container_width=True):
-                        if g_spec.strip() and g_tempo.strip():
-                            from supabase_connector import insert_gara_ufficiale
-                            ok = insert_gara_ufficiale(selected_athlete, g_spec.strip(), g_tempo.strip(), g_vento.strip(), g_luogo.strip(), g_data.strftime("%Y-%m-%d"))
-                            if ok:
-                                st.success("✅ Risultato di gara registrato!")
-                                st.cache_data.clear()
-                                st.rerun()
-                            else:
-                                st.error("Errore nel salvataggio del PB.")
-                        else:
-                            st.error("Inserisci Specialità e Tempo.")
-        
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("➕ Registra Nuovo PB/Gara", type="primary", use_container_width=True):
-                render_pb_modal()
-            
-        st.markdown("<br>", unsafe_allow_html=True)
-        if df_gare.empty:
-            st.info("Nessuna gara ufficiale registrata.")
-        else:
-            df_gare_disp = df_gare.copy()
-            if "atleta_id" in df_gare_disp.columns:
-                df_gare_disp = df_gare_disp.drop(columns=["atleta_id"])
-        
-            # Pretty display in dataframe
-            st.dataframe(df_gare_disp, use_container_width=True, hide_index=True)
-
-    st.divider()
-
-    # ──────────────────────────────────────────────────────────────────────
-    # ESPORTAZIONE DATI (CSV)
-    # ──────────────────────────────────────────────────────────────────────
-    st.markdown("""
-    <style>
-    div[data-testid="stExpander"] {
-        border-color: rgba(232,255,58,0.3) !important;
-    }
-    div[data-testid="stExpander"] summary {
-        color: #E8FF3A !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    with st.expander("📥 Export Dati (CSV)"):
-        st.markdown("Scarica i record filtrati (per atleta e date selezionate).")
-        e_col1, e_col2, e_col3 = st.columns([1,1,2])
-        with e_col1:
-            st.download_button("🏃 Scarica CSV Corsa", data=convert_df_to_csv(df_r), file_name='dataset_corsa.csv', mime='text/csv')
-        with e_col2:
-            st.download_button("🏋️ Scarica CSV VBT", data=convert_df_to_csv(df_v), file_name='dataset_vbt.csv', mime='text/csv')
-
-
-    st.caption("Dashboard Atletica · v3 Cloud · Powered by Supabase + Streamlit")
-
-
-
+    # ════════════════════════════════�
