@@ -2041,7 +2041,7 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
         st.markdown("<span style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 2px;'>DUE APPROCCI DISTINTI · SCEGLI QUELLO PIÙ ADATTO ALL'ATLETA</span>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Estrazione PB atleta
+        # Estrazione PB atleta (storico allenamenti)
         pb_30, pb_60, pb_80, pb_100, pb_200 = None, None, None, None, None
         pb_200_auto, pb_300_auto, pb_400_auto = None, None, None
         if selected_athlete != "Tutta la squadra" and len(df_r) > 0:
@@ -2054,6 +2054,27 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
             pb_300_auto = float(pb_corse.get(300, None)) if pd.notna(pb_corse.get(300, None)) else None
             pb_400_auto = float(pb_corse.get(400, None)) if pd.notna(pb_corse.get(400, None)) else None
             pb_200 = pb_200_auto
+
+        # Estrazione PB atleta (gare ufficiali)
+        pb_gare = {}
+        if selected_athlete != "Tutta la squadra" and "atleta_info" in locals() and atleta_info:
+            from supabase_connector import get_gare_ufficiali
+            df_g_pb = get_gare_ufficiali(atleta_info["id"])
+            if not df_g_pb.empty:
+                df_g_pb['tempo_float'] = pd.to_numeric(df_g_pb['Prestazione'].astype(str).str.replace(',', '.'), errors='coerce')
+                for spec, group in df_g_pb.groupby('Specialità'):
+                    spec_str = str(spec).strip().lower()
+                    if spec_str.endswith('m'):
+                        spec_clean = spec_str[:-1]
+                    else:
+                        spec_clean = spec_str
+                    try:
+                        dist_val = int(spec_clean)
+                        min_time = group['tempo_float'].min()
+                        if pd.notna(min_time):
+                            pb_gare[dist_val] = min_time
+                    except ValueError:
+                        pass
 
         # ──────────────────────────────────────────────────────────────────
         # SEZIONE 1 — MODELLO VITTORI (Calcolatore Reverse)
@@ -2073,6 +2094,30 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
             col_sx, col_dx = st.columns([1, 4])
             gender_sel = col_sx.radio("Sesso", ["Maschile", "Femminile"], horizontal=True, label_visibility="collapsed")
             g_code = "M" if gender_sel == "Maschile" else "F"
+
+            # Scelta sorgente PB
+            pb_source = st.radio(
+                "Sorgente dati per i tuoi PB di riferimento (usati per il calcolo del Gap):",
+                ["📂 Storico Allenamenti (Pista)", "🏅 Gare Ufficiali (Database PB)"],
+                horizontal=True
+            )
+
+            if pb_source == "📂 Storico Allenamenti (Pista)":
+                pb_30_ref, pb_60_ref, pb_80_ref, pb_100_ref = pb_30, pb_60, pb_80, pb_100
+            else:
+                pb_30_ref = pb_gare.get(30, None)
+                pb_60_ref = pb_gare.get(60, None)
+                pb_80_ref = pb_gare.get(80, None)
+                pb_100_ref = pb_gare.get(100, None)
+
+            st.markdown("<small style='color:rgba(255,255,255,0.45);'>I tempi di riferimento sotto vengono estratti automaticamente. Se vuoti o se vuoi fare delle prove, puoi modificarli o inserirli a mano:</small>", unsafe_allow_html=True)
+            vcol1, vcol2, vcol3, vcol4 = st.columns(4)
+            val_pb30 = vcol1.number_input("Rif. 30m (s)", value=pb_30_ref, step=0.05, format="%.2f", placeholder="Vuoto")
+            val_pb60 = vcol2.number_input("Rif. 60m (s)", value=pb_60_ref, step=0.05, format="%.2f", placeholder="Vuoto")
+            val_pb80 = vcol3.number_input("Rif. 80m (s)", value=pb_80_ref, step=0.05, format="%.2f", placeholder="Vuoto")
+            val_pb100 = vcol4.number_input("Rif. 100m (s)", value=pb_100_ref, step=0.05, format="%.2f", placeholder="Vuoto")
+
+            st.markdown("<br>", unsafe_allow_html=True)
 
             tr1, tr2 = st.columns([1, 2])
             tgt_dist = tr1.selectbox("Gara Obiettivo", ["80m", "100m", "200m", "250m", "400m"])
@@ -2103,8 +2148,9 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
                     need30 = round((need100 - 0.30) / 2.85, 2)
                     need80 = round((need100 + need60) / 2, 2)
 
-                cur_100_est = pb_100 or (round(pb_80 * 1.231, 2) if pb_80 else (round(pb_60 * 1.576 + 0.18, 2) if pb_60 else (round(pb_30 * 2.85 + 0.30, 2) if pb_30 else None)))
+                cur_100_est = val_pb100 or (round(val_pb80 * 1.231, 2) if val_pb80 else (round(val_pb60 * 1.576 + 0.18, 2) if val_pb60 else (round(val_pb30 * 2.85 + 0.30, 2) if val_pb30 else None)))
                 gap = round(cur_100_est - need100, 2) if cur_100_est and need100 else None
+
 
                 st.markdown("<br><div style='padding:20px; border-radius:12px; border:1px solid rgba(232,255,58,0.12); background:rgba(232,255,58,0.02);'>", unsafe_allow_html=True)
                 if tgt_dist not in ("100m", "80m"):
