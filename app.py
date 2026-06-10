@@ -1107,75 +1107,100 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
             
             st.markdown(f'<div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">{k1}{k2}</div>', unsafe_allow_html=True)
             
+            # ── Stacked per esercizio + rolling avg 3 sett. + annotazione picco ──
+            tonn_ex_all = df_v_tonn.groupby(['Week', 'Esercizio'])['Tonnellaggio'].sum().reset_index()
+            tonn_weekly_sorted = tonn_weekly.sort_values('Week').copy()
+            tonn_weekly_sorted['Week_Label'] = tonn_weekly_sorted['Week'].dt.strftime('%d %b')
+            tonn_weekly_sorted['Rolling3']   = tonn_weekly_sorted['Tonnellaggio'].rolling(3, min_periods=1).mean().round(0)
+            all_week_labels = tonn_weekly_sorted['Week_Label'].tolist()
+            # Top 6 esercizi per tonnellaggio totale nel periodo
+            _top_ex = df_v_tonn.groupby('Esercizio')['Tonnellaggio'].sum().nlargest(6).index.tolist()
+            tonn_ex_filtered = tonn_ex_all[tonn_ex_all['Esercizio'].isin(_top_ex)].copy()
+            tonn_ex_filtered['Week_Label'] = tonn_ex_filtered['Week'].dt.strftime('%d %b')
+            # Picco settimana
+            _peak_idx_tonn = tonn_weekly_sorted['Tonnellaggio'].idxmax() if not tonn_weekly_sorted.empty else None
+            _peak_wlabel   = tonn_weekly_sorted.loc[_peak_idx_tonn, 'Week_Label'] if _peak_idx_tonn is not None else None
+            _peak_kg_val   = tonn_weekly_sorted.loc[_peak_idx_tonn, 'Tonnellaggio'] if _peak_idx_tonn is not None else 0
+
             fig = make_subplots(specs=[[{"secondary_y": True}]])
-            
-            fig.add_trace(
-                go.Bar(
-                    x=merged['Week_Label'], y=merged['Tonnellaggio'],
-                    name="Tonnellaggio (kg)",
-                    marker_color="rgba(74, 158, 255, 0.45)",
-                    marker_line_color="#4A9EFF",
-                    marker_line_width=2,
-                    opacity=1
-                ),
-                secondary_y=False,
-            )
-            
+
+            # Stacked bars per esercizio
+            _ex_palette = ["#4A9EFF", "#bf5fff", "#ff9800", "#ffeb3b", "#00e676", "#f44336"]
+            for _ex_i, _ex_name in enumerate(_top_ex):
+                _ex_sub = tonn_ex_filtered[tonn_ex_filtered['Esercizio'] == _ex_name]
+                _ex_map = dict(zip(_ex_sub['Week_Label'], _ex_sub['Tonnellaggio']))
+                _ex_y   = [_ex_map.get(lbl, 0) for lbl in all_week_labels]
+                fig.add_trace(go.Bar(
+                    x=all_week_labels, y=_ex_y,
+                    name=_ex_name,
+                    marker_color=_ex_palette[_ex_i % len(_ex_palette)],
+                    opacity=0.82,
+                ), secondary_y=False)
+
+            # Linea rolling avg 3 settimane
+            fig.add_trace(go.Scatter(
+                x=all_week_labels, y=tonn_weekly_sorted['Rolling3'].tolist(),
+                name="Media 3 sett.",
+                mode='lines',
+                line=dict(color="rgba(255,255,255,0.5)", width=2, dash='dot'),
+            ), secondary_y=False)
+
+            # Annotazione settimana picco
+            if _peak_wlabel and _peak_kg_val > 0:
+                fig.add_annotation(
+                    x=_peak_wlabel, y=_peak_kg_val, yref="y",
+                    text=f"🏋️ {_peak_kg_val:,.0f}kg".replace(",", "."),
+                    showarrow=True, arrowhead=2, arrowcolor="#E8FF3A",
+                    font=dict(family="DM Mono", size=10, color="#E8FF3A"),
+                    bgcolor="rgba(232,255,58,0.08)", bordercolor="#E8FF3A", borderwidth=1,
+                    ay=-38,
+                )
+
+            # Linea tempi gara + PB markers
             valid_times = merged.dropna(subset=['Tempo'])
             if not valid_times.empty:
-                fig.add_trace(
-                    go.Scatter(
-                        x=valid_times['Week_Label'], y=valid_times['Tempo'],
-                        name=f"Tempo {dist_ref}m (s)",
-                        mode='lines+markers',
-                        line=dict(color="#FFFFFF", width=3.5),
-                        marker=dict(size=8, color="#080A0E", line=dict(width=2, color="#FFFFFF")),
-                        connectgaps=True
-                    ),
-                    secondary_y=True,
-                )
-                
+                fig.add_trace(go.Scatter(
+                    x=valid_times['Week_Label'], y=valid_times['Tempo'],
+                    name=f"Tempo {dist_ref}m (s)",
+                    mode='lines+markers',
+                    line=dict(color="#FFFFFF", width=3.5),
+                    marker=dict(size=8, color="#080A0E", line=dict(width=2, color="#FFFFFF")),
+                    connectgaps=True
+                ), secondary_y=True)
+
                 pb_points = valid_times[valid_times['is_PB'] == True]
                 if not pb_points.empty:
-                    # Doppio Layer per ricreare l'effetto "Halo" (alone del PB)
-                    fig.add_trace(
-                        go.Scatter(
-                            x=pb_points['Week_Label'], y=pb_points['Tempo'],
-                            mode='markers',
-                            name="Personal Best (Halo)",
-                            marker=dict(size=24, color="rgba(184,255,138,0.15)", line=dict(width=2, color="rgba(184,255,138,0.6)")),
-                            showlegend=False,
-                            hoverinfo='skip'
-                        ),
-                        secondary_y=True,
-                    )
-                    fig.add_trace(
-                        go.Scatter(
-                            x=pb_points['Week_Label'], y=pb_points['Tempo'],
-                            mode='markers',
-                            name="Personal Best",
-                            marker=dict(size=10, color="#B8FF8A"),
-                            showlegend=True
-                        ),
-                        secondary_y=True,
-                    )
-            
+                    fig.add_trace(go.Scatter(
+                        x=pb_points['Week_Label'], y=pb_points['Tempo'],
+                        mode='markers', name="Personal Best (Halo)",
+                        marker=dict(size=24, color="rgba(184,255,138,0.15)", line=dict(width=2, color="rgba(184,255,138,0.6)")),
+                        showlegend=False, hoverinfo='skip'
+                    ), secondary_y=True)
+                    fig.add_trace(go.Scatter(
+                        x=pb_points['Week_Label'], y=pb_points['Tempo'],
+                        mode='markers', name="Personal Best",
+                        marker=dict(size=10, color="#B8FF8A"), showlegend=True
+                    ), secondary_y=True)
+
             fig.update_layout(
+                barmode='stack',
                 template=THEME_TEMPLATE,
-                height=420,
+                height=440,
                 margin=dict(l=20, r=20, t=50, b=20),
-                legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1, font=dict(family="'DM Mono', monospace", size=11, color="rgba(255,255,255,0.6)")),
+                legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1,
+                            font=dict(family="'DM Mono', monospace", size=10, color="rgba(255,255,255,0.55)")),
                 plot_bgcolor="rgba(0,0,0,0)",
                 paper_bgcolor="rgba(255,255,255,0.02)",
-                title=dict(text="<span style='letter-spacing: 2px;'>ANALISI SETTIMANALE PROGRESSIONE</span>", font=dict(family="'DM Mono', monospace", size=11, color="rgba(255,255,255,0.4)")),
+                title=dict(text="<span style='letter-spacing: 2px;'>TONNELLAGGIO PER ESERCIZIO + PERFORMANCE</span>",
+                           font=dict(family="'DM Mono', monospace", size=11, color="rgba(255,255,255,0.4)")),
             )
-            
-            fig.update_yaxes(title_text="Volume Palestra (kg)", secondary_y=False, showgrid=False, zeroline=False, color="#4A9EFF", tickfont=dict(color="rgba(255,255,255,0.3)"))
+            fig.update_yaxes(title_text="Volume Palestra (kg)", secondary_y=False, showgrid=False,
+                             zeroline=False, color="#4A9EFF", tickfont=dict(color="rgba(255,255,255,0.3)"))
             if not valid_times.empty:
-                # Inverti asse in modo che i tempi minori (più veloci) siano verso l'alto
-                fig.update_yaxes(title_text=f"Tempo Gara (s)", secondary_y=True, autorange="reversed", showgrid=True, gridcolor="rgba(255,255,255,0.04)", zeroline=False, tickfont=dict(color="rgba(255,255,255,0.3)"))
-            
-            # Wrapper per stondare i bordi del grafico come nell'immagine
+                fig.update_yaxes(title_text=f"Tempo Gara (s)", secondary_y=True, autorange="reversed",
+                                 showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+                                 zeroline=False, tickfont=dict(color="rgba(255,255,255,0.3)"))
+
             st.markdown('<div style="border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; overflow: hidden; margin-bottom: 20px;">', unsafe_allow_html=True)
             st.plotly_chart(fig, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
@@ -2433,7 +2458,6 @@ Misura quanto i 300m dell'atleta sono "coerenti" con la sua velocità di base su
             else:
                 c_emoji, c_label = "🔴", "Limite Endurance"
                 c_desc  = "Velocità di base buona ma forte calo nella seconda metà. Necessita di un piano di lavoro lattacido/aerobico intensivo per migliorare la tenuta sulle distanze superiori ai 200m."
-                c_color, c_bg, c_border = "#f44336", "rgba(244,67,54,0.08)", "rgba(244,67,54,0.3)"
                 c_action = "🔧 Inserisci lavoro aerobico di base (3-4 settimane), poi scala gradualmente verso il lattacido. Obiettivo immediato: abbassare i 300m per ridurre C sotto 3.5."
 
             st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:12px;'>STEP 3 · RISULTATI</div>", unsafe_allow_html=True)
@@ -2480,6 +2504,96 @@ Misura quanto i 300m dell'atleta sono "coerenti" con la sua velocità di base su
                 <div style='font-size:11px; color:rgba(74,158,255,0.6); margin-top:4px;'>60% × step2 + 40% × (2×step1 + 5.5)</div>
             </div>
             """, unsafe_allow_html=True)
+
+            # ── Grafici analitici 400m ──────────────────────────────────────────
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.3); letter-spacing:2px; margin-bottom:10px;'>ANALISI GRAFICA</div>", unsafe_allow_html=True)
+            g400_col1, g400_col2 = st.columns(2)
+
+            # Gauge Indice C (HTML)
+            _c_clamped = min(4.99, max(0.0, C))
+            _c_pct = (_c_clamped / 5.0) * 100
+            g400_col1.markdown(f"""
+            <div style='padding:14px 18px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07);'>
+                <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:12px;'>INDICE C · SCALA 0–5</div>
+                <div style='position:relative; height:14px; border-radius:7px; background:linear-gradient(to right, #00e676 0%, #00e676 30%, #ffeb3b 30%, #ffeb3b 50%, #ff9800 50%, #ff9800 70%, #f44336 70%, #f44336 100%); margin-bottom:8px;'>
+                    <div style='position:absolute; top:50%; left:{_c_pct:.1f}%; transform:translate(-50%,-50%); width:20px; height:20px; border-radius:50%; background:#1a1c22; border:3px solid {c_color}; box-shadow:0 0 10px {c_color};'></div>
+                </div>
+                <div style='display:flex; justify-content:space-between; font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.25); margin-bottom:10px;'>
+                    <span>0</span><span>1.5</span><span>2.5</span><span>3.5</span><span>5.0</span>
+                </div>
+                <div style='display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;'>
+                    <span style='font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(0,230,118,0.12); color:#00e676;'>Talento</span>
+                    <span style='font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(255,235,59,0.12); color:#ffeb3b;'>Buono</span>
+                    <span style='font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(255,152,0,0.12); color:#ff9800;'>Convertibile</span>
+                    <span style='font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(244,67,54,0.12); color:#f44336;'>Limite</span>
+                </div>
+                <div style='font-family:Bebas Neue; font-size:28px; color:{c_color};'>C = {C:.2f} · {c_label}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Decomposizione componenti T400
+            _comp_res  = round(0.6 * T400_da_300, 2)
+            _comp_vel  = round(0.4 * (2 * T200_gara + 5.5), 2)
+            fig_comp400 = go.Figure()
+            fig_comp400.add_trace(go.Bar(
+                name=f"Resistenza/300m (60%) = {_comp_res:.2f}s",
+                x=[_comp_res], y=["T400"], orientation='h',
+                marker_color="#4A9EFF",
+                text=f"{_comp_res:.2f}s", textposition='inside', insidetextanchor='middle',
+                textfont=dict(size=11, color='white'),
+            ))
+            fig_comp400.add_trace(go.Bar(
+                name=f"Velocità/200m (40%) = {_comp_vel:.2f}s",
+                x=[_comp_vel], y=["T400"], orientation='h',
+                marker_color="#00e676",
+                text=f"{_comp_vel:.2f}s", textposition='inside', insidetextanchor='middle',
+                textfont=dict(size=11, color='rgba(0,0,0,0.75)'),
+            ))
+            fig_comp400.update_layout(
+                barmode='stack', height=160,
+                margin=dict(l=10, r=20, t=40, b=10),
+                template=THEME_TEMPLATE,
+                title=dict(text=f"COMPONENTI T400 = {T400_stimato:.2f}s", font=dict(family="DM Mono", size=10, color="rgba(255,255,255,0.4)")),
+                legend=dict(orientation="h", y=1.5, font=dict(size=10, color="rgba(255,255,255,0.5)")),
+                xaxis=dict(title="Secondi", tickfont=dict(size=10)),
+                yaxis=dict(visible=False),
+            )
+            g400_col2.plotly_chart(fig_comp400, use_container_width=True)
+
+            # What-if scenari
+            _T400_wi_t200 = round(0.6 * T400_da_300 + 0.4 * (2 * (t200pb - 0.2 + offset_val) + 5.5), 2)
+            _L_improved   = max(12.0, L_val - 1.0)
+            _T400_wi_L    = round(0.6 * (t300 + _L_improved) + 0.4 * (2 * T200_gara + 5.5), 2)
+            _T400_wi_both = round(0.6 * (t300 + _L_improved) + 0.4 * (2 * (t200pb - 0.2 + offset_val) + 5.5), 2)
+            _wi_labels    = ["Attuale", "T200 -0.2s", f"L -1s ({_L_improved:.0f}s)", "Entrambi"]
+            _wi_vals      = [T400_stimato, _T400_wi_t200, _T400_wi_L, _T400_wi_both]
+            _wi_gains     = [0.0] + [round(T400_stimato - v, 2) for v in _wi_vals[1:]]
+            _wi_colors    = ["#4A9EFF", "#ff9800", "#ffeb3b", "#00e676"]
+            _wi_texts     = [
+                f"{T400_stimato:.2f}s" if g == 0 else f"{v:.2f}s  (-{g:.2f}s)"
+                for v, g in zip(_wi_vals, _wi_gains)
+            ]
+            fig_wi400 = go.Figure(go.Bar(
+                x=_wi_labels, y=_wi_vals,
+                marker_color=_wi_colors,
+                text=_wi_texts,
+                textposition='outside',
+                textfont=dict(size=11, color="rgba(255,255,255,0.8)"),
+                cliponaxis=False,
+            ))
+            fig_wi400.update_layout(
+                height=260,
+                template=THEME_TEMPLATE,
+                title=dict(text="SCENARI WHAT-IF: IMPATTO DEI MIGLIORAMENTI", font=dict(family="DM Mono", size=10, color="rgba(255,255,255,0.4)")),
+                yaxis=dict(
+                    range=[min(_wi_vals) - 0.8, max(_wi_vals) + 0.6],
+                    title="T400 stimato (s)", tickfont=dict(size=10), autorange=False,
+                ),
+                margin=dict(l=30, r=20, t=40, b=10),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_wi400, use_container_width=True)
 
             # Margine di miglioramento
             if t400_reale and t400_reale > 0:
@@ -2720,6 +2834,87 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
                     <span style='font-size:12px; color:rgba(255,255,255,0.5);'>Se l'atleta migliorasse il profilo a SR200={better_sr:.2f}: potrebbe correre <strong style='color:#fff;'>{t200_whatif:.2f}s</strong> (−{delta_whatif:.2f}s rispetto alla stima attuale)</span>
                 </div>
                 """, unsafe_allow_html=True)
+
+            # ── Grafici analitici 200m ──────────────────────────────────────────
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.3); letter-spacing:2px; margin-bottom:10px;'>ANALISI GRAFICA</div>", unsafe_allow_html=True)
+            g200_col1, g200_col2 = st.columns([3, 2])
+
+            # Curva T200 = 2 x T100 x SR200 per i tre profili
+            _t100_range = [x / 100.0 for x in range(880, 1260, 5)]
+            _sr200_curve_profiles = [
+                ("Velocista Puro (1.06)", 1.06, "#ff9800"),
+                ("200m Specialist (1.08)", 1.08, "#bf5fff"),
+                ("Speed Endurance (1.10)", 1.10, "#4A9EFF"),
+            ]
+            fig_sr200_curve = go.Figure()
+            for _c_lbl, _c_sr, _c_col in _sr200_curve_profiles:
+                _c_y = [round(2 * x * _c_sr, 2) for x in _t100_range]
+                fig_sr200_curve.add_trace(go.Scatter(
+                    x=_t100_range, y=_c_y, mode='lines', name=_c_lbl,
+                    line=dict(color=_c_col, width=2),
+                ))
+            fig_sr200_curve.add_trace(go.Scatter(
+                x=[_m200_t100_eff], y=[T200_pred],
+                mode='markers+text', name="Stima atleta",
+                marker=dict(size=13, color="#bf5fff", symbol="diamond",
+                            line=dict(width=2, color="#fff")),
+                text=[f"  {T200_pred:.2f}s"], textposition="middle right",
+                textfont=dict(size=11, color="#bf5fff"),
+            ))
+            if _m200_t200_cal:
+                fig_sr200_curve.add_trace(go.Scatter(
+                    x=[_m200_t100_eff], y=[_m200_t200_cal],
+                    mode='markers+text', name="PB attuale",
+                    marker=dict(size=12, color="#00e676", symbol="circle",
+                                line=dict(width=2, color="#fff")),
+                    text=[f"  {_m200_t200_cal:.2f}s"], textposition="middle right",
+                    textfont=dict(size=11, color="#00e676"),
+                ))
+            fig_sr200_curve.update_layout(
+                height=290,
+                template=THEME_TEMPLATE,
+                title=dict(text="CURVA T200 = 2 x T100 x SR200", font=dict(family="DM Mono", size=10, color="rgba(255,255,255,0.4)")),
+                xaxis=dict(title="T100 (s)", tickfont=dict(size=10)),
+                yaxis=dict(title="T200 (s)", tickfont=dict(size=10)),
+                legend=dict(orientation="h", y=1.35, font=dict(size=9, color="rgba(255,255,255,0.5)")),
+                margin=dict(l=30, r=20, t=55, b=20),
+            )
+            g200_col1.plotly_chart(fig_sr200_curve, use_container_width=True)
+
+            # Confronto scenari SR200 (barre)
+            _scen_labels = ["Velocista Puro", "200m Specialist", "Speed Endurance"]
+            _scen_vals   = [round(2 * _m200_t100_eff * 1.06, 2),
+                            round(2 * _m200_t100_eff * 1.08, 2),
+                            round(2 * _m200_t100_eff * 1.10, 2)]
+            _scen_colors = ["#ff9800", "#bf5fff", "#4A9EFF"]
+            fig_scen200  = go.Figure(go.Bar(
+                x=_scen_labels, y=_scen_vals,
+                marker_color=_scen_colors,
+                text=[f"{v:.2f}s" for v in _scen_vals],
+                textposition='outside',
+                textfont=dict(size=11, color="rgba(255,255,255,0.8)"),
+                cliponaxis=False,
+            ))
+            if _m200_t200_cal:
+                fig_scen200.add_hline(
+                    y=_m200_t200_cal, line_dash="dash", line_color="#00e676", line_width=1.5,
+                    annotation_text=f"PB {_m200_t200_cal:.2f}s",
+                    annotation_position="top right",
+                    annotation_font=dict(color="#00e676", size=10),
+                )
+            fig_scen200.update_layout(
+                height=290,
+                template=THEME_TEMPLATE,
+                title=dict(text="SCENARI PROFILO SR200", font=dict(family="DM Mono", size=10, color="rgba(255,255,255,0.4)")),
+                yaxis=dict(
+                    range=[min(_scen_vals) - 0.6, max(_scen_vals) + 0.5],
+                    title="T200 (s)", tickfont=dict(size=10), autorange=False,
+                ),
+                margin=dict(l=30, r=20, t=40, b=10),
+                showlegend=False,
+            )
+            g200_col2.plotly_chart(fig_scen200, use_container_width=True)
 
             # Margine di miglioramento
             if _m200_t200_cal and _m200_t200_cal > 0:
