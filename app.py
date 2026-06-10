@@ -2237,12 +2237,17 @@ Misura quanto i 300m dell'atleta sono "coerenti" con la sua velocità di base su
             placeholder="es. 35.20",
             help="Miglior tempo sui 300m, anche in allenamento a massima intensità. Chiave per stimare la tenuta lattacida."
         )
-        t400_reale = col_in3.number_input(
-            "🎯 PB 400m attuale (s) — opzionale",
-            value=pb_400_auto, step=0.10, format="%.2f",
-            placeholder="es. 48.50",
-            help="Se inserito, calcola il margine tra potenziale teorico e prestazione reale."
-        )
+        usa_pb_400 = col_in3.checkbox("Abilita confronto con PB 400m", value=(pb_400_auto is not None), help="Spunta per inserire il PB 400m reale e calcolare il margine.")
+        if usa_pb_400:
+            t400_reale = col_in3.number_input(
+                "🎯 PB 400m attuale (s)",
+                value=pb_400_auto, step=0.10, format="%.2f",
+                placeholder="es. 48.50",
+                help="Se inserito, calcola il margine tra potenziale teorico e prestazione reale."
+            )
+        else:
+            t400_reale = None
+
 
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:8px;'>STEP 2 · PROFILA L'ATLETA</div>", unsafe_allow_html=True)
