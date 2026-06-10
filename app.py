@@ -2513,6 +2513,259 @@ Misura quanto i 300m dell'atleta sono "coerenti" con la sua velocità di base su
             </div>
             """, unsafe_allow_html=True)
 
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.divider()
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ══════════════════════════════════════════════════════════════════
+        # SEZIONE 3 — MODELLO FISIOLOGICO 200m
+        # ══════════════════════════════════════════════════════════════════
+        st.markdown("""
+        <div style='display:flex; align-items:center; gap:14px; margin-bottom:6px;'>
+            <div style='width:4px; height:36px; background:#bf5fff; border-radius:2px;'></div>
+            <div>
+                <div style='font-family:Bebas Neue; font-size:26px; color:#bf5fff; letter-spacing:1px; line-height:1;'>MODELLO FISIOLOGICO 200m</div>
+                <div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.4); letter-spacing:2px;'>100m PB → STIMA POTENZIALE 200m · SPEED RESERVE INDEX</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px; color:rgba(255,255,255,0.55); margin-bottom:4px;'>Stima il potenziale sui 200m a partire dal PB sui 100m e dal profilo di velocità di riserva (SR200). SR200 misura quanto l'atleta paga rispetto a un doppio 100m ideale: distingue il velocista puro dal 200m specialist.</p>", unsafe_allow_html=True)
+
+        with st.expander("📖 Come usare questo modello", expanded=False):
+            st.markdown("""
+**SR200 = T200 / (2 × T100)**
+
+Misura la perdita di velocità accumulata nella curva e nella seconda metà gara. Valori di riferimento:
+
+| SR200 | Profilo | Cosa significa |
+|-------|---------|----------------|
+| < 1.07 | Velocista Puro | 200m quasi doppio 100m. Vmax altissima, meno speed endurance |
+| 1.07 – 1.10 | 200m Specialist | Equilibrio ottimale. Profilo più competitivo |
+| > 1.10 | Speed Endurance | Tiene bene nel retto finale, ma meno Vmax di partenza |
+
+**Come usare la predizione:**
+- Se hai solo il PB 100m → scegli il profilo SR200 target per stimare il potenziale
+- Se hai sia T100 che T200 → il modello calcola SR200 reale dal DB e pre-seleziona il profilo automaticamente
+- Puoi sempre cambiare la selezione per vedere scenari "what if" (es: cosa succederebbe se migliorassi SR200 da 1.09 a 1.07?)
+
+**Nota sul 60m come alternativo:** se non hai T100, il modello stima T100 ≈ 1.575 × T60 + 0.18 (formula Vittori). Meno preciso ma utile come approssimazione.
+            """)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:8px;'>STEP 1 · INSERISCI I TEMPI</div>", unsafe_allow_html=True)
+
+        m200_col1, m200_col2, m200_col3 = st.columns(3)
+        m200_t100 = m200_col1.number_input(
+            "🏃 PB 100m (s)",
+            value=pb_100, step=0.01, format="%.2f",
+            placeholder="es. 10.85",
+            help="Personal Best sui 100m. Pre-compilato dal database se disponibile."
+        )
+        m200_t200_reale = m200_col2.number_input(
+            "🏁 PB 200m attuale (s) — opzionale",
+            value=pb_200_auto, step=0.05, format="%.2f",
+            placeholder="es. 21.80",
+            help="Se inserito: calcola SR200 automaticamente e il margine di miglioramento."
+        )
+        m200_t60 = m200_col3.number_input(
+            "⚡ PB 60m (s) — alternativo al 100m",
+            value=pb_60, step=0.01, format="%.2f",
+            placeholder="es. 6.85",
+            help="Usato se T100 non disponibile. T100_stim ≈ 1.575 × T60 + 0.18 (Vittori)."
+        )
+
+        # ── Auto-calibrazione SR200 ─────────────────────────────────────────
+        _m200_t100_eff = m200_t100 if (m200_t100 and m200_t100 > 0) else (
+            round(1.575 * m200_t60 + 0.18, 2) if (m200_t60 and m200_t60 > 0) else None
+        )
+        _m200_t100_src = "DB" if (m200_t100 and m200_t100 > 0) else (
+            f"stim. da T60={m200_t60:.2f}s" if (m200_t60 and m200_t60 > 0) else "—"
+        )
+        _m200_t200_cal  = m200_t200_reale if (m200_t200_reale and m200_t200_reale > 0) else None
+
+        SR200_db_200m = round(_m200_t200_cal / (2 * _m200_t100_eff), 4) \
+            if (_m200_t200_cal and _m200_t100_eff) else None
+
+        def _sr200_to_idx(sr):
+            if sr is None: return 1
+            if sr < 1.07:  return 0
+            if sr <= 1.10: return 1
+            return 2
+
+        sr200_default_idx = _sr200_to_idx(SR200_db_200m)
+
+        # ── Step 2 – Profila ───────────────────────────────────────────────
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:10px;'>STEP 2 · PROFILA L'ATLETA</div>", unsafe_allow_html=True)
+
+        m200_badge_col, m200_radio_col = st.columns([1, 1])
+
+        # Badge SR200 da DB
+        _sr200_lbl_list   = ["Velocista Puro", "200m Specialist", "Speed Endurance"]
+        _sr200_color_list = ["#ff9800", "#bf5fff", "#4A9EFF"]
+        if SR200_db_200m is not None:
+            _db_idx = _sr200_to_idx(SR200_db_200m)
+            m200_badge_col.markdown(f"""
+            <div style='padding:12px 16px; border-radius:10px; background:rgba(191,95,255,0.06); border:1px solid rgba(191,95,255,0.25); margin-bottom:10px;'>
+                <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.4); letter-spacing:1px; margin-bottom:4px;'>📊 SR200 CALCOLATO DAL DB</div>
+                <span style='font-family:Bebas Neue; font-size:28px; color:{_sr200_color_list[_db_idx]};'>{SR200_db_200m:.4f}</span>
+                <span style='font-size:12px; color:rgba(255,255,255,0.5); margin-left:8px;'>→ {_sr200_lbl_list[_db_idx]}</span>
+                <div style='font-size:11px; color:rgba(255,255,255,0.3); margin-top:3px;'>T200 / (2 × T100) = {_m200_t200_cal:.2f} / (2 × {_m200_t100_eff:.2f})</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            m200_badge_col.markdown("""
+            <div style='padding:12px 16px; border-radius:10px; background:rgba(255,255,255,0.03); border:1px dashed rgba(255,255,255,0.1); margin-bottom:10px;'>
+                <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.3); letter-spacing:1px;'>SR200 NON CALCOLABILE</div>
+                <div style='font-size:11px; color:rgba(255,255,255,0.25); margin-top:4px;'>Inserisci PB 100m e PB 200m per il calcolo automatico</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        _sr200_override_note = " *(pre-selezionato dal DB — modificabile)*" if SR200_db_200m else ""
+        sr200_profilo = m200_radio_col.radio(
+            f"Profilo SR200{_sr200_override_note}",
+            options=["🟠 Velocista Puro  (SR200 ≈ 1.06)", "🟣 200m Specialist  (SR200 ≈ 1.08)", "🔵 Speed Endurance  (SR200 ≈ 1.10)"],
+            index=sr200_default_idx,
+            help="SR200 < 1.07 → Velocista Puro; 1.07-1.10 → 200m Specialist; >1.10 → Speed Endurance. "
+                 "Cambia il profilo per simulare scenari 'what if'."
+        )
+        _sr200_opts = ["🟠 Velocista Puro  (SR200 ≈ 1.06)", "🟣 200m Specialist  (SR200 ≈ 1.08)", "🔵 Speed Endurance  (SR200 ≈ 1.10)"]
+        if SR200_db_200m and _sr200_opts.index(sr200_profilo) != sr200_default_idx:
+            m200_radio_col.caption(f"⚠️ Override manuale attivo — SR200 reale dal DB: {SR200_db_200m:.4f}")
+
+        _sr200_val_map = {
+            "🟠 Velocista Puro  (SR200 ≈ 1.06)": 1.06,
+            "🟣 200m Specialist  (SR200 ≈ 1.08)": 1.08,
+            "🔵 Speed Endurance  (SR200 ≈ 1.10)": 1.10,
+        }
+        sr200_chosen_val = _sr200_val_map[sr200_profilo]
+        # Usa SR200 dal DB se disponibile e il profilo non è stato sovrascritto
+        sr200_for_pred = SR200_db_200m if (SR200_db_200m and _sr200_opts.index(sr200_profilo) == sr200_default_idx) \
+                         else sr200_chosen_val
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        if _m200_t100_eff and _m200_t100_eff > 0:
+            T200_pred = round(2 * _m200_t100_eff * sr200_for_pred, 2)
+
+            _si = _sr200_to_idx(sr200_for_pred)
+            _sr200_colors  = ["#ff9800", "#bf5fff", "#4A9EFF"]
+            _sr200_bgs     = ["rgba(255,152,0,0.08)", "rgba(191,95,255,0.08)", "rgba(74,158,255,0.08)"]
+            _sr200_borders = ["rgba(255,152,0,0.3)", "rgba(191,95,255,0.3)", "rgba(74,158,255,0.3)"]
+            _sr200_desc    = [
+                "Velocità massima altissima, ma la seconda parte del 200m è esigente. L'atleta vive di Vmax e fatica nel mantenimento lungo il rettilineo finale. Il 100m è la specialità più naturale.",
+                "Eccellente equilibrio tra velocità di base e resistenza sulla curva + rettilineo. È il profilo tipico del 200m specialist competitivo. Margini di miglioramento su entrambe le componenti.",
+                "Tiene bene nel retto finale e gestisce bene la curva, ma la velocità di partenza è meno esplosiva. Può trarre vantaggio da gare tattiche ed è spesso più competitivo anche sui 400m.",
+            ][_si]
+            _sr200_action  = [
+                "⚡ Lavora su accelerazione e Vmax (sprint lanciati 30–60m, lavoro neuromuscolare). La speed endurance sul 200m si sviluppa con ripetute 150m ad altissima intensità.",
+                "📈 Profilo ideale. Mantieni l'equilibrio tra lavoro di velocità pura (60–80m) e ripetute di speed endurance (150–200m). Cura la tecnica di curva per guadagnare 0.05–0.10s.",
+                "🔵 Punta a migliorare la velocità di base (lavoro neuromuscolare, forza esplosiva, sprint brevi). Abbassare il T100 sposta il profilo verso 200m Specialist.",
+            ][_si]
+
+            st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:12px;'>STEP 3 · RISULTATI</div>", unsafe_allow_html=True)
+
+            # SR200 in grande
+            _sr200_disp = SR200_db_200m if SR200_db_200m else sr200_chosen_val
+            st.markdown(f"""
+            <div style='padding:22px; border-radius:14px; background:{_sr200_bgs[_si]}; border:1px solid {_sr200_borders[_si]}; margin-bottom:20px;'>
+                <div style='display:flex; align-items:center; gap:24px; flex-wrap:wrap;'>
+                    <div style='text-align:center; min-width:110px;'>
+                        <div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.4); letter-spacing:2px; margin-bottom:4px;'>SR200</div>
+                        <div style='font-family:Bebas Neue; font-size:60px; color:{_sr200_colors[_si]}; line-height:1;'>{_sr200_disp:.4f}</div>
+                        <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.25);'>T200 / (2 × T100)</div>
+                    </div>
+                    <div style='flex:1; min-width:220px;'>
+                        <div style='margin-bottom:8px;'><span style='font-family:Bebas Neue; font-size:26px; color:{_sr200_colors[_si]};'>{_sr200_lbl_list[_si]}</span></div>
+                        <div style='font-size:13px; color:rgba(255,255,255,0.65); line-height:1.6; margin-bottom:12px;'>{_sr200_desc}</div>
+                        <div style='font-size:12px; color:{_sr200_colors[_si]}; background:rgba(0,0,0,0.25); padding:8px 12px; border-radius:6px; border-left:3px solid {_sr200_colors[_si]};'>{_sr200_action}</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Step intermedi
+            st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.3); letter-spacing:2px; margin-bottom:10px;'>CALCOLO STEP-BY-STEP</div>", unsafe_allow_html=True)
+            s200c1, s200c2, s200c3 = st.columns(3)
+            s200c1.markdown(f"""
+            <div style='padding:14px; border-radius:10px; border:1px solid rgba(255,255,255,0.07); background:rgba(255,255,255,0.02); text-align:center;'>
+                <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:1px; margin-bottom:6px;'>T100 BASE</div>
+                <div style='font-family:Bebas Neue; font-size:32px; color:#fff;'>{_m200_t100_eff:.2f}s</div>
+                <div style='font-size:11px; color:rgba(255,255,255,0.35); margin-top:4px;'>fonte: {_m200_t100_src}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            s200c2.markdown(f"""
+            <div style='padding:14px; border-radius:10px; border:1px solid rgba(255,255,255,0.07); background:rgba(255,255,255,0.02); text-align:center;'>
+                <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:1px; margin-bottom:6px;'>SR200 APPLICATO</div>
+                <div style='font-family:Bebas Neue; font-size:32px; color:#fff;'>× {sr200_for_pred:.4f}</div>
+                <div style='font-size:11px; color:rgba(255,255,255,0.35); margin-top:4px;'>{"DB (calcolato)" if (SR200_db_200m and sr200_for_pred == SR200_db_200m) else "profilo manuale"}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            s200c3.markdown(f"""
+            <div style='padding:14px; border-radius:10px; border:1px solid {_sr200_borders[_si]}; background:{_sr200_bgs[_si]}; text-align:center;'>
+                <div style='font-family:DM Mono; font-size:9px; color:{_sr200_colors[_si]}; letter-spacing:1px; margin-bottom:6px;'>200m POTENZIALE</div>
+                <div style='font-family:Bebas Neue; font-size:38px; color:{_sr200_colors[_si]};'>{T200_pred:.2f}s</div>
+                <div style='font-size:11px; color:rgba(255,255,255,0.35); margin-top:4px;'>2 × {_m200_t100_eff:.2f} × {sr200_for_pred:.4f}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # What-if: simula scenario con profilo ottimizzato
+            if SR200_db_200m and _sr200_to_idx(SR200_db_200m) > 0:
+                better_sr = [1.06, 1.06, 1.08][_si]
+                t200_whatif = round(2 * _m200_t100_eff * better_sr, 2)
+                delta_whatif = round(T200_pred - t200_whatif, 2)
+                st.markdown(f"""
+                <div style='margin-top:12px; padding:10px 16px; border-radius:8px; background:rgba(255,255,255,0.03); border:1px dashed rgba(255,255,255,0.12);'>
+                    <span style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:1px;'>💡 WHAT IF — </span>
+                    <span style='font-size:12px; color:rgba(255,255,255,0.5);'>Se l'atleta migliorasse il profilo a SR200={better_sr:.2f}: potrebbe correre <strong style='color:#fff;'>{t200_whatif:.2f}s</strong> (−{delta_whatif:.2f}s rispetto alla stima attuale)</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Margine di miglioramento
+            if _m200_t200_cal and _m200_t200_cal > 0:
+                st.markdown("<br>", unsafe_allow_html=True)
+                margine_200 = round(_m200_t200_cal - T200_pred, 2)
+                if margine_200 > 0.01:
+                    m2_color, m2_bg, m2_bord = "#ff9800", "rgba(255,152,0,0.07)", "rgba(255,152,0,0.25)"
+                    m2_icon, m2_titolo = "📈", "MARGINE DI MIGLIORAMENTO"
+                    m2_txt = (f"L'atleta corre {margine_200:.2f}s più lento della stima per il suo profilo attuale ({T200_pred:.2f}s con SR200={sr200_for_pred:.4f}). "
+                              f"Lavorare su tecnica di curva, accelerazione iniziale e distribuzione del ritmo può colmare questo gap.")
+                elif margine_200 < -0.01:
+                    m2_color, m2_bg, m2_bord = "#00e676", "rgba(0,230,118,0.07)", "rgba(0,230,118,0.25)"
+                    m2_icon, m2_titolo = "✅", "POTENZIALE SUPERATO"
+                    m2_txt = (f"L'atleta corre {abs(margine_200):.2f}s sotto la stima del profilo ({T200_pred:.2f}s). "
+                              f"Per continuare a migliorare occorre sviluppare le qualità di base: abbassare T100 o ottimizzare ulteriormente il SR200.")
+                else:
+                    m2_color, m2_bg, m2_bord = "#bf5fff", "rgba(191,95,255,0.07)", "rgba(191,95,255,0.25)"
+                    m2_icon, m2_titolo = "⚖️", "ALLINEATO AL PROFILO"
+                    m2_txt = "L'atleta sta correndo esattamente in linea con il profilo SR200 attuale. Ottima coerenza tra velocità di base e tenuta sulla distanza."
+                st.markdown(f"""
+                <div style='padding:16px 20px; border-radius:10px; background:{m2_bg}; border:1px solid {m2_bord};'>
+                    <div style='font-family:DM Mono; font-size:10px; color:{m2_color}; letter-spacing:2px; margin-bottom:8px;'>{m2_icon} {m2_titolo}</div>
+                    <div style='display:flex; align-items:baseline; gap:12px; margin-bottom:6px;'>
+                        <span style='font-family:Bebas Neue; font-size:42px; color:{m2_color}; line-height:1;'>{("+" if margine_200 > 0 else "")}{margine_200:.2f}s</span>
+                        <span style='font-size:12px; color:rgba(255,255,255,0.4);'>PB attuale: {_m200_t200_cal:.2f}s · Stima profilo: {T200_pred:.2f}s</span>
+                    </div>
+                    <div style='font-size:13px; color:rgba(255,255,255,0.6);'>{m2_txt}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div style='padding:20px; border-radius:12px; border:1px dashed rgba(191,95,255,0.3); background:rgba(191,95,255,0.03); text-align:center;'>
+                <div style='font-size:28px; margin-bottom:8px;'>⬆️</div>
+                <div style='font-family:DM Mono; font-size:11px; color:rgba(191,95,255,0.7); letter-spacing:1px;'>Inserisci PB 100m (o PB 60m come alternativa) per avviare la stima</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # ── Roadmap 100m ────────────────────────────────────────────────────
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("""
+        <div style='padding:14px 18px; border-radius:10px; background:rgba(255,255,255,0.025); border:1px dashed rgba(255,255,255,0.1);'>
+            <span style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px;'>🔜 PROSSIMAMENTE · MODELLO 100m</span>
+            <div style='font-size:12px; color:rgba(255,255,255,0.3); margin-top:6px;'>Userà i tempi gara ufficiali (da "Storico Gare") come fonte primaria + T60 dal database. Calcolerà Indice di Accelerazione, Vmax stimata dal flying 30m e profilo di fase (Acceleratore / Max Velocity / Bilanciato). Gli 80m da allenamento restano dato supplementare opzionale.</div>
+        </div>
+        """, unsafe_allow_html=True)
+
     # ══════════════════════════════════════════════════════════════════════
     # TAB 4 — TRANSFER E CORRELAZIONE (GYM ↔ CORSA)
     # ══════════════════════════════════════════════════════════════════════
