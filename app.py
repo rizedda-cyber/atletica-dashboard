@@ -2283,35 +2283,113 @@ Misura quanto i 300m dell'atleta sono "coerenti" con la sua velocità di base su
             placeholder="es. 35.20",
             help="Miglior tempo sui 300m, anche in allenamento a massima intensità. Chiave per stimare la tenuta lattacida."
         )
-        usa_pb_400 = col_in3.checkbox("Abilita confronto con PB 400m", value=(pb_400_auto is not None), help="Spunta per inserire il PB 400m reale e calcolare il margine.")
-        if usa_pb_400:
-            t400_reale = col_in3.number_input(
-                "🎯 PB 400m attuale (s)",
-                value=pb_400_auto, step=0.10, format="%.2f",
-                placeholder="es. 48.50",
-                help="Se inserito, calcola il margine tra potenziale teorico e prestazione reale."
-            )
-        else:
-            t400_reale = None
+        t400_reale = col_in3.number_input(
+            "🎯 PB 400m attuale (s) — opzionale",
+            value=pb_400_auto, step=0.10, format="%.2f",
+            placeholder="es. 48.50",
+            help="Se inserito, calcola L dal database (L = PB400 − Miglior300) e il margine tra potenziale e prestazione reale."
+        )
 
+        # ── AUTO-CALIBRAZIONE DAL DB ────────────────────────────────────────
+        # L calibrato: se 400m e 300m sono entrambi disponibili (anche appena inseriti)
+        _t300_for_cal  = t300       if (t300       and t300       > 0) else pb_300_auto
+        _t400_for_cal  = t400_reale if (t400_reale and t400_reale > 0) else pb_400_auto
+        _t200_for_cal  = t200pb     if (t200pb     and t200pb     > 0) else pb_200_auto
 
+        L_db       = round(_t400_for_cal - _t300_for_cal, 2) if (_t400_for_cal and _t300_for_cal) else None
+        SRI_db     = round(_t400_for_cal / (2 * _t200_for_cal), 4) if (_t400_for_cal and _t200_for_cal) else None
+
+        # Mappa L_db → indice radio resistenza lattacida
+        def _l_to_idx(l):
+            if l is None: return 1
+            if l <= 12.5: return 0
+            if l <= 13.5: return 1
+            if l <= 14.5: return 2
+            return 3
+
+        # Mappa SRI_db → indice radio profilo velocità
+        def _sri_to_idx(sri):
+            if sri is None: return 1
+            if sri < 1.065: return 0
+            if sri <= 1.080: return 1
+            return 2
+
+        l_default_idx      = _l_to_idx(L_db)
+        offset_default_idx = _sri_to_idx(SRI_db)
+
+        # Badge calibrazione da mostrare prima dei radio
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:8px;'>STEP 2 · PROFILA L'ATLETA</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:10px;'>STEP 2 · PROFILA L'ATLETA</div>", unsafe_allow_html=True)
+
+        # Mostra badge di calibrazione se i dati vengono dal DB o dai campi compilati
+        badge_col1, badge_col2 = st.columns(2)
+        if SRI_db is not None:
+            sri_labels = ["Efficiente/Naturale", "Intermedio", "Velocista Puro"]
+            sri_colors = ["#00e676", "#ffeb3b", "#f44336"]
+            sri_idx = _sri_to_idx(SRI_db)
+            badge_col1.markdown(f"""
+            <div style='padding:10px 14px; border-radius:8px; background:rgba(0,230,118,0.06); border:1px solid rgba(0,230,118,0.25); margin-bottom:10px;'>
+                <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.4); letter-spacing:1px; margin-bottom:4px;'>📊 SRI CALCOLATO DAL DB</div>
+                <span style='font-family:Bebas Neue; font-size:22px; color:{sri_colors[sri_idx]};'>{SRI_db:.4f}</span>
+                <span style='font-size:12px; color:rgba(255,255,255,0.5); margin-left:8px;'>→ {sri_labels[sri_idx]}</span>
+                <div style='font-size:11px; color:rgba(255,255,255,0.3); margin-top:2px;'>T400 / (2 × T200) = {_t400_for_cal:.2f} / (2 × {_t200_for_cal:.2f})</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            badge_col1.markdown("""
+            <div style='padding:10px 14px; border-radius:8px; background:rgba(255,255,255,0.03); border:1px dashed rgba(255,255,255,0.1); margin-bottom:10px;'>
+                <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.3); letter-spacing:1px;'>SRI NON CALCOLABILE</div>
+                <div style='font-size:11px; color:rgba(255,255,255,0.25); margin-top:4px;'>Inserisci PB 200m e PB 400m per calcolo automatico</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        if L_db is not None:
+            l_labels = ["Ottimo 400ista", "Buono", "Medio", "Carente"]
+            l_colors = ["#00e676", "#ffeb3b", "#ff9800", "#f44336"]
+            l_idx = _l_to_idx(L_db)
+            badge_col2.markdown(f"""
+            <div style='padding:10px 14px; border-radius:8px; background:rgba(0,230,118,0.06); border:1px solid rgba(0,230,118,0.25); margin-bottom:10px;'>
+                <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.4); letter-spacing:1px; margin-bottom:4px;'>📊 L CALCOLATO DAL DB</div>
+                <span style='font-family:Bebas Neue; font-size:22px; color:{l_colors[l_idx]};'>{L_db:.2f}s</span>
+                <span style='font-size:12px; color:rgba(255,255,255,0.5); margin-left:8px;'>→ {l_labels[l_idx]}</span>
+                <div style='font-size:11px; color:rgba(255,255,255,0.3); margin-top:2px;'>T400 − T300 = {_t400_for_cal:.2f} − {_t300_for_cal:.2f}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            badge_col2.markdown("""
+            <div style='padding:10px 14px; border-radius:8px; background:rgba(255,255,255,0.03); border:1px dashed rgba(255,255,255,0.1); margin-bottom:10px;'>
+                <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.3); letter-spacing:1px;'>L NON CALCOLABILE</div>
+                <div style='font-size:11px; color:rgba(255,255,255,0.25); margin-top:4px;'>Inserisci Miglior 300m e PB 400m per calcolo automatico</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Radio con default auto-calcolato (override manuale sempre possibile)
+        override_note = " *(pre-selezionato dal DB — modificabile)*" if SRI_db is not None else ""
+        override_note_l = " *(pre-selezionato dal DB — modificabile)*" if L_db is not None else ""
 
         col_pr1, col_pr2 = st.columns(2)
-
         profilo_vel = col_pr1.radio(
-            "Profilo Velocità (offset T200 in gara)",
+            f"Profilo Velocità (offset T200 in gara){override_note}",
             options=["🟢 Efficiente/Naturale  (+1.0s)", "🟡 Intermedio  (+1.4s)", "🔴 Velocista Puro  (+1.8s)"],
-            index=1,
-            help="Quanto il primo 200m di un 400m è più lento del PB sui 200m. Più l'atleta è velocista puro, maggiore è l'offset."
+            index=offset_default_idx,
+            help="SRI < 1.065 → Efficiente; 1.065–1.080 → Intermedio; > 1.080 → Velocista Puro. Pre-selezionato automaticamente se hai PB 200m e 400m nel database."
         )
         resistenza_latt = col_pr2.radio(
-            "Resistenza Lattacida (costante L)",
+            f"Resistenza Lattacida (L){override_note_l}",
             options=["🟢 Ottimo 400ista  (L = 12.0s)", "🟡 Buono  (L = 13.0s)", "🟠 Medio  (L = 14.0s)", "🔴 Carente  (L = 15.0s)"],
-            index=1,
-            help="Quanti secondi aggiunge l'atleta al 300m per coprire gli ultimi 100m di un 400m. Maggiore è L, più l'atleta cala nel finale."
+            index=l_default_idx,
+            help="L = PB 400m − Miglior 300m. Pre-selezionato automaticamente se hai entrambi i tempi. Puoi modificarlo manualmente come override."
         )
+
+        # Mostra nota override se DB e scelta manuale divergono
+        if L_db is not None:
+            l_options = ["🟢 Ottimo 400ista  (L = 12.0s)", "🟡 Buono  (L = 13.0s)", "🟠 Medio  (L = 14.0s)", "🔴 Carente  (L = 15.0s)"]
+            if l_options.index(resistenza_latt) != l_default_idx:
+                col_pr2.caption(f"⚠️ Stai usando L manuale invece del valore DB ({L_db:.2f}s)")
+        if SRI_db is not None:
+            sri_options = ["🟢 Efficiente/Naturale  (+1.0s)", "🟡 Intermedio  (+1.4s)", "🔴 Velocista Puro  (+1.8s)"]
+            if sri_options.index(profilo_vel) != offset_default_idx:
+                col_pr1.caption(f"⚠️ Stai usando profilo manuale invece del valore DB (SRI={SRI_db:.4f})")
 
         offset_map = {
             "🟢 Efficiente/Naturale  (+1.0s)": 1.0,
@@ -2325,7 +2403,7 @@ Misura quanto i 300m dell'atleta sono "coerenti" con la sua velocità di base su
             "🔴 Carente  (L = 15.0s)": 15.0,
         }
         offset_val = offset_map[profilo_vel]
-        L_val = L_map[resistenza_latt]
+        L_val      = L_map[resistenza_latt]
 
         st.markdown("<br>", unsafe_allow_html=True)
 
