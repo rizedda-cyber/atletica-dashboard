@@ -2756,9 +2756,8 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
             "🔵 Speed Endurance  (SR200 ≈ 1.10)": 1.10,
         }
         sr200_chosen_val = _sr200_val_map[sr200_profilo]
-        # Usa SR200 dal DB se disponibile e il profilo non è stato sovrascritto
-        sr200_for_pred = SR200_db_200m if (SR200_db_200m and _sr200_opts.index(sr200_profilo) == sr200_default_idx) \
-                         else sr200_chosen_val
+        # Usa sempre il valore del profilo teorico selezionato per poter calcolare un margine reale
+        sr200_for_pred = sr200_chosen_val
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -2815,7 +2814,7 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
             <div style='padding:14px; border-radius:10px; border:1px solid rgba(255,255,255,0.07); background:rgba(255,255,255,0.02); text-align:center;'>
                 <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:1px; margin-bottom:6px;'>SR200 APPLICATO</div>
                 <div style='font-family:Bebas Neue; font-size:32px; color:#fff;'>× {sr200_for_pred:.4f}</div>
-                <div style='font-size:11px; color:rgba(255,255,255,0.35); margin-top:4px;'>{"DB (calcolato)" if (SR200_db_200m and sr200_for_pred == SR200_db_200m) else "profilo manuale"}</div>
+                <div style='font-size:11px; color:rgba(255,255,255,0.35); margin-top:4px;'>{"consigliato dal DB" if (SR200_db_200m and _sr200_opts.index(sr200_profilo) == sr200_default_idx) else "override manuale"}</div>
             </div>
             """, unsafe_allow_html=True)
             s200c3.markdown(f"""
