@@ -2037,266 +2037,352 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
     # ══════════════════════════════════════════════════════════════════════
 
     with tab3:
-        st.markdown("<h3 style='font-family: Bebas Neue; color: #fff; margin-bottom: 0; line-height: 1.1; font-size: 38px;'>PREDIZIONE <span style='color: #E8FF3A;'>PRESTAZIONE GARA</span></h3>", unsafe_allow_html=True)
-        st.markdown("<span style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 2px;'>MODELLO VITTORI · FIDAL</span>", unsafe_allow_html=True)
+        st.markdown("<h3 style='font-family: Bebas Neue; color: #fff; margin-bottom: 0; line-height: 1.1; font-size: 38px;'>MODELLI DI <span style='color: #E8FF3A;'>PREVISIONE GARA</span></h3>", unsafe_allow_html=True)
+        st.markdown("<span style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 2px;'>DUE APPROCCI DISTINTI · SCEGLI QUELLO PIÙ ADATTO ALL'ATLETA</span>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        
-        # 1. Estrazione PB (Auto-Fill)
+
+        # Estrazione PB atleta
         pb_30, pb_60, pb_80, pb_100, pb_200 = None, None, None, None, None
+        pb_200_auto, pb_300_auto, pb_400_auto = None, None, None
         if selected_athlete != "Tutta la squadra" and len(df_r) > 0:
             pb_corse = df_r.groupby('Distanza')['Tempo'].min()
-            pb_30 = float(pb_corse.get(30, None)) if pd.notna(pb_corse.get(30, None)) else None
-            pb_60 = float(pb_corse.get(60, None)) if pd.notna(pb_corse.get(60, None)) else None
-            pb_80 = float(pb_corse.get(80, None)) if pd.notna(pb_corse.get(80, None)) else None
-            pb_100 = float(pb_corse.get(100, None)) if pd.notna(pb_corse.get(100, None)) else None
-            pb_200 = float(pb_corse.get(200, None)) if pd.notna(pb_corse.get(200, None)) else None
+            pb_30   = float(pb_corse.get(30, None))  if pd.notna(pb_corse.get(30, None))  else None
+            pb_60   = float(pb_corse.get(60, None))  if pd.notna(pb_corse.get(60, None))  else None
+            pb_80   = float(pb_corse.get(80, None))  if pd.notna(pb_corse.get(80, None))  else None
+            pb_100  = float(pb_corse.get(100, None)) if pd.notna(pb_corse.get(100, None)) else None
+            pb_200_auto = float(pb_corse.get(200, None)) if pd.notna(pb_corse.get(200, None)) else None
+            pb_300_auto = float(pb_corse.get(300, None)) if pd.notna(pb_corse.get(300, None)) else None
+            pb_400_auto = float(pb_corse.get(400, None)) if pd.notna(pb_corse.get(400, None)) else None
+            pb_200 = pb_200_auto
 
-        col_sx, col_dx = st.columns([1, 4])
-        gender_sel = col_sx.radio("Sesso Atleta", ["Maschile", "Femminile"], horizontal=True, label_visibility="collapsed")
-        g_code = "M" if gender_sel == "Maschile" else "F"
+        # ──────────────────────────────────────────────────────────────────
+        # SEZIONE 1 — MODELLO VITTORI (Calcolatore Reverse)
+        # ──────────────────────────────────────────────────────────────────
+        st.markdown("""
+        <div style='display:flex; align-items:center; gap:14px; margin-bottom:6px;'>
+            <div style='width:4px; height:36px; background:#E8FF3A; border-radius:2px;'></div>
+            <div>
+                <div style='font-family:Bebas Neue; font-size:26px; color:#E8FF3A; letter-spacing:1px; line-height:1;'>MODELLO VITTORI</div>
+                <div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.4); letter-spacing:2px;'>CALCOLATORE REVERSE · OBIETTIVO → SPLIT NECESSARI</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px; color:rgba(255,255,255,0.55); margin-bottom:16px;'>Dato un tempo obiettivo su una gara target, il modello Vittori calcola a ritroso quali split di allenamento (30m, 60m, 80m) devi raggiungere per avere il potenziale fisico di correre quel tempo.</p>", unsafe_allow_html=True)
 
-        vt1, vt2 = st.tabs(["🚀 Modello 200m + 300m → 400m", "🎯 Calcolatore Obiettivo (Reverse)"])
+        with st.container():
+            col_sx, col_dx = st.columns([1, 4])
+            gender_sel = col_sx.radio("Sesso", ["Maschile", "Femminile"], horizontal=True, label_visibility="collapsed")
+            g_code = "M" if gender_sel == "Maschile" else "F"
 
-        with vt1:
-            st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 15px;'>MODELLO FISIOLOGICO: 200m + 300m → POTENZIALE 400m</div>", unsafe_allow_html=True)
-
-            # Recupero automatico PB 200m, 300m, 400m dal database
-            pb_200_auto = None
-            pb_300_auto = None
-            pb_400_auto = None
-            if selected_athlete != "Tutta la squadra" and len(df_r) > 0:
-                pb_corse_ext = df_r.groupby('Distanza')['Tempo'].min()
-                pb_200_auto = float(pb_corse_ext.get(200, None)) if pd.notna(pb_corse_ext.get(200, None)) else None
-                pb_300_auto = float(pb_corse_ext.get(300, None)) if pd.notna(pb_corse_ext.get(300, None)) else None
-                pb_400_auto = float(pb_corse_ext.get(400, None)) if pd.notna(pb_corse_ext.get(400, None)) else None
-
-            col_in1, col_in2, col_in3 = st.columns(3)
-            t200pb = col_in1.number_input("PB 200m (s)", value=pb_200_auto, step=0.05, format="%.2f", placeholder="es. 22.50")
-            t300 = col_in2.number_input("Miglior 300m (s)", value=pb_300_auto, step=0.05, format="%.2f", placeholder="es. 35.20")
-            t400_reale = col_in3.number_input("PB 400m attuale (s) — opzionale", value=pb_400_auto, step=0.10, format="%.2f", placeholder="es. 48.50")
-
-            col_pr1, col_pr2 = st.columns(2)
-            profilo_vel = col_pr1.selectbox(
-                "Profilo Velocità (offset 200m → gara)",
-                options=["Efficiente/Naturale (+1.0s)", "Intermedio (+1.4s)", "Velocista Puro (+1.8s)"],
-                index=1
-            )
-            resistenza_latt = col_pr2.selectbox(
-                "Resistenza Lattacida",
-                options=["Ottimo 400ista (L=12.0)", "Buono (L=13.0)", "Medio (L=14.0)", "Carente (L=15.0)"],
-                index=1
-            )
-
-            offset_map = {
-                "Efficiente/Naturale (+1.0s)": 1.0,
-                "Intermedio (+1.4s)": 1.4,
-                "Velocista Puro (+1.8s)": 1.8
-            }
-            L_map = {
-                "Ottimo 400ista (L=12.0)": 12.0,
-                "Buono (L=13.0)": 13.0,
-                "Medio (L=14.0)": 14.0,
-                "Carente (L=15.0)": 15.0
-            }
-            offset_val = offset_map[profilo_vel]
-            L_val = L_map[resistenza_latt]
-
-            if t200pb and t200pb > 0 and t300 and t300 > 0:
-                # Step 1: Velocità gara stimata dal 200m
-                T200_gara = t200pb + offset_val
-
-                # Step 2: Stima dal 300m
-                T400_da_300 = t300 + L_val
-
-                # Step 3: Fusion Model
-                T400_stimato = 0.6 * T400_da_300 + 0.4 * (2 * T200_gara + 5.5)
-
-                # Step 4: Indice di coerenza C
-                C = t300 - 1.5 * t200pb
-
-                # Classificazione profilo atleta
-                if C < 1.5:
-                    c_emoji = "🟢"
-                    c_label = "Talento 400m Naturale"
-                    c_desc = "Speed endurance eccellente. L'atleta converte molto bene la sua velocità di base sulla distanza. La caduta di velocità dopo i 200m è contenuta e ben gestita."
-                    c_color = "#00e676"
-                    c_bg = "rgba(0,230,118,0.08)"
-                    c_border = "rgba(0,230,118,0.3)"
-                elif C <= 2.5:
-                    c_emoji = "🟡"
-                    c_label = "Buon 400ista"
-                    c_desc = "Buona conversione velocità-resistenza. L'atleta gestisce bene la distribuzione dello sforzo nel corso dei 400m, con margini di miglioramento sulla componente lattacida."
-                    c_color = "#ffeb3b"
-                    c_bg = "rgba(255,235,59,0.08)"
-                    c_border = "rgba(255,235,59,0.3)"
-                elif C <= 3.5:
-                    c_emoji = "🟠"
-                    c_label = "Velocista Convertibile"
-                    c_desc = "Buona velocità di base ma endurance media. L'atleta cala visibilmente dopo i 200m. Servirà un lavoro mirato sulla resistenza lattacida e la gestione di gara."
-                    c_color = "#ff9800"
-                    c_bg = "rgba(255,152,0,0.08)"
-                    c_border = "rgba(255,152,0,0.3)"
-                else:
-                    c_emoji = "🔴"
-                    c_label = "Limite Endurance"
-                    c_desc = "Velocità di base buona ma forte calo nella seconda metà. Necessita di un piano di lavoro lattacido/aerobico intensivo per migliorare la tenuta sulle distanze superiori ai 200m."
-                    c_color = "#f44336"
-                    c_bg = "rgba(244,67,54,0.08)"
-                    c_border = "rgba(244,67,54,0.3)"
-
-                st.markdown("<br>", unsafe_allow_html=True)
-
-                # Indice C mostrato in grande con colore del profilo
-                st.markdown(f"""
-                <div style='padding:20px; border-radius:14px; background:{c_bg}; border:1px solid {c_border}; margin-bottom:20px;'>
-                    <div style='display:flex; align-items:center; gap:20px; flex-wrap:wrap;'>
-                        <div style='text-align:center; min-width:90px;'>
-                            <div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.4); letter-spacing:2px; margin-bottom:4px;'>INDICE C</div>
-                            <div style='font-family:Bebas Neue; font-size:56px; color:{c_color}; line-height:1;'>{C:.2f}</div>
-                        </div>
-                        <div style='flex:1; min-width:200px;'>
-                            <div style='margin-bottom:6px;'>{c_emoji} <span style='font-family:Bebas Neue; font-size:24px; color:{c_color};'>{c_label}</span></div>
-                            <div style='font-size:13px; color:rgba(255,255,255,0.65); line-height:1.55;'>{c_desc}</div>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Metriche principali
-                m1, m2, m3 = st.columns(3)
-                m1.metric("🏃 T200 Gara Stimato", f"{T200_gara:.2f}s",
-                           help=f"PB {t200pb:.2f}s + offset {offset_val}s ({profilo_vel})")
-                m2.metric("⏱ Stima da 300m", f"{T400_da_300:.2f}s",
-                           help=f"300m {t300:.2f}s + L={L_val} (resistenza lattacida)")
-                m3.metric("🎯 400m Potenziale", f"{T400_stimato:.2f}s",
-                           help="Fusion: 60% × (300m+L) + 40% × (2×T200gara + 5.5s)")
-
-                # Dettaglio calcolo in un expander
-                with st.expander("📐 Dettaglio calcoli", expanded=False):
-                    st.markdown(f"""
-                    | Step | Formula | Risultato |
-                    |------|---------|-----------|
-                    | T200 gara | {t200pb:.2f} + {offset_val} (offset profilo) | **{T200_gara:.2f}s** |
-                    | Stima da 300m | {t300:.2f} + {L_val} (L lattacido) | **{T400_da_300:.2f}s** |
-                    | Fusion Model | 0.6 × {T400_da_300:.2f} + 0.4 × (2 × {T200_gara:.2f} + 5.5) | **{T400_stimato:.2f}s** |
-                    | Indice C | {t300:.2f} − 1.5 × {t200pb:.2f} | **{C:.2f}** |
-                    """)
-
-                # Margine di miglioramento
-                if t400_reale and t400_reale > 0:
-                    margine = t400_reale - T400_stimato
-                    if margine > 0:
-                        mar_color = "#ff9800"
-                        mar_bg = "rgba(255,152,0,0.07)"
-                        mar_bord = "rgba(255,152,0,0.25)"
-                        mar_txt = f"📈 Margine di miglioramento teorico: <strong>+{margine:.2f}s</strong> rispetto al potenziale stimato. L'atleta può ancora avvicinarsi alla stima di {T400_stimato:.2f}s."
-                    else:
-                        mar_color = "#00e676"
-                        mar_bg = "rgba(0,230,118,0.07)"
-                        mar_bord = "rgba(0,230,118,0.25)"
-                        mar_txt = f"✅ L'atleta sta già esprimendo il suo potenziale stimato (margine: {margine:.2f}s). Ottima realizzazione della velocità."
-                    st.markdown(f"<div style='margin-top:16px; padding:14px 18px; border-radius:10px; background:{mar_bg}; border:1px solid {mar_bord}; font-size:13px; color:{mar_color};'>{mar_txt}</div>", unsafe_allow_html=True)
-            else:
-                st.info("💡 Inserisci il PB sui 200m e il miglior tempo sui 300m per avviare la stima del potenziale 400m.")
-
-        with vt2:
-            st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 15px;'>CALCOLO DEL GAP DAI TUOI PB REALI</div>", unsafe_allow_html=True)
             tr1, tr2 = st.columns([1, 2])
-            tgt_dist = tr1.selectbox("Gara Obiettivo:", ["80m", "100m", "200m", "250m", "400m"])
-            tgt_t = tr2.number_input("Tempo Bersaglio Sperato (s):", value=None, step=0.10, placeholder="Es. inserisci 10.85 per i 100m")
-            
+            tgt_dist = tr1.selectbox("Gara Obiettivo", ["80m", "100m", "200m", "250m", "400m"])
+            tgt_t = tr2.number_input("Tempo Bersaglio (s)", value=None, step=0.10, placeholder="es. 10.85 per i 100m")
+
             p_tgt = tgt_t if (tgt_t and tgt_t > 0) else None
-            
+
             if p_tgt:
                 need100, need80, need60, need30 = None, None, None, None
                 if tgt_dist == "80m":
                     need80 = p_tgt
                     need100 = round(p_tgt * 1.231, 2)
-                    need60 = round((need100 - 0.18)/1.576, 2)
-                    need30 = round((need100 - 0.30)/2.85, 2)
+                    need60 = round((need100 - 0.18) / 1.576, 2)
+                    need30 = round((need100 - 0.30) / 2.85, 2)
                 elif tgt_dist == "100m":
                     need100 = p_tgt
-                    need60 = round((p_tgt - 0.18)/1.576, 2)
-                    need30 = round((p_tgt - 0.30)/2.85, 2)
-                    need80 = round((need100 + need60)/2, 2)
+                    need60 = round((p_tgt - 0.18) / 1.576, 2)
+                    need30 = round((p_tgt - 0.30) / 2.85, 2)
+                    need80 = round((need100 + need60) / 2, 2)
                 elif tgt_dist == "200m":
-                    need100 = round((p_tgt + 0.24)/2, 2)
-                    need60 = round((need100 - 0.18)/1.576, 2)
-                    need30 = round((need100 - 0.30)/2.85, 2)
-                    need80 = round((need100 + need60)/2, 2)
+                    need100 = round((p_tgt + 0.24) / 2, 2)
+                    need60 = round((need100 - 0.18) / 1.576, 2)
+                    need30 = round((need100 - 0.30) / 2.85, 2)
+                    need80 = round((need100 + need60) / 2, 2)
                 elif tgt_dist == "400m":
-                    need100 = round(((p_tgt - (4.2 if g_code == 'F' else 3.8))/2 + 0.24)/2, 2)
-                    need60 = round((need100 - 0.18)/1.576, 2)
-                    need30 = round((need100 - 0.30)/2.85, 2)
-                    need80 = round((need100 + need60)/2, 2)
-                    
+                    need100 = round(((p_tgt - (4.2 if g_code == "F" else 3.8)) / 2 + 0.24) / 2, 2)
+                    need60 = round((need100 - 0.18) / 1.576, 2)
+                    need30 = round((need100 - 0.30) / 2.85, 2)
+                    need80 = round((need100 + need60) / 2, 2)
+
                 cur_100_est = pb_100 or (round(pb_80 * 1.231, 2) if pb_80 else (round(pb_60 * 1.576 + 0.18, 2) if pb_60 else (round(pb_30 * 2.85 + 0.30, 2) if pb_30 else None)))
-                gap = round(cur_100_est - need100, 2) if cur_100_est else None
-                
-                st.markdown("<br><div style='padding:20px; border-radius:12px; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);'>", unsafe_allow_html=True)
-                if tgt_dist != "100m" and tgt_dist != "80m":
+                gap = round(cur_100_est - need100, 2) if cur_100_est and need100 else None
+
+                st.markdown("<br><div style='padding:20px; border-radius:12px; border:1px solid rgba(232,255,58,0.12); background:rgba(232,255,58,0.02);'>", unsafe_allow_html=True)
+                if tgt_dist not in ("100m", "80m"):
                     st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.05);'><div><span style='font-family:DM Mono; font-size:11px; color:#FF9A3A; letter-spacing:1px;'>100m NECESSARIO COME STEP</span></div><span style='font-family:Bebas Neue; font-size:26px; color:#FF9A3A;'>{need100:.2f}s</span></div>", unsafe_allow_html=True)
                 if tgt_dist == "80m":
                     st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.05);'><div><span style='font-family:DM Mono; font-size:11px; color:#FF9A3A; letter-spacing:1px;'>100m TEORICO ATTESO</span></div><span style='font-family:Bebas Neue; font-size:26px; color:#FF9A3A;'>{need100:.2f}s</span></div>", unsafe_allow_html=True)
-
                 if need80:
-                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:15px; margin-top:10px; border-radius:8px; background:rgba(232,255,58,0.06); border:1px solid rgba(232,255,58,0.2);'><div><span style='font-family:DM Mono; font-size:11px; color:#E8FF3A; letter-spacing:1px;'>🎯 TARGET ASINCRONO 80m</span><br><small style='color:rgba(255,255,255,0.3);'>allenamento</small></div><div><span style='font-family:Bebas Neue; font-size:32px; color:#E8FF3A;'>{need80:.2f}s</span></div></div>", unsafe_allow_html=True)
-                
-                st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:15px; margin-top:10px; border-radius:8px; background:rgba(232,255,58,0.03); border:1px solid rgba(232,255,58,0.1);'><div><span style='font-family:DM Mono; font-size:11px; color:#E8FF3A; letter-spacing:1px;'>🎯 TARGET ASINCRONO 60m</span><br><small style='color:rgba(255,255,255,0.3);'>allenamento</small></div><div><span style='font-family:Bebas Neue; font-size:28px; color:#E8FF3A;'>{need60:.2f}s</span></div></div>", unsafe_allow_html=True)
-                st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:10px; margin-top:10px;'><div><span style='font-family:DM Mono; font-size:11px; color:#B8FF8A; letter-spacing:1px;'>🎯 TARGET ASINCRONO 30m</span></div><span style='font-family:Bebas Neue; font-size:22px; color:#B8FF8A;'>{need30:.2f}s</span></div>", unsafe_allow_html=True)
-                
+                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:15px; margin-top:10px; border-radius:8px; background:rgba(232,255,58,0.06); border:1px solid rgba(232,255,58,0.2);'><div><span style='font-family:DM Mono; font-size:11px; color:#E8FF3A; letter-spacing:1px;'>🎯 TARGET 80m (allenamento)</span></div><span style='font-family:Bebas Neue; font-size:32px; color:#E8FF3A;'>{need80:.2f}s</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:15px; margin-top:10px; border-radius:8px; background:rgba(232,255,58,0.03); border:1px solid rgba(232,255,58,0.1);'><div><span style='font-family:DM Mono; font-size:11px; color:#E8FF3A; letter-spacing:1px;'>🎯 TARGET 60m (allenamento)</span></div><span style='font-family:Bebas Neue; font-size:28px; color:#E8FF3A;'>{need60:.2f}s</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:10px; margin-top:10px;'><div><span style='font-family:DM Mono; font-size:11px; color:#B8FF8A; letter-spacing:1px;'>🎯 TARGET 30m (allenamento)</span></div><span style='font-family:Bebas Neue; font-size:22px; color:#B8FF8A;'>{need30:.2f}s</span></div>", unsafe_allow_html=True)
                 if gap is not None:
                     g_col = "#FF4B4B" if gap > 0 else "#B8FF8A"
                     g_bg = "rgba(255,75,75,0.08)" if gap > 0 else "rgba(184,255,138,0.08)"
                     g_bord = "rgba(255,75,75,0.25)" if gap > 0 else "rgba(184,255,138,0.25)"
-                    g_txt = "+"+str(gap) if gap > 0 else str(gap)
-                    lbl_gap = "⚡ GAP DA COLMARE" if gap > 0 else "✅ TARGET GIÀ RAGGIUNGIBILE"
-                    st.markdown(f"<div style='margin-top:15px; padding:15px; border-radius:10px; background:{g_bg}; border:1px solid {g_bord};'><div style='font-family:DM Mono; font-size:10px; color:{g_col}; letter-spacing:2px; margin-bottom:6px;'>{lbl_gap}</div><div style='display:flex; align-items:baseline; gap:10px;'><span style='font-family:Bebas Neue; font-size:36px; color:{g_col}; line-height:1;'>{g_txt}s</span><span style='font-size:12px; color:rgba(255,255,255,0.4);'>sul 100m stimato attuale ({cur_100_est:.2f}s)</span></div></div>", unsafe_allow_html=True)
+                    g_txt = "+" + str(gap) if gap > 0 else str(gap)
+                    lbl_gap = "⚡ GAP DA COLMARE sui 100m" if gap > 0 else "✅ TARGET GIÀ RAGGIUNGIBILE"
+                    st.markdown(f"<div style='margin-top:15px; padding:15px; border-radius:10px; background:{g_bg}; border:1px solid {g_bord};'><div style='font-family:DM Mono; font-size:10px; color:{g_col}; letter-spacing:2px; margin-bottom:6px;'>{lbl_gap}</div><div style='display:flex; align-items:baseline; gap:10px;'><span style='font-family:Bebas Neue; font-size:36px; color:{g_col}; line-height:1;'>{g_txt}s</span><span style='font-size:12px; color:rgba(255,255,255,0.4);'>vs 100m stimato attuale ({cur_100_est:.2f}s)</span></div></div>", unsafe_allow_html=True)
                 else:
-                    st.info("Per calcolare il Gap, devi avere almeno una Prova ufficiale (100, 80, 60 o 30) a database.")
+                    st.info("Per calcolare il Gap inserisci almeno una prova (100m, 80m, 60m o 30m) nel database.")
                 st.markdown("</div>", unsafe_allow_html=True)
+            else:
+                st.info("💡 Inserisci il tempo obiettivo per vedere i target di allenamento Vittori.")
 
-        st.divider()
-        st.subheader("🔮 Modello Lineare di Predizione (Gara)")
-        available_dists = sorted(df_running['Distanza'].unique())
-        short_dists = [d for d in available_dists if d <= 100]
-        long_dists = [d for d in available_dists if d >= 60]
+        st.markdown("<br>", unsafe_allow_html=True)
 
-        if len(short_dists) >= 2 and len(long_dists) >= 1:
-            col_p1, col_p2, col_p3 = st.columns(3)
-            feat1 = col_p1.selectbox("Parziale 1", short_dists, index=0, format_func=lambda x: f"{int(x)}m")
-            feat2 = col_p2.selectbox("Parziale 2", [d for d in short_dists if d != feat1], index=0, format_func=lambda x: f"{int(x)}m")
-            target = col_p3.selectbox("Target Gara", [d for d in long_dists if d > max(feat1, feat2)], format_func=lambda x: f"{int(x)}m")
-
-            df_f1 = df_running[df_running['Distanza'] == feat1][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 't1'})
-            df_f2 = df_running[df_running['Distanza'] == feat2][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 't2'})
-            df_tgt = df_running[df_running['Distanza'] == target][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 'target'})
-            df_model = df_f1.merge(df_f2, on=['Data', 'Atleta']).merge(df_tgt, on=['Data', 'Atleta'])
-
-            if len(df_model) >= 5:
-                X, y = df_model[['t1', 't2']].values, df_model['target'].values
-                model = LinearRegression().fit(X, y)
-                score = model.score(X, y)
-                with st.expander(f"📚 Modello di Predizione (R² = {score:.2f})"):
-                    df_model['Previsto'] = model.predict(X)
-                    fig_pred = px.scatter(df_model, x='target', y='Previsto', template=THEME_TEMPLATE,
-                                           title="Reale vs Stimato")
+        # Modello Lineare ML (Vittori section)
+        with st.expander("📊 Modello Lineare di Predizione (dati storici squadra)", expanded=False):
+            st.markdown("<small style='color:rgba(255,255,255,0.45);'>Usa la regressione lineare sui dati storici della squadra per predire un tempo gara a partire da due distanze più corte.</small>", unsafe_allow_html=True)
+            available_dists = sorted(df_running['Distanza'].unique())
+            short_dists = [d for d in available_dists if d <= 100]
+            long_dists  = [d for d in available_dists if d >= 60]
+            if len(short_dists) >= 2 and len(long_dists) >= 1:
+                col_p1, col_p2, col_p3 = st.columns(3)
+                feat1  = col_p1.selectbox("Parziale 1", short_dists, index=0, format_func=lambda x: f"{int(x)}m")
+                feat2  = col_p2.selectbox("Parziale 2", [d for d in short_dists if d != feat1], index=0, format_func=lambda x: f"{int(x)}m")
+                target = col_p3.selectbox("Target Gara", [d for d in long_dists if d > max(feat1, feat2)], format_func=lambda x: f"{int(x)}m")
+                df_f1   = df_running[df_running['Distanza'] == feat1][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 't1'})
+                df_f2   = df_running[df_running['Distanza'] == feat2][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 't2'})
+                df_tgt  = df_running[df_running['Distanza'] == target][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 'target'})
+                df_model = df_f1.merge(df_f2, on=['Data', 'Atleta']).merge(df_tgt, on=['Data', 'Atleta'])
+                if len(df_model) >= 5:
+                    X, y = df_model[['t1', 't2']].values, df_model['target'].values
+                    model_lr = LinearRegression().fit(X, y)
+                    score = model_lr.score(X, y)
+                    df_model['Previsto'] = model_lr.predict(X)
+                    fig_pred = px.scatter(df_model, x='target', y='Previsto', template=THEME_TEMPLATE, title=f"Reale vs Stimato (R²={score:.2f})")
                     m_min = min(df_model['target'].min(), df_model['Previsto'].min())
                     m_max = max(df_model['target'].max(), df_model['Previsto'].max())
-                    fig_pred.add_trace(go.Scatter(x=[m_min, m_max], y=[m_min, m_max], mode='lines',
-                                                   line=dict(dash='dash'), name='Previsione Perfetta'))
+                    fig_pred.add_trace(go.Scatter(x=[m_min, m_max], y=[m_min, m_max], mode='lines', line=dict(dash='dash'), name='Ideale'))
                     st.plotly_chart(fig_pred, use_container_width=True)
-
-                st.markdown("##### Simulatore Predittivo")
-                pred_col1, pred_col2 = st.columns(2)
-                val_t1 = pred_col1.number_input(f"{int(feat1)}m (sec):", value=float(df_model['t1'].median()), step=0.05)
-                val_t2 = pred_col2.number_input(f"{int(feat2)}m (sec):", value=float(df_model['t2'].median()), step=0.05)
-                predicted = model.predict([[val_t1, val_t2]])[0]
-                st.info(f"🏁 Potenziale sui **{int(target)}m** stimato: **{predicted:.2f} secondi**")
+                    pred_col1, pred_col2 = st.columns(2)
+                    val_t1 = pred_col1.number_input(f"{int(feat1)}m (s):", value=float(df_model['t1'].median()), step=0.05)
+                    val_t2 = pred_col2.number_input(f"{int(feat2)}m (s):", value=float(df_model['t2'].median()), step=0.05)
+                    predicted = model_lr.predict([[val_t1, val_t2]])[0]
+                    st.info(f"🏁 Potenziale sui **{int(target)}m** stimato: **{predicted:.2f}s**")
+                else:
+                    st.warning("Servono almeno 5 corrispondenze (stessa data + atleta su tutte le distanze).")
             else:
-                st.warning("Almeno 5 corrispondenze necessarie (stessa data + atleta su tutte le distanze).")
+                st.warning("Distanze insufficienti nel database per il modello lineare.")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.divider()
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ──────────────────────────────────────────────────────────────────
+        # SEZIONE 2 — MODELLO FISIOLOGICO 400m
+        # ──────────────────────────────────────────────────────────────────
+        st.markdown("""
+        <div style='display:flex; align-items:center; gap:14px; margin-bottom:6px;'>
+            <div style='width:4px; height:36px; background:#4A9EFF; border-radius:2px;'></div>
+            <div>
+                <div style='font-family:Bebas Neue; font-size:26px; color:#4A9EFF; letter-spacing:1px; line-height:1;'>MODELLO FISIOLOGICO 400m</div>
+                <div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.4); letter-spacing:2px;'>200m PB + 300m → STIMA POTENZIALE 400m</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px; color:rgba(255,255,255,0.55); margin-bottom:4px;'>Questo modello stima il potenziale teorico sui 400m incrociando il PB sui 200m (indicatore di velocità pura) con il miglior 300m (indicatore di tenuta lattacida). Non usa le regressioni di Vittori: si basa sulla fisiologia della corsa prolungata.</p>", unsafe_allow_html=True)
+
+        # Guida all'uso
+        with st.expander("📖 Come usare questo modello — leggi prima", expanded=False):
+            st.markdown("""
+**Cosa inserire:**
+- **PB 200m**: il Personal Best dell'atleta sui 200m, idealmente in gara ufficiale. È l'indicatore della velocità massima sostenibile. Viene pre-compilato dal database se disponibile.
+- **Miglior 300m**: il miglior tempo registrato sui 300m, anche in allenamento. È la distanza chiave per stimare la tenuta lattacida. Se non lo hai, un 300m cronometrato in allenamento ad intensità massima va benissimo.
+- **PB 400m attuale** *(opzionale)*: se inserito, consente di calcolare il margine tra il potenziale teorico e la prestazione reale.
+
+---
+
+**Come scegliere il Profilo Velocità:**
+
+Il profilo velocità esprime quanto l'atleta "sprinta" i 200m rispetto a come li corre in un 400m reale. In un 400m, il primo 200m sarà sempre più lento del PB sui 200m:
+- 🟢 **Efficiente / Naturale (+1.0s)**: atleta con ottima gestione, poco differenziale tra PB 200m e passaggio al 200m nel 400m. Tipico del 400ista puro con buona economia di corsa.
+- 🟡 **Intermedio (+1.4s)**: il caso più comune. Il 200m del 400m è circa 1.4s più lento del PB.
+- 🔴 **Velocista Puro (+1.8s)**: atleta da 100-200m che "soffre" nel 400m. Il primo 200m è molto più lento del PB per conservare energie, ma cala comunque nel finale.
+
+---
+
+**Come scegliere la Resistenza Lattacida (L):**
+
+L è il numero di secondi che l'atleta aggiunge ai suoi 300m per completare i restanti 100m in un 400m reale (stanchezza + accumulo acido lattico):
+- **L = 12** — Ottimo 400ista: atleta che mantiene bene la velocità anche negli ultimi 100m, con ottima clearance del lattato.
+- **L = 13** — Buono: discreta tenuta nel finale, calo presente ma contenuto.
+- **L = 14** — Medio: calo significativo negli ultimi 100m, atleta che "muore" nel rettilineo finale.
+- **L = 15** — Carente: caduta marcata. Tipico del velocista puro o di chi ha poca base aerobica.
+
+*Come stimare L empiricamente: cronometra un 400m in allenamento e confrontalo con (miglior 300m + tempo degli ultimi 100m isolati). La differenza è L.*
+
+---
+
+**Indice di Coerenza C = T300 − 1.5 × T200:**
+
+Misura quanto i 300m dell'atleta sono "coerenti" con la sua velocità di base sui 200m. Un C basso significa che l'atleta tiene bene la velocità anche a distanze maggiori (talento naturale per il 400m). Un C alto segnala che la velocità cala in modo accentuato.
+            """)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── INPUT ──────────────────────────────────────────────────────────
+        st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:8px;'>STEP 1 · INSERISCI I TEMPI</div>", unsafe_allow_html=True)
+        col_in1, col_in2, col_in3 = st.columns(3)
+
+        t200pb = col_in1.number_input(
+            "🏃 PB 200m (s)",
+            value=pb_200_auto, step=0.05, format="%.2f",
+            placeholder="es. 22.50",
+            help="Personal Best sui 200m, preferibilmente in gara ufficiale. Pre-compilato dal database se disponibile."
+        )
+        t300 = col_in2.number_input(
+            "⏱ Miglior 300m (s)",
+            value=pb_300_auto, step=0.05, format="%.2f",
+            placeholder="es. 35.20",
+            help="Miglior tempo sui 300m, anche in allenamento a massima intensità. Chiave per stimare la tenuta lattacida."
+        )
+        t400_reale = col_in3.number_input(
+            "🎯 PB 400m attuale (s) — opzionale",
+            value=pb_400_auto, step=0.10, format="%.2f",
+            placeholder="es. 48.50",
+            help="Se inserito, calcola il margine tra potenziale teorico e prestazione reale."
+        )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:8px;'>STEP 2 · PROFILA L'ATLETA</div>", unsafe_allow_html=True)
+
+        col_pr1, col_pr2 = st.columns(2)
+
+        profilo_vel = col_pr1.radio(
+            "Profilo Velocità (offset T200 in gara)",
+            options=["🟢 Efficiente/Naturale  (+1.0s)", "🟡 Intermedio  (+1.4s)", "🔴 Velocista Puro  (+1.8s)"],
+            index=1,
+            help="Quanto il primo 200m di un 400m è più lento del PB sui 200m. Più l'atleta è velocista puro, maggiore è l'offset."
+        )
+        resistenza_latt = col_pr2.radio(
+            "Resistenza Lattacida (costante L)",
+            options=["🟢 Ottimo 400ista  (L = 12.0s)", "🟡 Buono  (L = 13.0s)", "🟠 Medio  (L = 14.0s)", "🔴 Carente  (L = 15.0s)"],
+            index=1,
+            help="Quanti secondi aggiunge l'atleta al 300m per coprire gli ultimi 100m di un 400m. Maggiore è L, più l'atleta cala nel finale."
+        )
+
+        offset_map = {
+            "🟢 Efficiente/Naturale  (+1.0s)": 1.0,
+            "🟡 Intermedio  (+1.4s)": 1.4,
+            "🔴 Velocista Puro  (+1.8s)": 1.8,
+        }
+        L_map = {
+            "🟢 Ottimo 400ista  (L = 12.0s)": 12.0,
+            "🟡 Buono  (L = 13.0s)": 13.0,
+            "🟠 Medio  (L = 14.0s)": 14.0,
+            "🔴 Carente  (L = 15.0s)": 15.0,
+        }
+        offset_val = offset_map[profilo_vel]
+        L_val = L_map[resistenza_latt]
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        if t200pb and t200pb > 0 and t300 and t300 > 0:
+            # Calcoli
+            T200_gara    = t200pb + offset_val
+            T400_da_300  = t300 + L_val
+            T400_stimato = round(0.6 * T400_da_300 + 0.4 * (2 * T200_gara + 5.5), 2)
+            C            = round(t300 - 1.5 * t200pb, 3)
+
+            # Classificazione indice C
+            if C < 1.5:
+                c_emoji, c_label = "🟢", "Talento 400m Naturale"
+                c_desc  = "Speed endurance eccellente. L'atleta converte molto bene la sua velocità di base. La caduta di velocità dopo i 200m è contenuta e ben gestita. Ideale per specializzarsi nel 400m."
+                c_color, c_bg, c_border = "#00e676", "rgba(0,230,118,0.08)", "rgba(0,230,118,0.3)"
+                c_action = "✅ Insisti sul lavoro di potenza e velocità. La tenuta c'è già. Lavora sulla forza specifica per migliorare i 200m PB."
+            elif C <= 2.5:
+                c_emoji, c_label = "🟡", "Buon 400ista"
+                c_desc  = "Buona conversione velocità-resistenza. L'atleta gestisce bene la distribuzione dello sforzo nel corso dei 400m, con margini di miglioramento sulla componente lattacida."
+                c_color, c_bg, c_border = "#ffeb3b", "rgba(255,235,59,0.08)", "rgba(255,235,59,0.3)"
+                c_action = "📈 Lavora sulla resistenza lattacida (ripetute 200-300m ad alta intensità) e sul controllo di gara per ottimizzare la distribuzione del ritmo."
+            elif C <= 3.5:
+                c_emoji, c_label = "🟠", "Velocista Convertibile"
+                c_desc  = "Buona velocità di base ma endurance media. L'atleta cala visibilmente dopo i 200m. Il potenziale c'è, ma va sviluppata la tenuta nella seconda metà gara."
+                c_color, c_bg, c_border = "#ff9800", "rgba(255,152,0,0.08)", "rgba(255,152,0,0.3)"
+                c_action = "⚡ Priorità al lavoro lattacido: ripetute 300-350m, tempo run e threshold. Punta a portare L da {:.0f} a {:.0f} nel medio termine.".format(L_val, max(12.0, L_val - 1.0))
+            else:
+                c_emoji, c_label = "🔴", "Limite Endurance"
+                c_desc  = "Velocità di base buona ma forte calo nella seconda metà. Necessita di un piano di lavoro lattacido/aerobico intensivo per migliorare la tenuta sulle distanze superiori ai 200m."
+                c_color, c_bg, c_border = "#f44336", "rgba(244,67,54,0.08)", "rgba(244,67,54,0.3)"
+                c_action = "🔧 Inserisci lavoro aerobico di base (3-4 settimane), poi scala gradualmente verso il lattacido. Obiettivo immediato: abbassare i 300m per ridurre C sotto 3.5."
+
+            st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:12px;'>STEP 3 · RISULTATI</div>", unsafe_allow_html=True)
+
+            # Indice C in grande
+            st.markdown(f"""
+            <div style='padding:22px; border-radius:14px; background:{c_bg}; border:1px solid {c_border}; margin-bottom:20px;'>
+                <div style='display:flex; align-items:center; gap:24px; flex-wrap:wrap;'>
+                    <div style='text-align:center; min-width:100px;'>
+                        <div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.4); letter-spacing:2px; margin-bottom:4px;'>INDICE C</div>
+                        <div style='font-family:Bebas Neue; font-size:60px; color:{c_color}; line-height:1;'>{C:.2f}</div>
+                        <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.25);'>T300 − 1.5 × T200pb</div>
+                    </div>
+                    <div style='flex:1; min-width:220px;'>
+                        <div style='margin-bottom:8px;'>{c_emoji} <span style='font-family:Bebas Neue; font-size:26px; color:{c_color};'>{c_label}</span></div>
+                        <div style='font-size:13px; color:rgba(255,255,255,0.65); line-height:1.6; margin-bottom:12px;'>{c_desc}</div>
+                        <div style='font-size:12px; color:{c_color}; background:rgba(0,0,0,0.25); padding:8px 12px; border-radius:6px; border-left:3px solid {c_color};'>{c_action}</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Step intermedi visibili
+            st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.3); letter-spacing:2px; margin-bottom:10px;'>CALCOLO STEP-BY-STEP</div>", unsafe_allow_html=True)
+            sc1, sc2, sc3 = st.columns(3)
+            sc1.markdown(f"""
+            <div style='padding:14px; border-radius:10px; border:1px solid rgba(255,255,255,0.07); background:rgba(255,255,255,0.02); text-align:center;'>
+                <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:1px; margin-bottom:6px;'>STEP 1 · T200 GARA</div>
+                <div style='font-family:Bebas Neue; font-size:32px; color:#fff;'>{T200_gara:.2f}s</div>
+                <div style='font-size:11px; color:rgba(255,255,255,0.35); margin-top:4px;'>{t200pb:.2f} + {offset_val:.1f}s offset</div>
+            </div>
+            """, unsafe_allow_html=True)
+            sc2.markdown(f"""
+            <div style='padding:14px; border-radius:10px; border:1px solid rgba(255,255,255,0.07); background:rgba(255,255,255,0.02); text-align:center;'>
+                <div style='font-family:DM Mono; font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:1px; margin-bottom:6px;'>STEP 2 · STIMA DA 300m</div>
+                <div style='font-family:Bebas Neue; font-size:32px; color:#fff;'>{T400_da_300:.2f}s</div>
+                <div style='font-size:11px; color:rgba(255,255,255,0.35); margin-top:4px;'>{t300:.2f} + L={L_val:.0f}s</div>
+            </div>
+            """, unsafe_allow_html=True)
+            sc3.markdown(f"""
+            <div style='padding:14px; border-radius:10px; border:1px solid rgba(74,158,255,0.3); background:rgba(74,158,255,0.06); text-align:center;'>
+                <div style='font-family:DM Mono; font-size:9px; color:#4A9EFF; letter-spacing:1px; margin-bottom:6px;'>STEP 3 · FUSION MODEL</div>
+                <div style='font-family:Bebas Neue; font-size:38px; color:#4A9EFF;'>{T400_stimato:.2f}s</div>
+                <div style='font-size:11px; color:rgba(74,158,255,0.6); margin-top:4px;'>60% × step2 + 40% × (2×step1 + 5.5)</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Margine di miglioramento
+            if t400_reale and t400_reale > 0:
+                st.markdown("<br>", unsafe_allow_html=True)
+                margine = round(t400_reale - T400_stimato, 2)
+                if margine > 0:
+                    mar_color, mar_bg, mar_bord = "#ff9800", "rgba(255,152,0,0.07)", "rgba(255,152,0,0.25)"
+                    mar_icon = "📈"
+                    mar_titolo = "MARGINE DI MIGLIORAMENTO"
+                    mar_txt = f"L'atleta corre {margine:.2f}s più lento del potenziale teorico ({T400_stimato:.2f}s). Può ancora avvicinarsi a questo tempo ottimizzando la gestione di gara e la resistenza lattacida."
+                else:
+                    mar_color, mar_bg, mar_bord = "#00e676", "rgba(0,230,118,0.07)", "rgba(0,230,118,0.25)"
+                    mar_icon = "✅"
+                    mar_titolo = "POTENZIALE GIÀ ESPRESSO"
+                    mar_txt = f"L'atleta corre {abs(margine):.2f}s sotto la stima teorica. Sta sfruttando al massimo (o oltre) il suo potenziale attuale. Per migliorare, è necessario sviluppare le qualità di base (velocità o resistenza)."
+                st.markdown(f"""
+                <div style='padding:16px 20px; border-radius:10px; background:{mar_bg}; border:1px solid {mar_bord};'>
+                    <div style='font-family:DM Mono; font-size:10px; color:{mar_color}; letter-spacing:2px; margin-bottom:8px;'>{mar_icon} {mar_titolo}</div>
+                    <div style='display:flex; align-items:baseline; gap:12px; margin-bottom:6px;'>
+                        <span style='font-family:Bebas Neue; font-size:42px; color:{mar_color}; line-height:1;'>{("+" if margine > 0 else "")}{margine:.2f}s</span>
+                        <span style='font-size:12px; color:rgba(255,255,255,0.4);'>PB attuale: {t400_reale:.2f}s · Potenziale stimato: {T400_stimato:.2f}s</span>
+                    </div>
+                    <div style='font-size:13px; color:rgba(255,255,255,0.6);'>{mar_txt}</div>
+                </div>
+                """, unsafe_allow_html=True)
         else:
-            st.error("Distanze insufficienti.")
+            st.markdown("""
+            <div style='padding:20px; border-radius:12px; border:1px dashed rgba(74,158,255,0.3); background:rgba(74,158,255,0.03); text-align:center;'>
+                <div style='font-size:28px; margin-bottom:8px;'>⬆️</div>
+                <div style='font-family:DM Mono; font-size:11px; color:rgba(74,158,255,0.7); letter-spacing:1px;'>Inserisci PB 200m e Miglior 300m per avviare la stima</div>
+            </div>
+            """, unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB 4 — TRANSFER E CORRELAZIONE (GYM ↔ CORSA)
