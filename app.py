@@ -1821,7 +1821,7 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
                                          legend=dict(orientation='h', y=-0.15), margin=dict(t=50))
                 st.plotly_chart(fig_trend, use_container_width=True)
 
-            col_pb, col_distr = st.columns([1.2, 1])
+            col_pb = st.container()
 
             with col_pb:
                 with st.expander("🏆 Mostra Classifica Personal Best (PB)", expanded=False):
@@ -1848,17 +1848,6 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
                                      .highlight_min(subset=['Miglior_Tempo'], color='#90e0ef'),
                                      use_container_width=True, height=350)
 
-            with col_distr:
-                with st.expander("📊 Consistenza delle Rilevazioni (Boxplot)", expanded=False):
-                    df_r_copy = df_r.copy()
-                    df_r_copy['Distanza (m)'] = df_r_copy['Distanza'].astype(int).astype(str) + "m"
-                    fig_box = px.box(df_r_copy, x='Distanza (m)', y='Tempo', color='Distanza (m)',
-                                      hover_data=['Note'] if 'Note' in df_r_copy.columns else None,
-                                      template=THEME_TEMPLATE, title="Dispersione dei Tempi",
-                                      labels={'Tempo': 'Tempo (sec)'},
-                                      color_discrete_sequence=NEON_COLORS)
-                    fig_box.update_layout(showlegend=False, height=350, margin=dict(t=50))
-                    st.plotly_chart(fig_box, use_container_width=True)
 
             if selected_athlete != "Tutta la squadra":
                 st.divider()
@@ -2066,67 +2055,149 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
         gender_sel = col_sx.radio("Sesso Atleta", ["Maschile", "Femminile"], horizontal=True, label_visibility="collapsed")
         g_code = "M" if gender_sel == "Maschile" else "F"
 
-        vt1, vt2 = st.tabs(["🚀 Predizione Gara (Forward)", "🎯 Calcolatore Obiettivo (Reverse)"])
-        
+        vt1, vt2 = st.tabs(["🚀 Modello 200m + 300m → 400m", "🎯 Calcolatore Obiettivo (Reverse)"])
+
         with vt1:
-            st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 10px;'>MODALITÀ DI STIMA</div>", unsafe_allow_html=True)
-            mod_stima = st.selectbox(
-                "Scegli con quali dati pre-compilare il modello:",
-                ["Usa tutti i PB disponibili", "Forza previsione partendo dai 30m", "Forza previsione partendo dai 60m", "Forza previsione partendo dagli 80m", "Inserimento manuale (campi vuoti)"],
-                label_visibility="collapsed"
+            st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 15px;'>MODELLO FISIOLOGICO: 200m + 300m → POTENZIALE 400m</div>", unsafe_allow_html=True)
+
+            # Recupero automatico PB 200m, 300m, 400m dal database
+            pb_200_auto = None
+            pb_300_auto = None
+            pb_400_auto = None
+            if selected_athlete != "Tutta la squadra" and len(df_r) > 0:
+                pb_corse_ext = df_r.groupby('Distanza')['Tempo'].min()
+                pb_200_auto = float(pb_corse_ext.get(200, None)) if pd.notna(pb_corse_ext.get(200, None)) else None
+                pb_300_auto = float(pb_corse_ext.get(300, None)) if pd.notna(pb_corse_ext.get(300, None)) else None
+                pb_400_auto = float(pb_corse_ext.get(400, None)) if pd.notna(pb_corse_ext.get(400, None)) else None
+
+            col_in1, col_in2, col_in3 = st.columns(3)
+            t200pb = col_in1.number_input("PB 200m (s)", value=pb_200_auto, step=0.05, format="%.2f", placeholder="es. 22.50")
+            t300 = col_in2.number_input("Miglior 300m (s)", value=pb_300_auto, step=0.05, format="%.2f", placeholder="es. 35.20")
+            t400_reale = col_in3.number_input("PB 400m attuale (s) — opzionale", value=pb_400_auto, step=0.10, format="%.2f", placeholder="es. 48.50")
+
+            col_pr1, col_pr2 = st.columns(2)
+            profilo_vel = col_pr1.selectbox(
+                "Profilo Velocità (offset 200m → gara)",
+                options=["Efficiente/Naturale (+1.0s)", "Intermedio (+1.4s)", "Velocista Puro (+1.8s)"],
+                index=1
             )
-            
-            # Applica i filtri sui PB a seconda della modalità scelta
-            p_val_30 = pb_30 if mod_stima in ["Usa tutti i PB disponibili", "Forza previsione partendo dai 30m"] else None
-            p_val_60 = pb_60 if mod_stima in ["Usa tutti i PB disponibili", "Forza previsione partendo dai 60m"] else None
-            p_val_80 = pb_80 if mod_stima in ["Usa tutti i PB disponibili", "Forza previsione partendo dagli 80m"] else None
-            p_val_100 = pb_100 if mod_stima == "Usa tutti i PB disponibili" else None
-            p_val_200 = pb_200 if mod_stima == "Usa tutti i PB disponibili" else None
+            resistenza_latt = col_pr2.selectbox(
+                "Resistenza Lattacida",
+                options=["Ottimo 400ista (L=12.0)", "Buono (L=13.0)", "Medio (L=14.0)", "Carente (L=15.0)"],
+                index=1
+            )
 
-            st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-top: 5px; margin-bottom: 15px;'>INSERISCI I TUOI TEMPI</div>", unsafe_allow_html=True)
-            i1, i2, i3, i4, i5 = st.columns(5)
-            t30 = i1.number_input("30m (fermo) - s", value=p_val_30, step=0.05, format="%.2f")
-            t60 = i2.number_input("60m (fermo) - s", value=p_val_60, step=0.05, format="%.2f")
-            t80 = i3.number_input("80m - s", value=p_val_80, step=0.05, format="%.2f")
-            t100 = i4.number_input("100m - s", value=p_val_100, step=0.05, format="%.2f")
-            t200 = i5.number_input("200m - s", value=p_val_200, step=0.05, format="%.2f")
-            
-            p30 = t30 if (t30 and t30>0) else None
-            p60 = t60 if (t60 and t60>0) else None
-            p80 = t80 if (t80 and t80>0) else None
-            p100 = t100 if (t100 and t100>0) else None
-            p200 = t200 if (t200 and t200>0) else None
+            offset_map = {
+                "Efficiente/Naturale (+1.0s)": 1.0,
+                "Intermedio (+1.4s)": 1.4,
+                "Velocista Puro (+1.8s)": 1.8
+            }
+            L_map = {
+                "Ottimo 400ista (L=12.0)": 12.0,
+                "Buono (L=13.0)": 13.0,
+                "Medio (L=14.0)": 14.0,
+                "Carente (L=15.0)": 15.0
+            }
+            offset_val = offset_map[profilo_vel]
+            L_val = L_map[resistenza_latt]
 
-            est100 = p100 or (round(p80 * 1.231, 2) if p80 else (round(p60 * 1.576 + 0.18, 2) if p60 else (round(p30 * 2.85 + 0.30, 2) if p30 else None)))
-            est60 = p60 or (round(p30 * 1.78 + 0.12, 2) if p30 else None)
-            est80 = p80 or (round((est60 + est100)/2, 2) if (est60 and est100) else None)
-            est200 = p200 or (round(est100 * 2 - 0.24, 2) if est100 else None)
-            est400 = round(est200 * 2 + (4.2 if g_code == "F" else 3.8), 2) if est200 else None
-            
-            if not any([p30, p60, p80, p100, p200]):
-                st.info("💡 Inserisci almeno un tempo (preferibilmente i 60m o 30m) per calcolare la regressione di Vittori.")
+            if t200pb and t200pb > 0 and t300 and t300 > 0:
+                # Step 1: Velocità gara stimata dal 200m
+                T200_gara = t200pb + offset_val
+
+                # Step 2: Stima dal 300m
+                T400_da_300 = t300 + L_val
+
+                # Step 3: Fusion Model
+                T400_stimato = 0.6 * T400_da_300 + 0.4 * (2 * T200_gara + 5.5)
+
+                # Step 4: Indice di coerenza C
+                C = t300 - 1.5 * t200pb
+
+                # Classificazione profilo atleta
+                if C < 1.5:
+                    c_emoji = "🟢"
+                    c_label = "Talento 400m Naturale"
+                    c_desc = "Speed endurance eccellente. L'atleta converte molto bene la sua velocità di base sulla distanza. La caduta di velocità dopo i 200m è contenuta e ben gestita."
+                    c_color = "#00e676"
+                    c_bg = "rgba(0,230,118,0.08)"
+                    c_border = "rgba(0,230,118,0.3)"
+                elif C <= 2.5:
+                    c_emoji = "🟡"
+                    c_label = "Buon 400ista"
+                    c_desc = "Buona conversione velocità-resistenza. L'atleta gestisce bene la distribuzione dello sforzo nel corso dei 400m, con margini di miglioramento sulla componente lattacida."
+                    c_color = "#ffeb3b"
+                    c_bg = "rgba(255,235,59,0.08)"
+                    c_border = "rgba(255,235,59,0.3)"
+                elif C <= 3.5:
+                    c_emoji = "🟠"
+                    c_label = "Velocista Convertibile"
+                    c_desc = "Buona velocità di base ma endurance media. L'atleta cala visibilmente dopo i 200m. Servirà un lavoro mirato sulla resistenza lattacida e la gestione di gara."
+                    c_color = "#ff9800"
+                    c_bg = "rgba(255,152,0,0.08)"
+                    c_border = "rgba(255,152,0,0.3)"
+                else:
+                    c_emoji = "🔴"
+                    c_label = "Limite Endurance"
+                    c_desc = "Velocità di base buona ma forte calo nella seconda metà. Necessita di un piano di lavoro lattacido/aerobico intensivo per migliorare la tenuta sulle distanze superiori ai 200m."
+                    c_color = "#f44336"
+                    c_bg = "rgba(244,67,54,0.08)"
+                    c_border = "rgba(244,67,54,0.3)"
+
+                st.markdown("<br>", unsafe_allow_html=True)
+
+                # Indice C mostrato in grande con colore del profilo
+                st.markdown(f"""
+                <div style='padding:20px; border-radius:14px; background:{c_bg}; border:1px solid {c_border}; margin-bottom:20px;'>
+                    <div style='display:flex; align-items:center; gap:20px; flex-wrap:wrap;'>
+                        <div style='text-align:center; min-width:90px;'>
+                            <div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.4); letter-spacing:2px; margin-bottom:4px;'>INDICE C</div>
+                            <div style='font-family:Bebas Neue; font-size:56px; color:{c_color}; line-height:1;'>{C:.2f}</div>
+                        </div>
+                        <div style='flex:1; min-width:200px;'>
+                            <div style='margin-bottom:6px;'>{c_emoji} <span style='font-family:Bebas Neue; font-size:24px; color:{c_color};'>{c_label}</span></div>
+                            <div style='font-size:13px; color:rgba(255,255,255,0.65); line-height:1.55;'>{c_desc}</div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Metriche principali
+                m1, m2, m3 = st.columns(3)
+                m1.metric("🏃 T200 Gara Stimato", f"{T200_gara:.2f}s",
+                           help=f"PB {t200pb:.2f}s + offset {offset_val}s ({profilo_vel})")
+                m2.metric("⏱ Stima da 300m", f"{T400_da_300:.2f}s",
+                           help=f"300m {t300:.2f}s + L={L_val} (resistenza lattacida)")
+                m3.metric("🎯 400m Potenziale", f"{T400_stimato:.2f}s",
+                           help="Fusion: 60% × (300m+L) + 40% × (2×T200gara + 5.5s)")
+
+                # Dettaglio calcolo in un expander
+                with st.expander("📐 Dettaglio calcoli", expanded=False):
+                    st.markdown(f"""
+                    | Step | Formula | Risultato |
+                    |------|---------|-----------|
+                    | T200 gara | {t200pb:.2f} + {offset_val} (offset profilo) | **{T200_gara:.2f}s** |
+                    | Stima da 300m | {t300:.2f} + {L_val} (L lattacido) | **{T400_da_300:.2f}s** |
+                    | Fusion Model | 0.6 × {T400_da_300:.2f} + 0.4 × (2 × {T200_gara:.2f} + 5.5) | **{T400_stimato:.2f}s** |
+                    | Indice C | {t300:.2f} − 1.5 × {t200pb:.2f} | **{C:.2f}** |
+                    """)
+
+                # Margine di miglioramento
+                if t400_reale and t400_reale > 0:
+                    margine = t400_reale - T400_stimato
+                    if margine > 0:
+                        mar_color = "#ff9800"
+                        mar_bg = "rgba(255,152,0,0.07)"
+                        mar_bord = "rgba(255,152,0,0.25)"
+                        mar_txt = f"📈 Margine di miglioramento teorico: <strong>+{margine:.2f}s</strong> rispetto al potenziale stimato. L'atleta può ancora avvicinarsi alla stima di {T400_stimato:.2f}s."
+                    else:
+                        mar_color = "#00e676"
+                        mar_bg = "rgba(0,230,118,0.07)"
+                        mar_bord = "rgba(0,230,118,0.25)"
+                        mar_txt = f"✅ L'atleta sta già esprimendo il suo potenziale stimato (margine: {margine:.2f}s). Ottima realizzazione della velocità."
+                    st.markdown(f"<div style='margin-top:16px; padding:14px 18px; border-radius:10px; background:{mar_bg}; border:1px solid {mar_bord}; font-size:13px; color:{mar_color};'>{mar_txt}</div>", unsafe_allow_html=True)
             else:
-                st.markdown("<br><div style='padding:20px; border-radius:12px; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02);'>", unsafe_allow_html=True)
-                if est60 and not p60:
-                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.05);'><div><span style='font-family:DM Mono; font-size:11px; color:#aaa; letter-spacing:1px;'>60m STIMATO</span><br><small style='color:#555;'>da 30m</small></div><span style='font-family:Bebas Neue; font-size:26px; color:#fff;'>{est60:.2f}s</span></div>", unsafe_allow_html=True)
-                if est80 and not p80:
-                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.05);'><div><span style='font-family:DM Mono; font-size:11px; color:#aaa; letter-spacing:1px;'>80m STIMATO</span><br><small style='color:#555;'>interpolato</small></div><span style='font-family:Bebas Neue; font-size:26px; color:#fff;'>{est80:.2f}s</span></div>", unsafe_allow_html=True)
-                if est100:
-                    src100 = "inserito" if p100 else ("da 80m" if p80 else ("da 60m" if p60 else "da 30m"))
-                    bg_res = "rgba(232,255,58,0.06)" if not p100 else "transparent"
-                    col_res = "#E8FF3A" if not p100 else "#fff"
-                    bord = "border:1px solid rgba(232,255,58,0.2);" if not p100 else ""
-                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:15px; margin-top:10px; border-radius:8px; background:{bg_res}; {bord}'><div><span style='font-family:DM Mono; font-size:11px; color:{col_res}; letter-spacing:1px;'>100m {'' if p100 else 'STIMATO'}</span><br><small style='color:rgba(255,255,255,0.3);'>Origine: {src100}</small></div><div><span style='font-family:Bebas Neue; font-size:38px; color:{col_res};'>{est100:.2f}s</span></div></div>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='text-align:right; font-family:Bebas Neue; font-size:24px; color:#4A9EFF; margin-top:4px;'>VEL. MEDIA: {(100/est100):.2f} m/s</div>", unsafe_allow_html=True)
-                if est200:
-                    src200 = "inserito" if p200 else "da 100m"
-                    bg_res = "rgba(232,255,58,0.06)" if not p200 else "transparent"
-                    col_res = "#E8FF3A" if not p200 else "#fff"
-                    bord = "border:1px solid rgba(232,255,58,0.2);" if not p200 else ""
-                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:15px; margin-top:10px; border-radius:8px; background:{bg_res}; {bord}'><div><span style='font-family:DM Mono; font-size:11px; color:{col_res}; letter-spacing:1px;'>200m {'' if p200 else 'STIMATO'}</span><br><small style='color:rgba(255,255,255,0.3);'>Origine: {src200}</small></div><div><span style='font-family:Bebas Neue; font-size:32px; color:{col_res};'>{est200:.2f}s</span></div></div>", unsafe_allow_html=True)
-                if est400:
-                    st.markdown(f"<div style='display:flex; justify-content:space-between; align-items:center; padding:15px; margin-top:10px;'><div><span style='font-family:DM Mono; font-size:11px; color:#aaa; letter-spacing:1px;'>400m STIMATO</span><br><small style='color:#555;'>costante Vittori {g_code}</small></div><span style='font-family:Bebas Neue; font-size:26px; color:#fff;'>{est400:.2f}s</span></div>", unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+                st.info("💡 Inserisci il PB sui 200m e il miglior tempo sui 300m per avviare la stima del potenziale 400m.")
 
         with vt2:
             st.markdown("<div style='font-family: DM Mono; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 15px;'>CALCOLO DEL GAP DAI TUOI PB REALI</div>", unsafe_allow_html=True)
@@ -2184,50 +2255,6 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
                 else:
                     st.info("Per calcolare il Gap, devi avere almeno una Prova ufficiale (100, 80, 60 o 30) a database.")
                 st.markdown("</div>", unsafe_allow_html=True)
-
-        st.divider()
-        st.subheader("🔗 Correlazione: Palestra ↔ Pista")
-        st.markdown("Verifica se un miglioramento di forza/potenza corrisponde a un calo cronometrico.")
-
-        col_corr1, col_corr2 = st.columns(2)
-        with col_corr1:
-            corr_dist = st.selectbox("Corsa: Distanza (Asse Y)",
-                                       options=[d for d in sorted(df_running['Distanza'].unique()) if d <= 200],
-                                       index=min(2, len([d for d in sorted(df_running['Distanza'].unique()) if d <= 200]) - 1),
-                                       format_func=lambda x: f"{int(x)}m")
-        with col_corr2:
-            corr_metric = st.selectbox("Palestra: Metrica VBT (Asse X)",
-                                        options=['Potenza_max', 'Vel_max', 'Forza_max', 'Carico'],
-                                        format_func=lambda x: x.replace('_', ' ').title())
-
-        df_r_all = df_running[df_running['Distanza'] == corr_dist].copy()
-        df_r_all['Mese'] = df_r_all['Data'].dt.to_period('M').astype(str)
-        running_monthly = df_r_all.groupby(['Atleta', 'Mese'])['Tempo'].mean().reset_index()
-
-        df_v_all = df_vbt[df_vbt['Esercizio'] != 'General'].copy()
-        df_v_all['Mese'] = df_v_all['Data'].dt.to_period('M').astype(str)
-        vbt_monthly = df_v_all.groupby(['Atleta', 'Mese'])[corr_metric].mean().reset_index()
-
-        merged = running_monthly.merge(vbt_monthly, on=['Atleta', 'Mese'], how='inner')
-
-        if len(merged) > 3:
-            fig_corr = px.scatter(merged, x=corr_metric, y='Tempo', color='Atleta',
-                                   hover_data=['Mese'], template=THEME_TEMPLATE,
-                                   title="Analisi di Correlazione Assoluta",
-                                   trendline='ols', color_discrete_sequence=NEON_COLORS)
-            fig_corr.update_layout(height=450)
-            st.plotly_chart(fig_corr, use_container_width=True)
-
-            from scipy import stats as sp_stats
-            slope, intercept, r_val, p_val, se = sp_stats.linregress(merged[corr_metric], merged['Tempo'])
-            if slope < 0 and p_val < 0.05:
-                st.success(f"✅ Relazione inversa forte (Forza↑ → Tempo↓). R²={r_val**2:.2f}, p={p_val:.3f}")
-            elif slope < 0:
-                st.info(f"ℹ️ Tendenza corretta, dati non statisticamente forti (p={p_val:.3f}).")
-            else:
-                st.warning("⚠️ Nessun transfer positivo rilevato nel periodo.")
-        else:
-            st.info("Punti insufficienti per la correlazione.")
 
         st.divider()
         st.subheader("🔮 Modello Lineare di Predizione (Gara)")
@@ -2292,48 +2319,98 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
             default_run = 60 if 60 in run_distances else (run_distances[0] if run_distances else 20)
             dist_choice = col_c2.selectbox("Distanza di Sprint (Transfer)", run_distances, index=run_distances.index(default_run) if default_run in run_distances else 0)
 
-            df_r_sub = df_r[df_r['Distanza'] == dist_choice].copy()
-            df_v_sub = df_v[df_v['Esercizio'] == ex_choice].copy()
-        
-            if len(df_r_sub) > 0 and len(df_v_sub) > 0:
-                df_r_sub['Mese'] = df_r_sub['Data'].dt.to_period('M')
-                df_v_sub['Mese'] = df_v_sub['Data'].dt.to_period('M')
-
-                aggr_r = df_r_sub.groupby(['Atleta', 'Mese'])['Tempo'].mean().reset_index()
-                aggr_v = df_v_sub.groupby(['Atleta', 'Mese'])['Carico'].mean().reset_index()
-
-                merged = pd.merge(aggr_r, aggr_v, on=['Atleta', 'Mese'], how='inner')
-                merged['Mese_Str'] = merged['Mese'].astype(str)
-            
-                if len(merged) < 3:
-                    st.info("Punti di congiunzione insufficienti per l'esercizio e sprint scelti nello stesso mese. Servono almeno 3 campioni medi mensili per attivare l'intelligenza analitica. Prova altre distanze/esercizi.")
-                else:
-                    import scipy.stats as stats
-                    fig_corr = px.scatter(
-                        merged, x='Carico', y='Tempo', color='Mese_Str',
-                        hover_data=['Atleta'], trendline="ols",
-                        title=f"Scatter Plot: {ex_choice} vs {dist_choice}m (Medie Mensili)",
-                        labels={'Carico': f'Carico Medio Sollevato (kg)', 'Tempo': f'Tempo Medio {dist_choice}m (s)', 'Mese_Str': 'Periodo'},
-                        template=THEME_TEMPLATE
-                    )
-                    fig_corr.update_layout(height=450)
-                
-                    r_val, p_val = stats.pearsonr(merged['Carico'], merged['Tempo'])
-                
-                    st.plotly_chart(fig_corr, use_container_width=True)
-                
-                    # AI Testo Intepretativo
-                    st.markdown("### 🤖 Sintesi Intelligenza Analitica")
-                    if r_val < -0.3:
-                        txt = f"**Transfer Positivo (r = {r_val:.2f})**: C'è una correlazione inversa rilevante. I dati numerici indicano che all'aumentare dei carichi ({ex_choice}), i tempi sullo sprint ({dist_choice}m) tendono organicamente a **ridursi**."
-                    elif r_val > 0.3:
-                        txt = f"**Transfer Negativo (r = {r_val:.2f})**: Attenzione, i dati indicano che storicamente, nelle finestre mensili con carichi di {ex_choice} più alti, i tempi sui {dist_choice}m si sono **alzati**. Valuta un possibile sovraffaticamento o perdita di brillantezza reattiva."
-                    else:
-                        txt = f"**Risposta Neutra (r = {r_val:.2f})**: In questo storico, la forza aspecifica ({ex_choice}) è variata senza impattare linearmente o costantemente sull'espressione pura di sprint ({dist_choice}m)."
-                    
-                    st.info(txt)
+            # Filtra per atleta specifico se non si sta guardando tutta la squadra
+            if selected_athlete == "Tutta la squadra":
+                st.info("🔍 Seleziona un atleta specifico dalla sidebar per visualizzare l'analisi di transfer personalizzata (atleta per atleta).")
             else:
-                st.warning("Non ci sono dati a sufficienza per operare questa correlazione specifica.")
+                df_r_sub = df_r[df_r['Distanza'] == dist_choice].copy()
+                df_v_sub = df_v[df_v['Esercizio'] == ex_choice].copy()
+
+                has_run = len(df_r_sub) > 0
+                has_vbt = len(df_v_sub) > 0
+
+                if not has_run and not has_vbt:
+                    st.warning(f"Per **{selected_athlete}** mancano sia prove sui {int(dist_choice)}m che sessioni di {ex_choice}. Registra i dati mancanti o prova una combinazione diversa.")
+                elif not has_run:
+                    st.warning(f"Per **{selected_athlete}** non ci sono prove sui {int(dist_choice)}m nel periodo selezionato. Prova una distanza diversa o amplia il range di date.")
+                elif not has_vbt:
+                    st.warning(f"Per **{selected_athlete}** non ci sono sessioni di {ex_choice} nel periodo selezionato. Prova un esercizio diverso o amplia il range di date.")
+                else:
+                    df_r_sub['Mese'] = df_r_sub['Data'].dt.to_period('M')
+                    df_v_sub['Mese'] = df_v_sub['Data'].dt.to_period('M')
+
+                    aggr_r = df_r_sub.groupby('Mese')['Tempo'].mean().reset_index()
+                    aggr_v = df_v_sub.groupby('Mese')['Carico'].mean().reset_index()
+
+                    merged = pd.merge(aggr_r, aggr_v, on='Mese', how='inner')
+                    merged['Mese_Str'] = merged['Mese'].astype(str)
+
+                    if len(merged) < 3:
+                        mesi_run = set(df_r_sub['Data'].dt.to_period('M').unique())
+                        mesi_vbt = set(df_v_sub['Data'].dt.to_period('M').unique())
+                        mesi_comuni = mesi_run & mesi_vbt
+                        st.warning(
+                            f"Servono almeno **3 mesi** in cui **{selected_athlete}** abbia registrato sia prove di {ex_choice} "
+                            f"che tempi sui {int(dist_choice)}m nello stesso mese. "
+                            f"Attualmente ci sono solo **{len(mesi_comuni)} mese/i** in comune "
+                            f"(sprint: {len(mesi_run)} mesi, palestra: {len(mesi_vbt)} mesi). "
+                            f"Prova ad ampliare il range di date o a cambiare distanza/esercizio."
+                        )
+                    else:
+                        import scipy.stats as stats
+                        r_val, p_val = stats.pearsonr(merged['Carico'], merged['Tempo'])
+
+                        # Scatter plot atleta specifico con regressione OLS
+                        fig_corr = px.scatter(
+                            merged, x='Carico', y='Tempo', color='Mese_Str',
+                            trendline="ols",
+                            title=f"Transfer {ex_choice} → {int(dist_choice)}m · {selected_athlete} (medie mensili)",
+                            labels={
+                                'Carico': f'Carico Medio {ex_choice} (kg)',
+                                'Tempo': f'Tempo Medio {int(dist_choice)}m (s)',
+                                'Mese_Str': 'Periodo'
+                            },
+                            template=THEME_TEMPLATE,
+                            color_discrete_sequence=NEON_COLORS
+                        )
+                        fig_corr.update_layout(height=450)
+                        st.plotly_chart(fig_corr, use_container_width=True)
+
+                        # Badge r e p
+                        p_sig = p_val < 0.05
+                        p_label = f"p = {p_val:.3f} {'✅ significativo' if p_sig else '⚠️ non significativo'}"
+                        col_r1, col_r2 = st.columns(2)
+                        col_r1.metric("Correlazione di Pearson (r)", f"{r_val:.3f}")
+                        col_r2.metric("Significatività statistica", p_label)
+
+                        # Interpretazione personalizzata
+                        st.markdown("### 🤖 Sintesi Intelligenza Analitica")
+                        if r_val < -0.3:
+                            if p_sig:
+                                txt = (f"**🟢 Transfer Positivo Eccellente (r = {r_val:.2f}, p = {p_val:.3f})**: "
+                                       f"C'è una correlazione inversa statisticamente significativa. "
+                                       f"Per {selected_athlete}, all'aumentare del carico in {ex_choice}, "
+                                       f"i tempi sui {int(dist_choice)}m si riducono in modo consistente. "
+                                       f"Il lavoro in palestra si sta trasferendo direttamente in pista.")
+                            else:
+                                txt = (f"**🟡 Transfer Positivo (r = {r_val:.2f}, tendenza presente)**: "
+                                       f"C'è una correlazione inversa per {selected_athlete}, ma con dati limitati "
+                                       f"(p = {p_val:.3f}, non significativo). La tendenza è corretta, "
+                                       f"ma servono più mesi per confermare il pattern.")
+                        elif r_val > 0.3:
+                            txt = (f"**🔴 Affaticamento / Transfer Negativo (r = {r_val:.2f}, p = {p_val:.3f})**: "
+                                   f"Attenzione: per {selected_athlete}, nelle finestre mensili con carichi di {ex_choice} "
+                                   f"più alti, i tempi sui {int(dist_choice)}m si sono alzati. "
+                                   f"Questo potrebbe indicare un volume eccessivo in palestra, "
+                                   f"recupero insufficiente, o perdita di brillantezza reattiva. "
+                                   f"Valuta una riduzione del carico o una periodizzazione più attenta.")
+                        else:
+                            txt = (f"**⚪ Basso Transfer Diretto (r = {r_val:.2f})**: "
+                                   f"Per {selected_athlete}, la variazione di carico in {ex_choice} "
+                                   f"non impatta linearmente i tempi sui {int(dist_choice)}m. "
+                                   f"Il transfer potrebbe essere mediato da altri fattori (tecnica, freschezza neuromuscolare) "
+                                   f"o richiedere una finestra temporale più ampia per emergere.")
+                        st.info(txt)
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB 5 — PB & GARE
