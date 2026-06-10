@@ -1113,6 +1113,7 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
             tonn_weekly_sorted['Week_Label'] = tonn_weekly_sorted['Week'].dt.strftime('%d %b')
             tonn_weekly_sorted['Rolling3']   = tonn_weekly_sorted['Tonnellaggio'].rolling(3, min_periods=1).mean().round(0)
             all_week_labels = tonn_weekly_sorted['Week_Label'].tolist()
+            all_week_dates  = tonn_weekly_sorted['Week'].tolist()  # per asse X ordinato
             # Top 6 esercizi per tonnellaggio totale nel periodo
             _top_ex = df_v_tonn.groupby('Esercizio')['Tonnellaggio'].sum().nlargest(6).index.tolist()
             tonn_ex_filtered = tonn_ex_all[tonn_ex_all['Esercizio'].isin(_top_ex)].copy()
@@ -1131,7 +1132,7 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
                 _ex_map = dict(zip(_ex_sub['Week_Label'], _ex_sub['Tonnellaggio']))
                 _ex_y   = [_ex_map.get(lbl, 0) for lbl in all_week_labels]
                 fig.add_trace(go.Bar(
-                    x=all_week_labels, y=_ex_y,
+                    x=all_week_dates, y=_ex_y,
                     name=_ex_name,
                     marker_color=_ex_palette[_ex_i % len(_ex_palette)],
                     opacity=0.82,
@@ -1139,7 +1140,7 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
 
             # Linea rolling avg 3 settimane
             fig.add_trace(go.Scatter(
-                x=all_week_labels, y=tonn_weekly_sorted['Rolling3'].tolist(),
+                x=all_week_dates, y=tonn_weekly_sorted['Rolling3'].tolist(),
                 name="Media 3 sett.",
                 mode='lines',
                 line=dict(color="rgba(255,255,255,0.5)", width=2, dash='dot'),
@@ -1148,7 +1149,7 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
             # Annotazione settimana picco
             if _peak_wlabel and _peak_kg_val > 0:
                 fig.add_annotation(
-                    x=_peak_wlabel, y=_peak_kg_val, yref="y",
+                    x=tonn_weekly_sorted.loc[_peak_idx_tonn, 'Week'], y=_peak_kg_val, yref="y",
                     text=f"🏋️ {_peak_kg_val:,.0f}kg".replace(",", "."),
                     showarrow=True, arrowhead=2, arrowcolor="#E8FF3A",
                     font=dict(family="DM Mono", size=10, color="#E8FF3A"),
@@ -1194,6 +1195,7 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
                 title=dict(text="<span style='letter-spacing: 2px;'>TONNELLAGGIO PER ESERCIZIO + PERFORMANCE</span>",
                            font=dict(family="'DM Mono', monospace", size=11, color="rgba(255,255,255,0.4)")),
             )
+            fig.update_xaxes(type='date', tickformat='%d %b', tickfont=dict(color='rgba(255,255,255,0.3)'), showgrid=False)
             fig.update_yaxes(title_text="Volume Palestra (kg)", secondary_y=False, showgrid=False,
                              zeroline=False, color="#4A9EFF", tickfont=dict(color="rgba(255,255,255,0.3)"))
             if not valid_times.empty:
@@ -2458,6 +2460,7 @@ Misura quanto i 300m dell'atleta sono "coerenti" con la sua velocità di base su
             else:
                 c_emoji, c_label = "🔴", "Limite Endurance"
                 c_desc  = "Velocità di base buona ma forte calo nella seconda metà. Necessita di un piano di lavoro lattacido/aerobico intensivo per migliorare la tenuta sulle distanze superiori ai 200m."
+                c_color, c_bg, c_border = "#f44336", "rgba(244,67,54,0.08)", "rgba(244,67,54,0.3)"
                 c_action = "🔧 Inserisci lavoro aerobico di base (3-4 settimane), poi scala gradualmente verso il lattacido. Obiettivo immediato: abbassare i 300m per ridurre C sotto 3.5."
 
             st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:12px;'>STEP 3 · RISULTATI</div>", unsafe_allow_html=True)
