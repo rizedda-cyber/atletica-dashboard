@@ -2554,11 +2554,11 @@ Misura quanto i 300m dell'atleta sono "coerenti" con la sua velocità di base su
                 textfont=dict(size=11, color='rgba(0,0,0,0.75)'),
             ))
             fig_comp400.update_layout(
-                barmode='stack', height=160,
-                margin=dict(l=10, r=20, t=40, b=10),
+                barmode='stack', height=200,
+                margin=dict(l=10, r=20, t=45, b=40),
                 template=THEME_TEMPLATE,
                 title=dict(text=f"COMPONENTI T400 = {T400_stimato:.2f}s", font=dict(family="DM Mono", size=10, color="rgba(255,255,255,0.4)")),
-                legend=dict(orientation="h", y=1.5, font=dict(size=10, color="rgba(255,255,255,0.5)")),
+                legend=dict(orientation="h", y=-0.45, xanchor="center", x=0.5, font=dict(size=9, color="rgba(255,255,255,0.5)")),
                 xaxis=dict(title="Secondi", tickfont=dict(size=10)),
                 yaxis=dict(visible=False),
             )
@@ -2874,13 +2874,13 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
                     textfont=dict(size=11, color="#00e676"),
                 ))
             fig_sr200_curve.update_layout(
-                height=290,
+                height=330,
                 template=THEME_TEMPLATE,
                 title=dict(text="CURVA T200 = 2 x T100 x SR200", font=dict(family="DM Mono", size=10, color="rgba(255,255,255,0.4)")),
                 xaxis=dict(title="T100 (s)", tickfont=dict(size=10)),
                 yaxis=dict(title="T200 (s)", tickfont=dict(size=10)),
-                legend=dict(orientation="h", y=1.35, font=dict(size=9, color="rgba(255,255,255,0.5)")),
-                margin=dict(l=30, r=20, t=55, b=20),
+                legend=dict(orientation="h", y=-0.25, xanchor="center", x=0.5, font=dict(size=9, color="rgba(255,255,255,0.5)")),
+                margin=dict(l=30, r=20, t=45, b=45),
             )
             g200_col1.plotly_chart(fig_sr200_curve, use_container_width=True)
 
