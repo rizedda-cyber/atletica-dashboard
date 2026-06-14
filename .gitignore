@@ -8,9 +8,16 @@ __pycache__/
 secrets.toml
 .streamlit/secrets.toml
 
-# File temporanei di test
-tmp_check.py
-tmp_test_loader.py
+# File temporanei di test e script di utility personali
+tmp_*.py
+create_guide_pptx.py
+
+# Query SQL e dump database
+*.sql
+
+# Documenti e guide
+*.pdf
+*.pptx
 
 # Ambienti Python
 venv/
