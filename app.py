@@ -3577,37 +3577,41 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
                                 )
                             st.info(_ctxt)
 
-        # ── SEZIONE D: SPRINT F-V PROFILE (calcolo manuale) ───────────────
+        # ── SEZIONE D: SPRINT F-V PROFILE — modello Morin-Samozino completo
         with sub_t4:
-            st.markdown("### Profilo F-V Sprint — Calcolo da Split")
+            st.markdown("### Profilo F-V Sprint — Modello Morin-Samozino")
             st.markdown(
-                "Inserisci i **tempi cumulativi** rilevati da **uno stesso sprint** "
-                "(fotocellule a 10, 20, 30, 40m...). "
-                "Il modello meccanico Morin-Samozino calcola la forza orizzontale "
-                "per sezione e costruisce il profilo F-V: **F₀**, **V₀**, **Pmax**.",
+                "Inserisci i **tempi cumulativi** da **uno stesso sprint** "
+                "(fotocellule a 10m, 20m, 30m...). "
+                "Il modello adatta una curva esponenziale **v(t) = Vmax·(1−e^(−t/τ))** "
+                "agli split, ricava la forza orizzontale istantanea (con correzione aerodinamica) "
+                "e costruisce il profilo F-V: **F₀**, **V₀**, **Pmax**, **RF_max**, **Drf**.",
                 help=(
-                    "I split devono provenire dallo STESSO sprint. "
-                    "Calcolo semplificato F=m·a senza correzione aerodinamica — "
-                    "ottimale per confronti intra-atleta nel tempo."
+                    "Morin JB & Samozino P (2016). Interpreting power-force-velocity profiles "
+                    "for individualized and specific training. Int J Sports Physiol Perform. "
+                    "Split dallo stesso sprint (es. fotocellule a 10, 20, 30, 40m). "
+                    "Aerodrag: k = 0.5·ρ·Cd·Af."
                 )
             )
             st.info("📌 Calcolo al momento — nessun dato viene salvato nel database.")
             st.markdown("---")
 
-            col_ma, col_mb = st.columns([1, 2])
-            with col_ma:
-                massa_kg_sp = st.number_input(
-                    "Massa corporea (kg)",
-                    min_value=40.0, max_value=150.0,
-                    value=75.0, step=0.5, key="sprint_massa"
-                )
-            with col_mb:
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.caption(
-                    "💡 Inserisci 0 nei gate non disponibili. "
-                    "Servono almeno 2 checkpoint con t > 0."
-                )
+            # ── Parametri atleta ──
+            st.markdown("**Parametri atleta:**")
+            cpa1, cpa2, cpa3, cpa4 = st.columns(4)
+            sp_mass   = cpa1.number_input("Massa (kg)", min_value=40.0, max_value=150.0,
+                                           value=75.0, step=0.5, key="sp_mass")
+            sp_height = cpa2.number_input("Altezza (m)", min_value=1.40, max_value=2.20,
+                                           value=1.80, step=0.01, key="sp_height",
+                                           format="%.2f")
+            sp_temp   = cpa3.number_input("T° aria (°C)", min_value=-10.0, max_value=45.0,
+                                           value=20.0, step=1.0, key="sp_temp",
+                                           format="%.0f")
+            sp_press  = cpa4.number_input("Pressione (hPa)", min_value=800.0, max_value=1050.0,
+                                           value=1013.0, step=1.0, key="sp_press",
+                                           format="%.0f")
 
+            # ── Tempi cumulativi ──
             st.markdown("**Tempi cumulativi dalla partenza (s) — t₀ = 0:**")
             cs1, cs2, cs3, cs4, cs5, cs6 = st.columns(6)
             sp_t10  = cs1.number_input("10m",  min_value=0.0, max_value=5.0,  value=0.0, step=0.01, key="sp_t10",  format="%.2f")
@@ -3616,148 +3620,264 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
             sp_t40  = cs4.number_input("40m",  min_value=0.0, max_value=7.0,  value=0.0, step=0.01, key="sp_t40",  format="%.2f")
             sp_t60  = cs5.number_input("60m",  min_value=0.0, max_value=10.0, value=0.0, step=0.01, key="sp_t60",  format="%.2f")
             sp_t100 = cs6.number_input("100m", min_value=0.0, max_value=15.0, value=0.0, step=0.01, key="sp_t100", format="%.2f")
+            st.caption("💡 Inserisci 0 nei gate non disponibili. Servono almeno 3 checkpoint per un profilo affidabile.")
 
             if st.button("⚡ Calcola Profilo Sprint F-V", type="primary", key="btn_sprint_fv"):
-                _gmap   = {10: sp_t10, 20: sp_t20, 30: sp_t30, 40: sp_t40, 60: sp_t60, 100: sp_t100}
-                _gates  = [(d, t) for d, t in sorted(_gmap.items()) if t > 0]
+                from scipy.optimize import minimize as _sp_minimize
+
+                _gmap  = {10: sp_t10, 20: sp_t20, 30: sp_t30,
+                          40: sp_t40, 60: sp_t60, 100: sp_t100}
+                _gates = [(float(d), float(t)) for d, t in sorted(_gmap.items()) if t > 0]
 
                 if len(_gates) < 2:
                     st.error("Inserisci almeno 2 checkpoint con tempo > 0.")
                 else:
-                    _pts   = [(0, 0.0)] + _gates
-                    _sects = []
-                    _vp    = 0.0
-                    for _i in range(1, len(_pts)):
-                        _d0, _t0 = _pts[_i - 1]
-                        _d1, _t1 = _pts[_i]
-                        _dd = _d1 - _d0
-                        _dt = _t1 - _t0
-                        if _dt <= 0:
-                            continue
-                        _vc   = max(0.0, (2.0 * _dd / _dt) - _vp)
-                        _vs   = _dd / _dt
-                        _a    = (_vc - _vp) / _dt
-                        _fh   = massa_kg_sp * _a
-                        _sects.append({
-                            'Sezione':  f"{int(_d0)}→{int(_d1)}m",
-                            'v_sect':   round(_vs, 3),
-                            'v_fine':   round(_vc, 3),
-                            'a_sect':   round(_a,  3),
-                            'Fh_N':     round(_fh, 1),
-                            'Fh_kg':    round(_fh / massa_kg_sp, 3),
-                        })
-                        _vp = _vc
+                    try:
+                        # ── 1. Calcolo parametri aerodinamici ──────────────────
+                        _g    = 9.81       # m/s²
+                        _Cd   = 0.9        # drag coefficient (Morin default)
+                        _rho  = 1.293 * (273.15 / (273.15 + sp_temp)) * (sp_press / 1013.25)
+                        # Af = 0.19 × BSA, BSA (DuBois) = 0.007184 × m^0.425 × h_cm^0.725
+                        _h_cm = sp_height * 100
+                        _BSA  = 0.007184 * (sp_mass ** 0.425) * (_h_cm ** 0.725)
+                        _Af   = 0.19 * _BSA
+                        _k    = 0.5 * _rho * _Cd * _Af   # kg/m
 
-                    df_sec_sp = pd.DataFrame(_sects)
-                    df_fv_sp  = df_sec_sp[df_sec_sp['Fh_N'] > 0].copy()
+                        # ── 2. Fit modello esponenziale agli split ──────────────
+                        # s(t) = Vmax * (t + tau * exp(-t/tau) - tau)
+                        def _pos_model(t_val, Vmax_v, tau_v):
+                            return Vmax_v * (t_val + tau_v * np.exp(-t_val / tau_v) - tau_v)
 
-                    if len(df_fv_sp) < 2:
-                        st.warning(
-                            "Troppo poche sezioni in accelerazione. "
-                            "Includi gate iniziali (10m, 20m) per catturare "
-                            "la fase di accelerazione."
-                        )
-                    else:
-                        try:
-                            _cfv     = np.polyfit(df_fv_sp['v_sect'], df_fv_sp['Fh_N'], 1)
-                            _afv, _bfv = _cfv
+                        def _obj(params):
+                            Vmax_v, tau_v = params
+                            if Vmax_v <= 0 or tau_v <= 0.01:
+                                return 1e9
+                            return sum(
+                                (_pos_model(t_val, Vmax_v, tau_v) - d_val) ** 2
+                                for d_val, t_val in _gates
+                            )
 
-                            if _bfv <= 0 or _afv >= 0:
-                                st.error(
-                                    "Regressione F-V non valida. "
-                                    "Controlla i tempi (devono essere crescenti e coerenti)."
-                                )
+                        # Initial guess: Vmax from last gate, tau ~ 0.7 s
+                        _d_last, _t_last = _gates[-1]
+                        _Vmax0 = _d_last / _t_last * 1.6
+                        _res = _sp_minimize(_obj, [_Vmax0, 0.7],
+                                            method='Nelder-Mead',
+                                            options={'xatol': 1e-9, 'fatol': 1e-12, 'maxiter': 20000})
+                        _Vmax_fit, _tau_fit = _res.x
+
+                        if _Vmax_fit <= 0 or _tau_fit <= 0:
+                            st.error("Ottimizzazione del modello esponenziale fallita. "
+                                     "Controlla i tempi inseriti.")
+                        else:
+                            # ── 3. Curva continua F-V ────────────────────────────
+                            _dt    = 0.01
+                            _t_arr = np.arange(0.001, _t_last + 2.5, _dt)
+                            _v_arr = _Vmax_fit * (1 - np.exp(-_t_arr / _tau_fit))
+                            _a_arr = (_Vmax_fit / _tau_fit) * np.exp(-_t_arr / _tau_fit)
+                            _Fair  = _k * _v_arr ** 2
+                            _Fdrive = sp_mass * _a_arr + _Fair   # forza orizzontale totale
+
+                            # Usa solo la fase di vera accelerazione (v < 0.96 * Vmax)
+                            _mask = _v_arr < _Vmax_fit * 0.96
+                            _v_fv = _v_arr[_mask]
+                            _F_fv = _Fdrive[_mask]
+
+                            if len(_v_fv) < 10:
+                                st.error("Dati insufficienti per la regressione F-V.")
                             else:
-                                _F0   = _bfv
-                                _V0   = -_bfv / _afv
-                                _Pmax = (_F0 * _V0) / 4
-                                _Sfv  = _F0 / _V0
+                                # ── 4. Regressione lineare F-V ─────────────────
+                                _cfv = np.polyfit(_v_fv, _F_fv, 1)
+                                _afv, _bfv = _cfv
 
-                                fs1, fs2, fs3, fs4 = st.columns(4)
-                                fs1.metric("F₀", f"{_F0:.1f} N",
-                                           f"{_F0/massa_kg_sp:.2f} N/kg")
-                                fs2.metric("V₀ teorica", f"{_V0:.2f} m/s")
-                                fs3.metric("Pmax sprint", f"{_Pmax:.0f} W",
-                                           f"{_Pmax/massa_kg_sp:.1f} W/kg")
-                                fs4.metric("Pendenza Sfv", f"{_Sfv:.1f} N·s/m")
-
-                                _vr = np.linspace(0, _V0 * 1.08, 100)
-                                _fr = np.clip(np.polyval(_cfv, _vr), 0, None)
-
-                                fig_sf = go.Figure()
-                                fig_sf.add_trace(go.Scatter(
-                                    x=_vr, y=_fr, mode='lines',
-                                    name='Profilo F-V',
-                                    line=dict(
-                                        color='rgba(232,255,58,0.5)', width=2, dash='dash'
-                                    )
-                                ))
-                                fig_sf.add_trace(go.Scatter(
-                                    x=df_fv_sp['v_sect'], y=df_fv_sp['Fh_N'],
-                                    mode='markers+text', name='Sezioni sprint',
-                                    marker=dict(
-                                        size=12, color='#E8FF3A',
-                                        line=dict(width=1, color='white')
-                                    ),
-                                    text=df_fv_sp['Sezione'],
-                                    textposition='top center',
-                                    textfont=dict(size=9, color='rgba(255,255,255,0.6)')
-                                ))
-                                fig_sf.add_trace(go.Scatter(
-                                    x=[_V0 / 2], y=[_F0 / 2],
-                                    mode='markers', name='⭐ Pmax (F₀/2, V₀/2)',
-                                    marker=dict(symbol='star', size=16, color='#FF9900')
-                                ))
-                                fig_sf.update_layout(
-                                    title="Profilo F-V Sprint (Morin-Samozino)",
-                                    xaxis_title="Velocità media sezione (m/s)",
-                                    yaxis_title="Forza orizzontale netta (N)",
-                                    template=THEME_TEMPLATE,
-                                    height=450
-                                )
-                                fig_sf.update_xaxes(range=[0, _V0 * 1.12])
-                                fig_sf.update_yaxes(range=[0, _F0 * 1.18])
-                                st.plotly_chart(fig_sf, use_container_width=True)
-
-                                with st.expander("📋 Dettaglio sezioni"):
-                                    _sc = df_sec_sp[[
-                                        'Sezione', 'v_sect', 'a_sect', 'Fh_N', 'Fh_kg'
-                                    ]].rename(columns={
-                                        'v_sect': 'Vel (m/s)',
-                                        'a_sect': 'Acc (m/s²)',
-                                        'Fh_N':   'Fh (N)',
-                                        'Fh_kg':  'Fh/kg (N/kg)'
-                                    })
-                                    st.dataframe(_sc, use_container_width=True, hide_index=True)
-
-                                st.markdown("#### 🧠 Interpretazione")
-                                if _Sfv > 35:
-                                    _stxt = (
-                                        f"**💪 Orientato alla Forza** (Sfv={_Sfv:.1f} N·s/m): "
-                                        f"Alta forza iniziale, decadenza marcata con la velocità. "
-                                        f"Considera sprint resistiti e lavoro forza-velocità."
-                                    )
-                                elif _Sfv < 20:
-                                    _stxt = (
-                                        f"**⚡ Orientato alla Velocità** (Sfv={_Sfv:.1f} N·s/m): "
-                                        f"Buona velocità massima, forza di accelerazione contenuta. "
-                                        f"Considera partenze in blocco o sprint in salita breve."
-                                    )
+                                if _bfv <= 0 or _afv >= 0:
+                                    st.error("Regressione F-V non valida. "
+                                             "Controlla tempi e parametri.")
                                 else:
-                                    _stxt = (
-                                        f"**⚖️ Profilo Equilibrato** (Sfv={_Sfv:.1f} N·s/m): "
-                                        f"Buon bilanciamento forza/velocità. "
-                                        f"Mantieni varietà tra partenze pesanti e sprint lanciati."
-                                    )
-                                st.info(_stxt)
-                                st.caption(
-                                    "⚠️ Modello semplificato F=m·a (senza correzione aerodinamica). "
-                                    "Per la versione completa vedi il foglio Excel di JB Morin "
-                                    "su jbmorin.net/downloads. "
-                                    "Usare per confronti intra-atleta nel tempo."
-                                )
-                        except Exception as _e_fv:
-                            st.error(f"Errore nel calcolo F-V: {_e_fv}")
+                                    _F0   = _bfv                  # N
+                                    _V0   = -_bfv / _afv          # m/s
+                                    _Sfv  = -_afv                 # N·s/m (slope magnitude)
+                                    _Pmax = (_F0 * _V0) / 4       # W
+                                    _Vopt = _V0 / 2               # m/s
+
+                                    # Ratio of Force
+                                    _RF_arr = _F_fv / np.sqrt(_F_fv**2 + (sp_mass * _g)**2)
+                                    _RF_max = _F0 / np.sqrt(_F0**2 + (sp_mass * _g)**2)
+                                    _drf_coeffs = np.polyfit(_v_fv, _RF_arr, 1)
+                                    _Drf = _drf_coeffs[0] * 100   # %/(m/s)
+
+                                    # ── 5. KPI ─────────────────────────────────
+                                    fs1, fs2, fs3, fs4 = st.columns(4)
+                                    fs1.metric("F₀", f"{_F0:.1f} N",
+                                               f"{_F0/sp_mass:.2f} N/kg",
+                                               help="Forza orizzontale teorica massima (a v=0)")
+                                    fs2.metric("V₀ teorica", f"{_V0:.2f} m/s",
+                                               help="Velocità teorica massima (a F=0)")
+                                    fs3.metric("Pmax", f"{_Pmax:.0f} W",
+                                               f"{_Pmax/sp_mass:.1f} W/kg",
+                                               help="Potenza massima = F₀·V₀/4")
+                                    fs4.metric("Sfv", f"{_Sfv:.1f} N·s/m",
+                                               help="Pendenza profilo F-V: alta = orientato forza")
+
+                                    fs5, fs6, fs7, fs8 = st.columns(4)
+                                    fs5.metric("Vmax (fit)", f"{_Vmax_fit:.2f} m/s",
+                                               help="Velocità massima dal fit esponenziale")
+                                    fs6.metric("τ (costante tempo)", f"{_tau_fit:.3f} s",
+                                               help="Costante di tempo dell'accelerazione")
+                                    fs7.metric("RF_max", f"{_RF_max*100:.1f} %",
+                                               help="Ratio of Force massimo (a v=0)")
+                                    fs8.metric("Drf", f"{_Drf:.3f} %/(m/s)",
+                                               help="Decremento di RF per unità di velocità (deve essere < 0)")
+
+                                    # ── 6. Grafici ─────────────────────────────
+                                    tab_fv1, tab_fv2, tab_fv3 = st.tabs([
+                                        "📈 Profilo F-V", "⚡ Potenza-Velocità", "📉 Ratio of Force"
+                                    ])
+
+                                    with tab_fv1:
+                                        _vr  = np.linspace(0, _V0 * 1.05, 200)
+                                        _fr  = np.clip(np.polyval(_cfv, _vr), 0, None)
+                                        fig_fv = go.Figure()
+                                        fig_fv.add_trace(go.Scatter(
+                                            x=_vr, y=_fr, mode='lines',
+                                            name='Profilo F-V (lineare)',
+                                            line=dict(color='rgba(232,255,58,0.6)', width=2, dash='dash')
+                                        ))
+                                        fig_fv.add_trace(go.Scatter(
+                                            x=_v_fv[::10], y=_F_fv[::10],
+                                            mode='markers', name='Dati modello',
+                                            marker=dict(size=4, color='rgba(255,255,255,0.3)')
+                                        ))
+                                        fig_fv.add_trace(go.Scatter(
+                                            x=[_Vopt], y=[_F0/2],
+                                            mode='markers', name='⭐ Pmax',
+                                            marker=dict(symbol='star', size=18, color='#FF9900')
+                                        ))
+                                        # Annotazioni split gate
+                                        for _d_g, _t_g in _gates:
+                                            _v_at_gate = _Vmax_fit * (1 - np.exp(-_t_g / _tau_fit))
+                                            _a_at_gate = (_Vmax_fit / _tau_fit) * np.exp(-_t_g / _tau_fit)
+                                            _F_at_gate = sp_mass * _a_at_gate + _k * _v_at_gate**2
+                                            fig_fv.add_trace(go.Scatter(
+                                                x=[_v_at_gate], y=[_F_at_gate],
+                                                mode='markers+text',
+                                                name=f'{int(_d_g)}m',
+                                                marker=dict(size=10, color='#E8FF3A',
+                                                            line=dict(width=1, color='black')),
+                                                text=[f"{int(_d_g)}m"],
+                                                textposition='top center',
+                                                textfont=dict(size=9, color='rgba(255,255,255,0.7)'),
+                                                showlegend=True
+                                            ))
+                                        fig_fv.update_layout(
+                                            title="Profilo Forza-Velocità Sprint",
+                                            xaxis_title="Velocità (m/s)",
+                                            yaxis_title="Forza orizzontale (N)",
+                                            template=THEME_TEMPLATE, height=430
+                                        )
+                                        fig_fv.update_xaxes(range=[0, _V0 * 1.1])
+                                        fig_fv.update_yaxes(range=[0, _F0 * 1.2])
+                                        st.plotly_chart(fig_fv, use_container_width=True)
+
+                                    with tab_fv2:
+                                        _vr2  = np.linspace(0, _V0, 200)
+                                        _Fr2  = np.clip(np.polyval(_cfv, _vr2), 0, None)
+                                        _Pr2  = _Fr2 * _vr2
+                                        fig_pv2 = go.Figure()
+                                        fig_pv2.add_trace(go.Scatter(
+                                            x=_vr2, y=_Pr2, mode='lines',
+                                            name='Curva Potenza',
+                                            line=dict(color='#E8FF3A', width=2)
+                                        ))
+                                        fig_pv2.add_trace(go.Scatter(
+                                            x=[_Vopt], y=[_Pmax],
+                                            mode='markers', name=f'Pmax = {_Pmax:.0f} W',
+                                            marker=dict(symbol='star', size=18, color='#FF9900')
+                                        ))
+                                        fig_pv2.update_layout(
+                                            title="Curva Potenza-Velocità Sprint",
+                                            xaxis_title="Velocità (m/s)",
+                                            yaxis_title="Potenza (W)",
+                                            template=THEME_TEMPLATE, height=400
+                                        )
+                                        st.plotly_chart(fig_pv2, use_container_width=True)
+
+                                    with tab_fv3:
+                                        _RF_line = _F_fv / np.sqrt(_F_fv**2 + (sp_mass*_g)**2) * 100
+                                        fig_rf = go.Figure()
+                                        fig_rf.add_trace(go.Scatter(
+                                            x=_v_fv[::5], y=_RF_line[::5],
+                                            mode='lines', name='RF (%)',
+                                            line=dict(color='#00C8FF', width=2)
+                                        ))
+                                        fig_rf.add_hline(
+                                            y=_RF_max*100, line_dash='dash',
+                                            line_color='rgba(232,255,58,0.4)',
+                                            annotation_text=f"RF_max = {_RF_max*100:.1f}%"
+                                        )
+                                        fig_rf.update_layout(
+                                            title="Ratio of Force (efficacia meccanica)",
+                                            xaxis_title="Velocità (m/s)",
+                                            yaxis_title="RF (%)",
+                                            template=THEME_TEMPLATE, height=380
+                                        )
+                                        st.plotly_chart(fig_rf, use_container_width=True)
+                                        st.caption(
+                                            "RF = Fh/Ftot — percentuale della forza totale diretta "
+                                            "nella direzione del movimento. Deve essere alta all'inizio "
+                                            "e diminuire gradualmente (Drf < 0)."
+                                        )
+
+                                    # ── 7. Verifica fit split ───────────────────
+                                    with st.expander("📋 Verifica fit modello sugli split"):
+                                        _fit_rows = []
+                                        for _d_g, _t_g in _gates:
+                                            _s_model = _pos_model(_t_g, _Vmax_fit, _tau_fit)
+                                            _fit_rows.append({
+                                                'Gate': f"{int(_d_g)}m",
+                                                't misurato (s)': round(_t_g, 3),
+                                                's modello (m)': round(_s_model, 3),
+                                                'Errore (m)': round(_s_model - _d_g, 4),
+                                            })
+                                        st.dataframe(
+                                            pd.DataFrame(_fit_rows),
+                                            use_container_width=True, hide_index=True
+                                        )
+                                        st.caption(
+                                            f"Vmax fit = {_Vmax_fit:.3f} m/s | "
+                                            f"τ = {_tau_fit:.4f} s | "
+                                            f"k (aerodrag) = {_k:.4f} kg/m | "
+                                            f"ρ = {_rho:.4f} kg/m³ | "
+                                            f"Af = {_Af:.4f} m²"
+                                        )
+
+                                    # ── 8. Interpretazione ──────────────────────
+                                    st.markdown("#### 🧠 Interpretazione")
+                                    if _Sfv > 35:
+                                        _stxt = (
+                                            f"**💪 Orientato alla Forza** (Sfv = {_Sfv:.1f} N·s/m): "
+                                            f"Alta forza nelle fasi iniziali, ma decadenza marcata "
+                                            f"con la velocità. "
+                                            f"Considera sprint resistiti e lavoro forza-velocità."
+                                        )
+                                    elif _Sfv < 20:
+                                        _stxt = (
+                                            f"**⚡ Orientato alla Velocità** (Sfv = {_Sfv:.1f} N·s/m): "
+                                            f"Buona velocità massima ({_Vmax_fit:.2f} m/s) "
+                                            f"ma forza di accelerazione contenuta. "
+                                            f"Considera partenze in blocco o sprint in salita breve."
+                                        )
+                                    else:
+                                        _stxt = (
+                                            f"**⚖️ Profilo Equilibrato** (Sfv = {_Sfv:.1f} N·s/m): "
+                                            f"Buon bilanciamento forza/velocità. "
+                                            f"Mantieni varietà tra lavoro di forza e sprint lanciati."
+                                        )
+                                    st.info(_stxt)
+
+                    except Exception as _e_fv:
+                        st.error(f"Errore nel calcolo F-V: {_e_fv}")
+                        import traceback
+                        st.code(traceback.format_exc())
 
     # TAB 5 — PB & GARE
     # ══════════════════════════════════════════════════════════════════════
