@@ -2148,7 +2148,7 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
                     st.subheader("📉 Profilo Forza–Velocità")
                     sel_ex = st.selectbox("Analizza la curva di un esercizio:",
                                            options=sorted(df_v_ex['Esercizio'].unique()))
-                    scatter_df = df_v_ex[df_v_ex['Esercizio'] == sel_ex].dropna(subset=['Carico', 'Vel_media'])
+                    scatter_df = df_v_ex[df_v_ex['Esercizio'] == sel_ex].dropna(subset=['Carico', 'Vel_media', 'Potenza_media'])
 
                     if len(scatter_df) > 0:
                         fig_scatter = px.scatter(
