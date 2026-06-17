@@ -1630,11 +1630,11 @@ elif st.session_state.current_page == "Home":
             <div class="evt-node-tag">{tag}</div>
         </div>
         """
-    st.markdown(f"""
-    <div class="evt-timeline-wrap">
+    html_timeline = f"""
+    <div class="evt-timeline-wrap" style="height: 100%; margin: 0;">
         <div class="evt-timeline-track">{nodi_html}</div>
     </div>
-    """, unsafe_allow_html=True)
+    """
 
     # ── STOP VBT: atleti attivi in pista ma fermi sul monitoraggio forza (>14 gg) ──
     running_last = df_running.groupby('Atleta')['Data'].max() if not df_running.empty else pd.Series(dtype='datetime64[ns]')
@@ -1681,142 +1681,159 @@ elif st.session_state.current_page == "Home":
             if pd.isna(row.get('data_nascita')) or pd.isna(row.get('peso')):
                 anagrafica_incompleta.append(row['nome_completo'])
 
-    # ── ALERT PERFORMANCE E MONITORAGGIO ──
-    alert_col1, alert_col2 = st.columns(2)
-
-    with alert_col1:
-        # ALERT PB
-        if atleti_pb:
-            txt = " e altri" if len(atleti_pb) > 3 else ""
-            pb_list = ', '.join(list(atleti_pb)[:3]) + txt
-            st.markdown(f"""
-            <div style="background: rgba(184,255,138,0.1); border-left: 4px solid #B8FF8A; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-                <div style="display: flex; gap: 10px; align-items: flex-start;">
-                    <span style="font-size: 24px; margin-top: 2px;">🏆</span>
-                    <div style="flex: 1;">
-                        <div style="color: #B8FF8A; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">RECORD INFRANTI</div>
-                        <div style="color: #fff; font-size: 0.9em;">
-                            <strong>{pb_list}</strong> hanno battuto il PB in questo periodo! 🔥
-                        </div>
-                    </div>
+    # ── ALERT PERFORMANCE E MONITORAGGIO: card pre-costruite e poi accoppiate
+    #    in righe (timeline+periodo, pb+inattivi, trend+stopvbt, ...) così non
+    #    si creano più "buchi" quando una colonna ha più card dell'altra. ──
+    html_periodo = f"""
+    <div style="background: rgba(255,255,255,0.02); border-left: 4px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px; height: 100%;">
+        <div style="display: flex; gap: 10px; align-items: flex-start;">
+            <span style="font-size: 24px;">📊</span>
+            <div style="flex: 1;">
+                <div style="color: rgba(255,255,255,0.5); font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">PERIODO ANALIZZATO</div>
+                <div style="color: rgba(255,255,255,0.7); font-size: 0.9em;">
+                    Dal {start_d.strftime('%d/%m/%Y')} al {end_date.strftime('%d/%m/%Y')} ({duration_days} giorni)
                 </div>
             </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div style="background: rgba(255,255,255,0.02); border-left: 4px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-                <div style="display: flex; gap: 10px; align-items: flex-start;">
-                    <span style="font-size: 24px;">💪</span>
-                    <div style="flex: 1;">
-                        <div style="color: rgba(255,255,255,0.5); font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">NESSUN NUOVO PB</div>
-                        <div style="color: rgba(255,255,255,0.7); font-size: 0.9em;">
-                            Continuate a spingere! Il prossimo record è vicino.
-                        </div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+        </div>
+    </div>
+    """
 
-        # ALERT VOLUME
-        if p_km > 0:
-            st.markdown(f"""
-            <div style="background: rgba(100,200,255,0.1); border-left: 4px solid #64C8FF; border-radius: 8px; padding: 14px;">
-                <div style="display: flex; gap: 10px; align-items: flex-start;">
-                    <span style="font-size: 24px;">📈</span>
-                    <div style="flex: 1;">
-                        <div style="color: #64C8FF; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">VOLUME IN CRESCITA</div>
-                        <div style="color: #fff; font-size: 0.9em;">
-                            La squadra ha aumentato i km di <strong>{p_km:+.1f}%</strong> vs il periodo precedente.
-                        </div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # ALERT TREND NEGATIVO
-        if trend_negativo:
-            righe_t = [f"{atl} sui {int(dist)}m ({var:+.1f}%)" for atl, dist, var in trend_negativo[:3]]
-            st.markdown(make_alert_card(
-                "TREND IN CALO",
-                f"Tempi in peggioramento nelle ultime sessioni: <strong>{', '.join(righe_t)}</strong>. Da monitorare.",
-                "📉", ("#FF6B6B", "255,107,107")
-            ), unsafe_allow_html=True)
-
-        # ALERT TOP ADERENZA SETTIMANALE
-        if top_aderenza:
-            st.markdown(make_alert_card(
-                "TOP ADERENZA (7 GG)",
-                f"<strong>{top_aderenza}</strong> è l'atleta più costante della settimana con {top_aderenza_count} giorni di allenamento. 💪",
-                "🔥", ("#E8FF3A", "232,255,58")
-            ), unsafe_allow_html=True)
-
-    with alert_col2:
-        # ALERT INATTIVI (più importante)
-        if inattivi:
-            txt2 = " e altri" if len(inattivi) > 3 else ""
-            inattivi_list = ', '.join(inattivi[:3]) + txt2
-            st.markdown(f"""
-            <div style="background: rgba(255,75,75,0.15); border-left: 4px solid #FF6B6B; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-                <div style="display: flex; gap: 10px; align-items: flex-start;">
-                    <span style="font-size: 24px;">⚠️</span>
-                    <div style="flex: 1;">
-                        <div style="color: #FF6B6B; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">ATLETI INATTIVI (>7 GG)</div>
-                        <div style="color: #fff; font-size: 0.9em;">
-                            <strong>{inattivi_list}</strong> non si allenano da più di una settimana. Richiedere contatti! 📞
-                        </div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div style="background: rgba(22,163,74,0.1); border-left: 4px solid #16a34a; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-                <div style="display: flex; gap: 10px; align-items: flex-start;">
-                    <span style="font-size: 24px;">✅</span>
-                    <div style="flex: 1;">
-                        <div style="color: #16a34a; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">SQUADRA ATTIVA</div>
-                        <div style="color: #fff; font-size: 0.9em;">
-                            Tutti gli atleti si allenano regolarmente. Ottimo lavoro! 🎉
-                        </div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # ALERT STOP VBT
-        if stop_vbt:
-            txt3 = " e altri" if len(stop_vbt) > 3 else ""
-            stop_vbt_list = ', '.join(stop_vbt[:3]) + txt3
-            st.markdown(make_alert_card(
-                "STOP VBT (>14 GG)",
-                f"<strong>{stop_vbt_list}</strong> si allenano in pista ma non registrano sessioni VBT da oltre 14 giorni. Monitoraggio forza fermo.",
-                "🏋️", ("#FF9A3A", "255,154,58")
-            ), unsafe_allow_html=True)
-
-        # ALERT ANAGRAFICA INCOMPLETA
-        if anagrafica_incompleta:
-            txt4 = " e altri" if len(anagrafica_incompleta) > 3 else ""
-            anagrafica_list = ', '.join(anagrafica_incompleta[:3]) + txt4
-            st.markdown(make_alert_card(
-                "ANAGRAFICA INCOMPLETA",
-                f"<strong>{anagrafica_list}</strong> non hanno data di nascita o peso salvati nel profilo.",
-                "📋", ("rgba(255,255,255,0.5)", "255,255,255")
-            ), unsafe_allow_html=True)
-
-        # Periodo analizzato
-        st.markdown(f"""
-        <div style="background: rgba(255,255,255,0.02); border-left: 4px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px;">
+    if atleti_pb:
+        txt = " e altri" if len(atleti_pb) > 3 else ""
+        pb_list = ', '.join(list(atleti_pb)[:3]) + txt
+        html_pb = f"""
+        <div style="background: rgba(184,255,138,0.1); border-left: 4px solid #B8FF8A; border-radius: 8px; padding: 14px;">
             <div style="display: flex; gap: 10px; align-items: flex-start;">
-                <span style="font-size: 24px;">📊</span>
+                <span style="font-size: 24px; margin-top: 2px;">🏆</span>
                 <div style="flex: 1;">
-                    <div style="color: rgba(255,255,255,0.5); font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">PERIODO ANALIZZATO</div>
-                    <div style="color: rgba(255,255,255,0.7); font-size: 0.9em;">
-                        Dal {start_d.strftime('%d/%m/%Y')} al {end_date.strftime('%d/%m/%Y')} ({duration_days} giorni)
+                    <div style="color: #B8FF8A; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">RECORD INFRANTI</div>
+                    <div style="color: #fff; font-size: 0.9em;">
+                        <strong>{pb_list}</strong> hanno battuto il PB in questo periodo! 🔥
                     </div>
                 </div>
             </div>
         </div>
-        """  , unsafe_allow_html=True)
+        """
+    else:
+        html_pb = f"""
+        <div style="background: rgba(255,255,255,0.02); border-left: 4px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 24px;">💪</span>
+                <div style="flex: 1;">
+                    <div style="color: rgba(255,255,255,0.5); font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">NESSUN NUOVO PB</div>
+                    <div style="color: rgba(255,255,255,0.7); font-size: 0.9em;">
+                        Continuate a spingere! Il prossimo record è vicino.
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+
+    if inattivi:
+        txt2 = " e altri" if len(inattivi) > 3 else ""
+        inattivi_list = ', '.join(inattivi[:3]) + txt2
+        html_inattivi = f"""
+        <div style="background: rgba(255,75,75,0.15); border-left: 4px solid #FF6B6B; border-radius: 8px; padding: 14px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 24px;">⚠️</span>
+                <div style="flex: 1;">
+                    <div style="color: #FF6B6B; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">ATLETI INATTIVI (>7 GG)</div>
+                    <div style="color: #fff; font-size: 0.9em;">
+                        <strong>{inattivi_list}</strong> non si allenano da più di una settimana. Richiedere contatti! 📞
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+    else:
+        html_inattivi = f"""
+        <div style="background: rgba(22,163,74,0.1); border-left: 4px solid #16a34a; border-radius: 8px; padding: 14px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 24px;">✅</span>
+                <div style="flex: 1;">
+                    <div style="color: #16a34a; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">SQUADRA ATTIVA</div>
+                    <div style="color: #fff; font-size: 0.9em;">
+                        Tutti gli atleti si allenano regolarmente. Ottimo lavoro! 🎉
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+
+    html_trend = None
+    if trend_negativo:
+        righe_t = [f"{atl} sui {int(dist)}m ({var:+.1f}%)" for atl, dist, var in trend_negativo[:3]]
+        html_trend = make_alert_card(
+            "TREND IN CALO",
+            f"Tempi in peggioramento nelle ultime sessioni: <strong>{', '.join(righe_t)}</strong>. Da monitorare.",
+            "📉", ("#FF6B6B", "255,107,107")
+        )
+
+    html_stopvbt = None
+    if stop_vbt:
+        txt3 = " e altri" if len(stop_vbt) > 3 else ""
+        stop_vbt_list = ', '.join(stop_vbt[:3]) + txt3
+        html_stopvbt = make_alert_card(
+            "STOP VBT (>14 GG)",
+            f"<strong>{stop_vbt_list}</strong> si allenano in pista ma non registrano sessioni VBT da oltre 14 giorni. Monitoraggio forza fermo.",
+            "🏋️", ("#FF9A3A", "255,154,58")
+        )
+
+    html_volume = None
+    if p_km > 0:
+        html_volume = f"""
+        <div style="background: rgba(100,200,255,0.1); border-left: 4px solid #64C8FF; border-radius: 8px; padding: 14px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 24px;">📈</span>
+                <div style="flex: 1;">
+                    <div style="color: #64C8FF; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">VOLUME IN CRESCITA</div>
+                    <div style="color: #fff; font-size: 0.9em;">
+                        La squadra ha aumentato i km di <strong>{p_km:+.1f}%</strong> vs il periodo precedente.
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+
+    html_aderenza = None
+    if top_aderenza:
+        html_aderenza = make_alert_card(
+            "TOP ADERENZA (7 GG)",
+            f"<strong>{top_aderenza}</strong> è l'atleta più costante della settimana con {top_aderenza_count} giorni di allenamento. 💪",
+            "🔥", ("#E8FF3A", "232,255,58")
+        )
+
+    html_anagrafica = None
+    if anagrafica_incompleta:
+        txt4 = " e altri" if len(anagrafica_incompleta) > 3 else ""
+        anagrafica_list = ', '.join(anagrafica_incompleta[:3]) + txt4
+        html_anagrafica = make_alert_card(
+            "ANAGRAFICA INCOMPLETA",
+            f"<strong>{anagrafica_list}</strong> non hanno data di nascita o peso salvati nel profilo.",
+            "📋", ("rgba(255,255,255,0.5)", "255,255,255")
+        )
+
+    def render_row(left_html, right_html=None):
+        """Riga a due colonne se entrambe le card sono presenti, altrimenti
+        la singola card occupa tutta la larghezza: niente più "buchi"."""
+        if left_html and right_html:
+            rc1, rc2 = st.columns(2)
+            with rc1:
+                st.markdown(left_html, unsafe_allow_html=True)
+            with rc2:
+                st.markdown(right_html, unsafe_allow_html=True)
+        elif left_html:
+            st.markdown(left_html, unsafe_allow_html=True)
+        elif right_html:
+            st.markdown(right_html, unsafe_allow_html=True)
+        if left_html or right_html:
+            st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
+
+    render_row(html_timeline, html_periodo)
+    render_row(html_pb, html_inattivi)
+    render_row(html_trend, html_stopvbt)
+    render_row(html_volume, html_aderenza)
+    render_row(html_anagrafica, None)
 
 st.divider()
 
