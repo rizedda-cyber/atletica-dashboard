@@ -1882,7 +1882,7 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
     tab_labels = ["⚡ Velocità & Trend", "💪 Forza & VBT",
                   "🔮 Previsioni Gara", "⚖️ Transfer Palestra", "🏅 PB & Gare"]
     
-    tabs = st.tabs(tab_labels)
+    tabs = st.tabs(tab_labels, key="dettaglio_tab_main", on_change="rerun")
     tab1, tab2, tab3, tab4, tab5 = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
 
 
@@ -3116,7 +3116,7 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
             "⚡ Curva Potenza",
             "📊 Transfer Temporale",
             "🏃 Sprint F-V (calcolo)"
-        ])
+        ], key="transfer_subtabs", on_change="rerun")
 
         # ── SEZIONE A: LOAD-VELOCITY PROFILE ──────────────────────────────
         with sub_t1:
@@ -3736,7 +3736,7 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
                                     # ── 6. Grafici ─────────────────────────────
                                     tab_fv1, tab_fv2, tab_fv3 = st.tabs([
                                         "📈 Profilo F-V", "⚡ Potenza-Velocità", "📉 Ratio of Force"
-                                    ])
+                                    ], key="forza_velocita_subtabs", on_change="rerun")
 
                                     with tab_fv1:
                                         _vr  = np.linspace(0, _V0 * 1.05, 200)
