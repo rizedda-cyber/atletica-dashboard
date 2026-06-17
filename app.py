@@ -422,6 +422,22 @@ st.markdown("""
         scroll-behavior: smooth;
     }
 
+    /* ── DEEP DARK RADIAL BACKGROUND (Titanio Profondo) ──
+           Sostituisce il flat #080A0E del tema con un gradiente radiale
+           antracite/bluastro, fisso (non si muove con lo scroll) e leggero
+           (nessun blur/animazione: solo background-image statico). */
+    [data-testid="stAppViewContainer"] {
+        background:
+            radial-gradient(ellipse 90% 60% at 50% -8%, rgba(40, 50, 72, 0.5) 0%, rgba(8,10,14,0) 55%),
+            radial-gradient(ellipse 70% 50% at 100% 105%, rgba(0, 60, 70, 0.18) 0%, rgba(8,10,14,0) 55%),
+            radial-gradient(ellipse 60% 45% at -5% 100%, rgba(60, 50, 10, 0.10) 0%, rgba(8,10,14,0) 50%),
+            #080A0E !important;
+        background-attachment: fixed !important;
+    }
+    [data-testid="stHeader"] {
+        background: transparent !important;
+    }
+
     /* ── SIDEBAR PREMIUM GLASS & GRADIENT ── */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #0d1117 0%, #07090e 100%) !important;
@@ -450,6 +466,54 @@ st.markdown("""
         transform: translateY(-4px) !important;
         box-shadow: 0 10px 30px rgba(232, 255, 58, 0.12) !important;
     }
+
+    /* ── TIMELINE EVENTI (compleanni & ricorrenze) — scorrimento orizzontale ── */
+    .evt-timeline-wrap {
+        position: relative; margin: 4px 0 22px 0; padding: 6px 2px 14px 2px;
+        overflow-x: auto; overflow-y: hidden; white-space: nowrap;
+        scrollbar-width: thin;
+    }
+    .evt-timeline-track {
+        position: relative; display: inline-flex; align-items: flex-start; gap: 0;
+        padding: 18px 4px 0 4px;
+    }
+    .evt-timeline-track::before {
+        content: ''; position: absolute; top: 29px; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, rgba(232,255,58,0.35), rgba(255,255,255,0.06));
+    }
+    .evt-node {
+        position: relative; display: inline-flex; flex-direction: column; align-items: center;
+        width: 116px; flex-shrink: 0; white-space: normal; text-align: center;
+    }
+    .evt-node-dot {
+        width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-size: 12px; background: #0d1117; border: 2px solid rgba(255,255,255,0.18);
+        margin-bottom: 10px; position: relative; z-index: 1; transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .evt-node:hover .evt-node-dot { transform: scale(1.12); }
+    .evt-node.evt-today .evt-node-dot {
+        border-color: #E8FF3A; background: rgba(232,255,58,0.12);
+        box-shadow: 0 0 14px rgba(232,255,58,0.55);
+        animation: evtPulse 1.8s ease-in-out infinite;
+    }
+    @keyframes evtPulse {
+        0%, 100% { box-shadow: 0 0 10px rgba(232,255,58,0.4); }
+        50% { box-shadow: 0 0 20px rgba(232,255,58,0.8); }
+    }
+    .evt-node-date {
+        font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px;
+        color: rgba(255,255,255,0.45); margin-bottom: 4px;
+    }
+    .evt-node.evt-today .evt-node-date { color: #E8FF3A; font-weight: 700; }
+    .evt-node-name {
+        font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 600;
+        color: #E8EDF5; line-height: 1.25; padding: 0 4px;
+    }
+    .evt-node-tag {
+        font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.5px;
+        color: rgba(255,255,255,0.35); margin-top: 3px;
+    }
+    .evt-node.evt-today .evt-node-tag { color: rgba(232,255,58,0.8); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -471,6 +535,13 @@ amsicora_template.layout.title.font.size = 24
 amsicora_template.layout.title.font.color = "#FFFFFF"
 amsicora_template.layout.xaxis.gridcolor = "rgba(255,255,255,0.05)"
 amsicora_template.layout.yaxis.gridcolor = "rgba(255,255,255,0.05)"
+# ── HOVER TOOLTIP NEON: box scuro, bordo giallo Amsicora, font mono ──
+amsicora_template.layout.hoverlabel = dict(
+    bgcolor="#0d1117",
+    bordercolor="#E8FF3A",
+    font=dict(family="DM Mono, monospace", color="#E8EDF5", size=12),
+    align="left",
+)
 pio.templates["amsicora"] = amsicora_template
 
 THEME_TEMPLATE = "amsicora"
@@ -1505,22 +1576,6 @@ elif st.session_state.current_page == "Home":
                         compleanni.append(row['nome_completo'])
                 except:
                     pass
-    if compleanni:
-        txt_h = "è il compleanno di" if len(compleanni) == 1 else "sono i compleanni di"
-        st.markdown(f"""
-        <div style="background: rgba(232,255,58,0.15); border: 2px solid #E8FF3A; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
-            <div style="display: flex; gap: 12px; align-items: center;">
-                <span style="font-size: 28px;">🎈</span>
-                <div>
-                    <div style="color: #E8FF3A; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 11px;">COMPLEANNO</div>
-                    <div style="color: #fff; font-size: 0.95em; margin-top: 2px;">
-                        Oggi {txt_h}: <strong>{', '.join(compleanni)}</strong>! 🎉
-                    </div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
     # ── COMPLEANNI IN ARRIVO (prossimi 7 giorni, escluso oggi) ──
     compleanni_arrivo = []  # (nome, giorni_rimanenti)
     if not df_atleti_full.empty:
@@ -1537,6 +1592,30 @@ elif st.session_state.current_page == "Home":
                 except:
                     pass
     compleanni_arrivo.sort(key=lambda x: x[1])
+
+    # ── TIMELINE EVENTI: unisce compleanni di oggi (giorni=0) e in arrivo (1-7gg) ──
+    eventi_compleanno = [(nome, 0) for nome in compleanni] + list(compleanni_arrivo)
+    eventi_compleanno.sort(key=lambda x: x[1])
+    if eventi_compleanno:
+        nodi_html = ""
+        for nome, giorni in eventi_compleanno:
+            data_evt = (oggi_tz + pd.Timedelta(days=giorni)).strftime('%d %b').upper()
+            is_today = giorni == 0
+            nodo_cls = "evt-node evt-today" if is_today else "evt-node"
+            tag = "OGGI 🎉" if is_today else f"in {giorni} gg"
+            nodi_html += f"""
+            <div class="{nodo_cls}">
+                <div class="evt-node-date">{data_evt}</div>
+                <div class="evt-node-dot">🎂</div>
+                <div class="evt-node-name">{nome}</div>
+                <div class="evt-node-tag">{tag}</div>
+            </div>
+            """
+        st.markdown(f"""
+        <div class="evt-timeline-wrap">
+            <div class="evt-timeline-track">{nodi_html}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # ── STOP VBT: atleti attivi in pista ma fermi sul monitoraggio forza (>14 gg) ──
     running_last = df_running.groupby('Atleta')['Data'].max() if not df_running.empty else pd.Series(dtype='datetime64[ns]')
@@ -1693,15 +1772,6 @@ elif st.session_state.current_page == "Home":
                 "STOP VBT (>14 GG)",
                 f"<strong>{stop_vbt_list}</strong> si allenano in pista ma non registrano sessioni VBT da oltre 14 giorni. Monitoraggio forza fermo.",
                 "🏋️", ("#FF9A3A", "255,154,58")
-            ), unsafe_allow_html=True)
-
-        # ALERT COMPLEANNI IN ARRIVO
-        if compleanni_arrivo:
-            righe_c = [f"{nome} (in {g}gg)" for nome, g in compleanni_arrivo[:3]]
-            st.markdown(make_alert_card(
-                "COMPLEANNI IN ARRIVO",
-                f"<strong>{', '.join(righe_c)}</strong> nei prossimi 7 giorni. 🎂",
-                "📅", ("#C9A9FF", "201,169,255")
             ), unsafe_allow_html=True)
 
         # ALERT ANAGRAFICA INCOMPLETA
