@@ -335,39 +335,6 @@ def load_vbt_data(filepath: str | Path) -> pd.DataFrame:
     """
     filepath = str(filepath)
 
-    COLUMNS = [
-        'Data',                      # A
-        'Atleta',                    # B
-        'Tempo_sessione',            # C
-        'Esercizio',                 # D
-        'Serie',                     # E
-        'Ripetizioni',               # F
-        'Carico',                    # G  (concentrico)
-        'Vel_media',                 # H
-        'Vel_max',                   # I
-        'Tempo_acc_ms',              # J
-        'Potenza_media',             # K
-        'Potenza_max',               # L
-        'Distanza_mm',               # M
-        'Forza_max',                 # N
-        '1RM',                       # O
-        'Lavoro_J',                  # P
-        'Eccentrico_carico',         # Q
-        'Ecc_vel_media',             # R
-        'Ecc_vel_max',               # S
-        'Ecc_potenza_media',         # T
-        'Ecc_potenza_max',           # U
-        'Ecc_distanza_mm',           # V
-        'Ecc_forza_max',             # W
-        'Ecc_lavoro_J',              # X
-    ]
-
-    COL_LETTERS = [
-        'A','B','C','D','E','F','G','H','I','J','K','L','M',
-        'N','O','P','Q','R','S','T','U','V','W','X'
-    ]
-    col_map = {letter: idx for idx, letter in enumerate(COL_LETTERS)}
-
     with zipfile.ZipFile(filepath, 'r') as z:
         # Leggi shared strings
         shared_strings = []
@@ -385,6 +352,82 @@ def load_vbt_data(filepath: str | Path) -> pd.DataFrame:
         root = ET.parse(z.open('xl/worksheets/sheet1.xml')).getroot()
         ns = re.match(r'\{.*\}', root.tag).group(0) if '{' in root.tag else ''
 
+        # Determina se è presente la colonna extra 'Velocità propulsiva media' (in K1)
+        first_row_elem = next(root.iter(f'{ns}row'))
+        has_propulsiva = False
+        for cell in first_row_elem:
+            ref = cell.get('r', '')
+            if ref == 'K1':
+                cell_type = cell.get('t', 'n')
+                v_elem = cell.find(f'{ns}v')
+                val = v_elem.text if v_elem is not None else None
+                header_str = ""
+                if cell_type == 's' and val is not None:
+                    header_str = shared_strings[int(val)].lower()
+                elif val is not None:
+                    header_str = val.lower()
+                if 'propulsiva' in header_str or 'velocit' in header_str:
+                    has_propulsiva = True
+                break
+
+        if has_propulsiva:
+            col_mapping = {
+                'A': 'Data',
+                'B': 'Atleta',
+                'C': 'Tempo_sessione',
+                'D': 'Esercizio',
+                'E': 'Serie',
+                'F': 'Ripetizioni',
+                'G': 'Carico',
+                'H': 'Vel_media',
+                'I': 'Vel_max',
+                'J': 'Tempo_acc_ms',
+                # K è Velocità propulsiva media (ignorata)
+                'L': 'Potenza_media',
+                'M': 'Potenza_max',
+                'N': 'Distanza_mm',
+                'O': 'Forza_max',
+                'P': '1RM',
+                'Q': 'Lavoro_J',
+                'R': 'Eccentrico_carico',
+                'S': 'Ecc_vel_media',
+                'T': 'Ecc_vel_max',
+                'U': 'Ecc_potenza_media',
+                'V': 'Ecc_potenza_max',
+                'W': 'Ecc_distanza_mm',
+                'X': 'Ecc_forza_max',
+                'Y': 'Ecc_lavoro_J',
+            }
+        else:
+            col_mapping = {
+                'A': 'Data',
+                'B': 'Atleta',
+                'C': 'Tempo_sessione',
+                'D': 'Esercizio',
+                'E': 'Serie',
+                'F': 'Ripetizioni',
+                'G': 'Carico',
+                'H': 'Vel_media',
+                'I': 'Vel_max',
+                'J': 'Tempo_acc_ms',
+                'K': 'Potenza_media',
+                'L': 'Potenza_max',
+                'M': 'Distanza_mm',
+                'N': 'Forza_max',
+                'O': '1RM',
+                'P': 'Lavoro_J',
+                'Q': 'Eccentrico_carico',
+                'R': 'Ecc_vel_media',
+                'S': 'Ecc_vel_max',
+                'T': 'Ecc_potenza_media',
+                'U': 'Ecc_potenza_max',
+                'V': 'Ecc_distanza_mm',
+                'W': 'Ecc_forza_max',
+                'X': 'Ecc_lavoro_J',
+            }
+
+        columns_to_init = list(set(col_mapping.values()))
+
         rows_data = []
         first_row = True
         for row_elem in root.iter(f'{ns}row'):
@@ -392,14 +435,14 @@ def load_vbt_data(filepath: str | Path) -> pd.DataFrame:
                 first_row = False
                 continue  # salta header
 
-            row_dict = {c: None for c in COLUMNS}
+            row_dict = {c: None for c in columns_to_init}
             for cell in row_elem:
                 ref = cell.get('r', '')
                 col_letter = re.match(r'([A-Z]+)', ref)
                 if not col_letter:
                     continue
                 col_letter = col_letter.group(1)
-                if col_letter not in col_map:
+                if col_letter not in col_mapping:
                     continue
 
                 cell_type = cell.get('t', 'n')
@@ -409,8 +452,8 @@ def load_vbt_data(filepath: str | Path) -> pd.DataFrame:
                 if cell_type == 's' and val is not None:
                     val = shared_strings[int(val)]
 
-                col_idx = col_map[col_letter]
-                row_dict[COLUMNS[col_idx]] = val
+                col_name = col_mapping[col_letter]
+                row_dict[col_name] = val
 
             rows_data.append(row_dict)
 
