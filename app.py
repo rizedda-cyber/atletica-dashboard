@@ -976,6 +976,20 @@ def make_kpi_card(title, value, delta_text, trend, icon, val_class=""):
 <div class="kpi-delta {delta_class}">{delta_text}</div>
 </div>"""
 
+def make_alert_card(label, text, icon, color, bg_alpha="0.1"):
+    """Card alert generica con bordo colorato a sinistra, in stile coerente con quelle esistenti in Home."""
+    return f"""
+    <div style="background: rgba({color[1]},{bg_alpha}); border-left: 4px solid {color[0]}; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+        <div style="display: flex; gap: 10px; align-items: flex-start;">
+            <span style="font-size: 24px; margin-top: 2px;">{icon}</span>
+            <div style="flex: 1;">
+                <div style="color: {color[0]}; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">{label}</div>
+                <div style="color: #fff; font-size: 0.9em;">{text}</div>
+            </div>
+        </div>
+    </div>
+    """
+
 if st.session_state.current_page == "Inserimento":
     st.markdown("## ➕ Inserisci Nuovo Allenamento")
     
@@ -1478,6 +1492,68 @@ elif st.session_state.current_page == "Home":
         </div>
         """, unsafe_allow_html=True)
 
+    # ── COMPLEANNI IN ARRIVO (prossimi 7 giorni, escluso oggi) ──
+    compleanni_arrivo = []  # (nome, giorni_rimanenti)
+    if not df_atleti_full.empty:
+        for _, row in df_atleti_full.iterrows():
+            if pd.notna(row.get('data_nascita')):
+                try:
+                    dn = pd.to_datetime(row['data_nascita'])
+                    prossimo = dn.replace(year=oggi_tz.year)
+                    if prossimo.date() < oggi_tz.date():
+                        prossimo = prossimo.replace(year=oggi_tz.year + 1)
+                    giorni = (prossimo.date() - oggi_tz.date()).days
+                    if 0 < giorni <= 7:
+                        compleanni_arrivo.append((row['nome_completo'], giorni))
+                except:
+                    pass
+    compleanni_arrivo.sort(key=lambda x: x[1])
+
+    # ── STOP VBT: atleti attivi in pista ma fermi sul monitoraggio forza (>14 gg) ──
+    running_last = df_running.groupby('Atleta')['Data'].max() if not df_running.empty else pd.Series(dtype='datetime64[ns]')
+    vbt_last = df_vbt.groupby('Atleta')['Data'].max() if not df_vbt.empty else pd.Series(dtype='datetime64[ns]')
+    stop_vbt = []
+    for atl, rdate in running_last.items():
+        if pd.notnull(rdate) and (oggi_tz - rdate).days <= 14:
+            vdate = vbt_last.get(atl)
+            if pd.isnull(vdate) or (oggi_tz - vdate).days > 14:
+                stop_vbt.append(atl)
+
+    # ── TREND NEGATIVO: peggioramento sulle ultime sessioni di una distanza ──
+    trend_negativo = []  # (atleta, distanza, var_pct)
+    if not df_running.empty:
+        for (atl, dist), g in df_running.groupby(['Atleta', 'Distanza']):
+            g2 = g.dropna(subset=['Tempo']).sort_values('Data')
+            if len(g2) >= 4:
+                last4 = g2['Tempo'].tail(4).to_numpy()
+                prev2_avg, last2_avg = last4[:2].mean(), last4[2:].mean()
+                if prev2_avg > 0:
+                    var_pct = (last2_avg - prev2_avg) / prev2_avg * 100
+                    if var_pct > 2:
+                        trend_negativo.append((atl, dist, var_pct))
+    trend_negativo.sort(key=lambda x: -x[2])
+
+    # ── TOP ADERENZA SETTIMANALE ──
+    ultimi_7gg = oggi_tz - pd.Timedelta(days=7)
+    sess_7 = pd.concat([df_running[['Atleta', 'Data']], df_vbt[['Atleta', 'Data']]]) if (not df_running.empty or not df_vbt.empty) else pd.DataFrame(columns=['Atleta', 'Data'])
+    sess_7 = sess_7[sess_7['Data'] >= ultimi_7gg]
+    top_aderenza, top_aderenza_count = None, 0
+    if not sess_7.empty:
+        giorni_count = sess_7.groupby('Atleta')['Data'].apply(lambda s: s.dt.date.nunique())
+        if not giorni_count.empty and giorni_count.max() >= 3:
+            top_aderenza = giorni_count.idxmax()
+            top_aderenza_count = int(giorni_count.max())
+
+    # ── ANAGRAFICA INCOMPLETA ──
+    anagrafica_incompleta = []
+    if not df_atleti_full.empty:
+        df_atleti_attivi = df_atleti_full
+        if 'attivo' in df_atleti_full.columns:
+            df_atleti_attivi = df_atleti_full[df_atleti_full['attivo'].fillna(True) != False]
+        for _, row in df_atleti_attivi.iterrows():
+            if pd.isna(row.get('data_nascita')) or pd.isna(row.get('peso')):
+                anagrafica_incompleta.append(row['nome_completo'])
+
     # ── ALERT PERFORMANCE E MONITORAGGIO ──
     alert_col1, alert_col2 = st.columns(2)
 
@@ -1530,6 +1606,23 @@ elif st.session_state.current_page == "Home":
             </div>
             """, unsafe_allow_html=True)
 
+        # ALERT TREND NEGATIVO
+        if trend_negativo:
+            righe_t = [f"{atl} sui {int(dist)}m ({var:+.1f}%)" for atl, dist, var in trend_negativo[:3]]
+            st.markdown(make_alert_card(
+                "TREND IN CALO",
+                f"Tempi in peggioramento nelle ultime sessioni: <strong>{', '.join(righe_t)}</strong>. Da monitorare.",
+                "📉", ("#FF6B6B", "255,107,107")
+            ), unsafe_allow_html=True)
+
+        # ALERT TOP ADERENZA SETTIMANALE
+        if top_aderenza:
+            st.markdown(make_alert_card(
+                "TOP ADERENZA (7 GG)",
+                f"<strong>{top_aderenza}</strong> è l'atleta più costante della settimana con {top_aderenza_count} giorni di allenamento. 💪",
+                "🔥", ("#E8FF3A", "232,255,58")
+            ), unsafe_allow_html=True)
+
     with alert_col2:
         # ALERT INATTIVI (più importante)
         if inattivi:
@@ -1563,7 +1656,36 @@ elif st.session_state.current_page == "Home":
             </div>
             """, unsafe_allow_html=True)
 
-        # Spazio per futuri alert
+        # ALERT STOP VBT
+        if stop_vbt:
+            txt3 = " e altri" if len(stop_vbt) > 3 else ""
+            stop_vbt_list = ', '.join(stop_vbt[:3]) + txt3
+            st.markdown(make_alert_card(
+                "STOP VBT (>14 GG)",
+                f"<strong>{stop_vbt_list}</strong> si allenano in pista ma non registrano sessioni VBT da oltre 14 giorni. Monitoraggio forza fermo.",
+                "🏋️", ("#FF9A3A", "255,154,58")
+            ), unsafe_allow_html=True)
+
+        # ALERT COMPLEANNI IN ARRIVO
+        if compleanni_arrivo:
+            righe_c = [f"{nome} (in {g}gg)" for nome, g in compleanni_arrivo[:3]]
+            st.markdown(make_alert_card(
+                "COMPLEANNI IN ARRIVO",
+                f"<strong>{', '.join(righe_c)}</strong> nei prossimi 7 giorni. 🎂",
+                "📅", ("#C9A9FF", "201,169,255")
+            ), unsafe_allow_html=True)
+
+        # ALERT ANAGRAFICA INCOMPLETA
+        if anagrafica_incompleta:
+            txt4 = " e altri" if len(anagrafica_incompleta) > 3 else ""
+            anagrafica_list = ', '.join(anagrafica_incompleta[:3]) + txt4
+            st.markdown(make_alert_card(
+                "ANAGRAFICA INCOMPLETA",
+                f"<strong>{anagrafica_list}</strong> non hanno data di nascita o peso salvati nel profilo.",
+                "📋", ("rgba(255,255,255,0.5)", "255,255,255")
+            ), unsafe_allow_html=True)
+
+        # Periodo analizzato
         st.markdown(f"""
         <div style="background: rgba(255,255,255,0.02); border-left: 4px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px;">
             <div style="display: flex; gap: 10px; align-items: flex-start;">
