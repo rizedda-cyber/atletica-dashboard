@@ -3637,10 +3637,8 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
                         _g    = 9.81       # m/s²
                         _Cd   = 0.9        # drag coefficient (Morin default)
                         _rho  = 1.293 * (273.15 / (273.15 + sp_temp)) * (sp_press / 1013.25)
-                        # Af = 0.19 × BSA, BSA (DuBois) = 0.007184 × m^0.425 × h_cm^0.725
-                        _h_cm = sp_height * 100
-                        _BSA  = 0.007184 * (sp_mass ** 0.425) * (_h_cm ** 0.725)
-                        _Af   = 0.19 * _BSA
+                        # Af formula Samozino — coerente con Excel e sprint_tools.html
+                        _Af   = 0.2025 * (sp_height ** 0.725) * (sp_mass ** 0.425) * 0.266
                         _k    = 0.5 * _rho * _Cd * _Af   # kg/m
 
                         # ── 2. Fit modello esponenziale agli split ──────────────
@@ -3700,9 +3698,16 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
                                     _Vopt = _V0 / 2               # m/s
 
                                     # Ratio of Force
+                                    # RFmax e Drf calcolati da t≥0.51s (Excel/Samozino: colonna P parte da riga 52)
                                     _RF_arr = _F_fv / np.sqrt(_F_fv**2 + (sp_mass * _g)**2)
-                                    _RF_max = _F0 / np.sqrt(_F0**2 + (sp_mass * _g)**2)
-                                    _drf_coeffs = np.polyfit(_v_fv, _RF_arr, 1)
+                                    _t_fv   = _t_arr[_mask]
+                                    _rf51   = _t_fv >= 0.51
+                                    if _rf51.any():
+                                        _RF_max     = _RF_arr[_rf51][0]
+                                        _drf_coeffs = np.polyfit(_v_fv[_rf51], _RF_arr[_rf51], 1)
+                                    else:
+                                        _RF_max     = _RF_arr[0]
+                                        _drf_coeffs = np.polyfit(_v_fv, _RF_arr, 1)
                                     _Drf = _drf_coeffs[0] * 100   # %/(m/s)
 
                                     # ── 5. KPI ─────────────────────────────────

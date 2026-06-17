@@ -62,8 +62,11 @@ NOME_MAPPING = {
     "Andrea": "Andrea Fantuzzo",
     "Barbara": "Barbara Zuddas",
     "Alessandro": "Alessandro Demicheli",
+    "Alessandro De Micheli": "Alessandro Demicheli",
+    "Alessandro De micheli": "Alessandro Demicheli",
     "Alessandrino": "Alessandro Demicheli",
     "Marco Benini": "Marco Benini",
+    "Marco": "Marco Benini",
 }
 
 
