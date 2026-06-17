@@ -1593,29 +1593,42 @@ elif st.session_state.current_page == "Home":
                     pass
     compleanni_arrivo.sort(key=lambda x: x[1])
 
-    # ── TIMELINE EVENTI: unisce compleanni di oggi (giorni=0) e in arrivo (1-7gg) ──
+    # ── TIMELINE EVENTI: unisce compleanni di oggi (giorni=0) e in arrivo (1-7gg).
+    #    Se non ci sono compleanni, la timeline resta comunque visibile con il solo
+    #    marcatore "OGGI" a indicare il giorno corrente. ──
     eventi_compleanno = [(nome, 0) for nome in compleanni] + list(compleanni_arrivo)
     eventi_compleanno.sort(key=lambda x: x[1])
-    if eventi_compleanno:
-        nodi_html = ""
-        for nome, giorni in eventi_compleanno:
-            data_evt = (oggi_tz + pd.Timedelta(days=giorni)).strftime('%d %b').upper()
-            is_today = giorni == 0
-            nodo_cls = "evt-node evt-today" if is_today else "evt-node"
-            tag = "OGGI 🎉" if is_today else f"in {giorni} gg"
-            nodi_html += f"""
-            <div class="{nodo_cls}">
-                <div class="evt-node-date">{data_evt}</div>
-                <div class="evt-node-dot">🎂</div>
-                <div class="evt-node-name">{nome}</div>
-                <div class="evt-node-tag">{tag}</div>
-            </div>
-            """
-        st.markdown(f"""
-        <div class="evt-timeline-wrap">
-            <div class="evt-timeline-track">{nodi_html}</div>
+
+    nodi_html = ""
+    ha_oggi = any(g == 0 for _, g in eventi_compleanno)
+    if not ha_oggi:
+        data_oggi = oggi_tz.strftime('%d %b').upper()
+        nodi_html += f"""
+        <div class="evt-node evt-today">
+            <div class="evt-node-date">{data_oggi}</div>
+            <div class="evt-node-dot">📍</div>
+            <div class="evt-node-name">Oggi</div>
+            <div class="evt-node-tag">Nessun compleanno</div>
         </div>
-        """, unsafe_allow_html=True)
+        """
+    for nome, giorni in eventi_compleanno:
+        data_evt = (oggi_tz + pd.Timedelta(days=giorni)).strftime('%d %b').upper()
+        is_today = giorni == 0
+        nodo_cls = "evt-node evt-today" if is_today else "evt-node"
+        tag = "OGGI 🎉" if is_today else f"in {giorni} gg"
+        nodi_html += f"""
+        <div class="{nodo_cls}">
+            <div class="evt-node-date">{data_evt}</div>
+            <div class="evt-node-dot">🎂</div>
+            <div class="evt-node-name">{nome}</div>
+            <div class="evt-node-tag">{tag}</div>
+        </div>
+        """
+    st.markdown(f"""
+    <div class="evt-timeline-wrap">
+        <div class="evt-timeline-track">{nodi_html}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # ── STOP VBT: atleti attivi in pista ma fermi sul monitoraggio forza (>14 gg) ──
     running_last = df_running.groupby('Atleta')['Data'].max() if not df_running.empty else pd.Series(dtype='datetime64[ns]')
