@@ -467,22 +467,28 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(232, 255, 58, 0.12) !important;
     }
 
-    /* ── TIMELINE EVENTI (compleanni & ricorrenze) — scorrimento orizzontale ── */
+    /* ── TIMELINE EVENTI (compleanni & ricorrenze) — scorrimento orizzontale ──
+           Boxed come le altre alert card, e sempre su una riga (niente wrap
+           né "buchi" sfalsati): la track è larga quanto il suo contenuto
+           (width: max-content) e scrolla solo se non ci sta tutta. ── */
     .evt-timeline-wrap {
-        position: relative; margin: 4px 0 22px 0; padding: 6px 2px 14px 2px;
+        position: relative; margin: 4px 0 22px 0; padding: 16px 14px 18px 14px;
+        background: rgba(255,255,255,0.025);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
         overflow-x: auto; overflow-y: hidden; white-space: nowrap;
         scrollbar-width: thin;
     }
     .evt-timeline-track {
-        position: relative; display: inline-flex; align-items: flex-start; gap: 0;
-        padding: 18px 4px 0 4px;
+        position: relative; display: flex; flex-wrap: nowrap; align-items: flex-start;
+        gap: 0; width: max-content; padding: 18px 4px 0 4px;
     }
     .evt-timeline-track::before {
         content: ''; position: absolute; top: 29px; left: 0; right: 0; height: 2px;
         background: linear-gradient(90deg, rgba(232,255,58,0.35), rgba(255,255,255,0.06));
     }
     .evt-node {
-        position: relative; display: inline-flex; flex-direction: column; align-items: center;
+        position: relative; display: flex; flex: 0 0 auto; flex-direction: column; align-items: center;
         width: 116px; flex-shrink: 0; white-space: normal; text-align: center;
     }
     .evt-node-dot {
