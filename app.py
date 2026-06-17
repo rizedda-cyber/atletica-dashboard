@@ -421,6 +421,35 @@ st.markdown("""
     [data-testid="stMainBlockContainer"] {
         scroll-behavior: smooth;
     }
+
+    /* ── SIDEBAR PREMIUM GLASS & GRADIENT ── */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0d1117 0%, #07090e 100%) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+    }
+
+    /* ── CUSTOM SLIM & NEON SCROLLBAR ── */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #07090e !important;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: rgba(232, 255, 58, 0.2) !important;
+        border-radius: 10px !important;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #E8FF3A !important;
+    }
+
+    /* ── CORREZIONE HOVER GLOW SULLE KPI CARDS ── */
+    .kpi-card:hover {
+        border-color: #E8FF3A !important;
+        transform: translateY(-4px) !important;
+        box-shadow: 0 10px 30px rgba(232, 255, 58, 0.12) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1931,12 +1960,34 @@ elif st.session_state.current_page == "Atleti":
                 roster_df = roster_df[roster_df['nome'].str.contains(search_q, case=False, na=False)]
         
         # Grid System
+        def _hex_to_rgb(h):
+            h = h.lstrip('#')
+            if len(h) != 6:
+                return "255,255,255"
+            return f"{int(h[0:2],16)},{int(h[2:4],16)},{int(h[4:6],16)}"
+
         for i in range(0, len(roster_df), 3):
             cols = st.columns(3)
             for j in range(3):
                 if i + j < len(roster_df):
                     row = roster_df.iloc[i + j]
-                    with cols[j].container(border=True):
+                    card_key = f"rostercard_{i + j}"
+                    row_rgb = _hex_to_rgb(row["color"])
+                    st.markdown(f"""
+                    <style>
+                    .st-key-{card_key} {{
+                        background: radial-gradient(circle at 85% 0%, rgba({row_rgb},0.12) 0%, rgba({row_rgb},0.03) 45%, rgba(255,255,255,0.015) 100%);
+                        border: 1px solid rgba({row_rgb},0.35) !important;
+                        border-radius: 14px !important;
+                        transition: border-color 0.15s, box-shadow 0.15s;
+                    }}
+                    .st-key-{card_key}:hover {{
+                        border-color: rgba({row_rgb},0.8) !important;
+                        box-shadow: 0 0 24px rgba({row_rgb},0.15);
+                    }}
+                    </style>
+                    """, unsafe_allow_html=True)
+                    with cols[j].container(border=True, key=card_key):
                         # Avatar con border color-coded e senza foto con gradient
                         if pd.notna(row['foto']) and str(row['foto']).strip() != "":
                             av_html = f'''<div style="width:70px; height:70px; border-radius:50%; border:4px solid {row["color"]}; overflow:hidden; margin-bottom:12px; box-shadow: 0 0 20px {row["color"]}40;">
