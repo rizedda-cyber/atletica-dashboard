@@ -181,7 +181,8 @@ def get_sessioni_corsa(atleta_id: int = None, from_date: str = None, to_date: st
     """
     supabase = get_supabase()
     query = supabase.table("sessioni_corsa") \
-        .select("*, atleti(nome_completo, specialita)")
+        .select("*, atleti(nome_completo, specialita)") \
+        .is_("deleted_at", "null")
 
     if atleta_id:
         query = query.eq("atleta_id", atleta_id)
@@ -282,11 +283,17 @@ def update_sessione_corsa(sessione_id: int, nuovo_tempo_sec: float = None, nuova
 
 
 def delete_sessione_corsa(sessione_id: int) -> bool:
-    """Elimina definitivamente una sessione di corsa dal database."""
+    """
+    Elimina (soft-delete) una sessione di corsa: marca la riga come eliminata
+    impostando deleted_at, senza rimuoverla fisicamente dal database.
+    La riga resta recuperabile e non richiede permessi DELETE.
+    """
+    from datetime import datetime, timezone
     supabase = get_supabase()
     try:
-        response = supabase.table("sessioni_corsa").delete().eq("id", sessione_id).execute()
-        return True
+        payload = {"deleted_at": datetime.now(timezone.utc).isoformat()}
+        response = supabase.table("sessioni_corsa").update(payload).eq("id", sessione_id).execute()
+        return bool(response.data)
     except Exception as e:
         print(f"Errore delete_sessione_corsa: {e}")
         return False
