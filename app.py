@@ -208,40 +208,52 @@ st.markdown("""
         padding-left: 16px;
         margin: 16px 0 24px 0;
     }
-    /* Bottoni card griglia sezioni — via marker sibling */
+    /* Bottoni card griglia sezioni — stesso look delle KPI card (vetro + icona di sfondo) */
     #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"],
     #sec-cards-marker + div button[kind="secondary"] {
-        min-height: 168px !important;
-        padding: 30px 14px !important;
+        min-height: 150px !important;
+        padding: 20px !important;
         border-radius: 16px !important;
-        border: 1.5px solid rgba(255,255,255,0.1) !important;
+        border: 1px solid rgba(255,255,255,0.05) !important;
+        background: rgba(20, 23, 30, 0.6) !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        overflow: hidden !important;
+        position: relative !important;
         font-size: 0.95em !important;
         white-space: pre-wrap !important;
-        line-height: 1.5 !important;
-        text-align: center !important;
-        background: linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015)) !important;
+        line-height: 1.4 !important;
+        text-align: left !important;
+        align-items: flex-start !important;
+        justify-content: center !important;
         flex-direction: column !important;
-        gap: 4px !important;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.18) !important;
-        transition: border-color 0.18s, background 0.18s, box-shadow 0.18s, transform 0.12s !important;
+        gap: 6px !important;
+        box-shadow: none !important;
+        transition: all 0.3s ease !important;
     }
-    /* L'icona (prima riga del label) più grande */
-    #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"] p,
-    #sec-cards-marker + div button[kind="secondary"] p {
-        font-size: 1em !important;
+    /* Icona grande, sfocata e ruotata nell'angolo (come .kpi-icon); il glifo è iniettato per card */
+    #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"]::after,
+    #sec-cards-marker + div button[kind="secondary"]::after {
+        content: "";
+        position: absolute; right: -5px; bottom: -15px;
+        font-size: 70px; opacity: 0.08; transform: rotate(-15deg);
+        pointer-events: none; line-height: 1;
+    }
+    /* Testo del label sopra l'icona di sfondo */
+    #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"] [data-testid="stMarkdownContainer"],
+    #sec-cards-marker + div button[kind="secondary"] [data-testid="stMarkdownContainer"] {
+        position: relative !important; z-index: 1 !important;
     }
     #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"]:hover,
     #sec-cards-marker + div button[kind="secondary"]:hover {
-        border-color: rgba(232,255,58,0.55) !important;
-        background: rgba(232,255,58,0.06) !important;
+        border-color: rgba(232,255,58,0.4) !important;
         color: #E8FF3A !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.28) !important;
+        transform: translateY(-3px) !important;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.5) !important;
     }
-    /* Card ATTIVA (sezione aperta): lo stile giallo pieno viene iniettato
-       dinamicamente in app.py mirando alla classe wrapper .st-key-secbtn_<key>
-       della card selezionata. */
-    
+    /* Card ATTIVA (sezione aperta): bordo/sfondo giallo iniettati dinamicamente
+       in app.py mirando alla classe wrapper .st-key-secbtn_<key> della card. */
+
     /* Regole separatori guide */
     hr.gold { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 32px 0; }
     
@@ -2260,6 +2272,12 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
             _btn_cols = st.columns(len(_cards))
             for i, (icon, title, sub, key) in enumerate(_cards):
                 _is_active = st.session_state.get(key, False)
+                # Icona grande di sfondo nell'angolo (come le KPI card in alto)
+                st.markdown(
+                    "<style>.st-key-secbtn_" + key + " button[kind=\"secondary\"]::after{"
+                    "content:\"" + icon + "\";}</style>",
+                    unsafe_allow_html=True,
+                )
                 # Evidenzia in giallo la card attiva (sezione aperta)
                 if _is_active:
                     st.markdown(
@@ -2270,7 +2288,7 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
                         "box-shadow:0 0 22px rgba(232,255,58,0.18) !important;}</style>",
                         unsafe_allow_html=True,
                     )
-                lbl = f"{icon}\n\n**{title}**\n{sub}"
+                lbl = f"**{title}**\n{sub}"
                 with _btn_cols[i]:
                     if st.button(lbl, key=f"secbtn_{key}", use_container_width=True, type="secondary"):
                         # Accordion: apri solo questa e chiudi le altre.
