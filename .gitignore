@@ -29,3 +29,4 @@ venv/
 
 # File con credenziali (MAI caricare)
 CREDENZIALI_DASHBOARD.txt
+.trash_tmp_files/
