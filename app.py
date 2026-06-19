@@ -211,8 +211,8 @@ st.markdown("""
     /* Bottoni card griglia sezioni — via marker sibling */
     #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"],
     #sec-cards-marker + div button[kind="secondary"] {
-        min-height: 132px !important;
-        padding: 22px 14px !important;
+        min-height: 168px !important;
+        padding: 30px 14px !important;
         border-radius: 16px !important;
         border: 1.5px solid rgba(255,255,255,0.1) !important;
         font-size: 0.95em !important;
