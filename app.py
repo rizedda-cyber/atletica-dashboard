@@ -211,24 +211,36 @@ st.markdown("""
     /* Bottoni card griglia sezioni — via marker sibling */
     #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"],
     #sec-cards-marker + div button[kind="secondary"] {
-        min-height: 90px !important;
-        padding: 14px 10px !important;
-        border-radius: 12px !important;
+        min-height: 132px !important;
+        padding: 22px 14px !important;
+        border-radius: 16px !important;
         border: 1.5px solid rgba(255,255,255,0.1) !important;
-        font-size: 0.88em !important;
+        font-size: 0.95em !important;
         white-space: pre-wrap !important;
-        line-height: 1.4 !important;
+        line-height: 1.5 !important;
         text-align: center !important;
-        background: rgba(255,255,255,0.025) !important;
+        background: linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015)) !important;
         flex-direction: column !important;
-        transition: border-color 0.15s, background 0.15s !important;
+        gap: 4px !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.18) !important;
+        transition: border-color 0.18s, background 0.18s, box-shadow 0.18s, transform 0.12s !important;
+    }
+    /* L'icona (prima riga del label) più grande */
+    #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"] p,
+    #sec-cards-marker + div button[kind="secondary"] p {
+        font-size: 1em !important;
     }
     #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"]:hover,
     #sec-cards-marker + div button[kind="secondary"]:hover {
-        border-color: rgba(232,255,58,0.5) !important;
+        border-color: rgba(232,255,58,0.55) !important;
         background: rgba(232,255,58,0.06) !important;
         color: #E8FF3A !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.28) !important;
     }
+    /* Card ATTIVA (sezione aperta): lo stile giallo pieno viene iniettato
+       dinamicamente in app.py mirando alla classe wrapper .st-key-secbtn_<key>
+       della card selezionata. */
     
     /* Regole separatori guide */
     hr.gold { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 32px 0; }
@@ -2234,20 +2246,38 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
             _show_storico  = selected_athlete != "Tutta la squadra"
             _show_correggi = can_edit and selected_athlete != "Tutta la squadra"
 
-            _cards = [("🏆", "Classifica PB", "Migliori tempi · squadra", "_s1_pb")]
+            _pb_sub = "Migliori tempi · squadra" if selected_athlete == "Tutta la squadra" else "I migliori tempi dell'atleta"
+            _cards = [("🏆", "Classifica PB", _pb_sub, "_s1_pb")]
             if _show_storico:
                 _cards.append(("📖", "Storico Completo", "Tutte le prove registrate", "_s1_storico"))
             if _show_correggi:
                 _cards.append(("✏️", "Correggi Tempo", "Modifica o elimina · admin", "_s1_correggi"))
 
+            _sec_keys = [k for _, _, _, k in _cards]
+
             # Griglia bottoni card — Streamlit nativo con CSS marker
             st.markdown('<span id="sec-cards-marker"></span>', unsafe_allow_html=True)
             _btn_cols = st.columns(len(_cards))
             for i, (icon, title, sub, key) in enumerate(_cards):
-                lbl = f"{icon}\n{title}\n{sub}"
+                _is_active = st.session_state.get(key, False)
+                # Evidenzia in giallo la card attiva (sezione aperta)
+                if _is_active:
+                    st.markdown(
+                        "<style>.st-key-secbtn_" + key + " button[kind=\"secondary\"]{"
+                        "border-color:#E8FF3A !important;"
+                        "background:rgba(232,255,58,0.14) !important;"
+                        "color:#E8FF3A !important;"
+                        "box-shadow:0 0 22px rgba(232,255,58,0.18) !important;}</style>",
+                        unsafe_allow_html=True,
+                    )
+                lbl = f"{icon}\n\n**{title}**\n{sub}"
                 with _btn_cols[i]:
                     if st.button(lbl, key=f"secbtn_{key}", use_container_width=True, type="secondary"):
-                        st.session_state[key] = not st.session_state.get(key, False)
+                        # Accordion: apri solo questa e chiudi le altre.
+                        # Ri-cliccando la card già attiva, la si chiude.
+                        for _k in _sec_keys:
+                            st.session_state[_k] = False
+                        st.session_state[key] = not _is_active
                         st.rerun()
 
             # ── CONTENUTO SEZIONE: CLASSIFICA PB ───────────────────────────
