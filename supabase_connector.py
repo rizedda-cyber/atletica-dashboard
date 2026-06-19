@@ -46,10 +46,20 @@ def get_supabase() -> Client:
 # ATLETI
 # ──────────────────────────────────────────────────────────────────────
 
-def get_atleti() -> pd.DataFrame:
-    """Restituisce tutti gli atleti registrati nel database."""
+@st.cache_data(show_spinner=False, ttl=175)
+def get_atleti(with_foto: bool = True) -> pd.DataFrame:
+    """Restituisce tutti gli atleti registrati nel database.
+
+    Cachata (TTL ~3 min, invalidata dalle chiamate st.cache_data.clear()
+    eseguite dall'app dopo inserimenti/modifiche) per non riscaricare la
+    tabella a ogni rerun di Streamlit.
+
+    with_foto=False esclude la colonna foto_url (blob base64), alleggerendo
+    le query che servono solo per nomi/anagrafica e non mostrano le foto.
+    """
     supabase = get_supabase()
-    response = supabase.table("atleti").select("*").order("cognome").execute()
+    cols = "*" if with_foto else "id, nome, cognome, nome_completo, specialita, attivo, data_nascita, peso, bio"
+    response = supabase.table("atleti").select(cols).order("cognome").execute()
     if response.data:
         return pd.DataFrame(response.data)
     return pd.DataFrame(columns=["id", "nome", "cognome", "nome_completo", "specialita", "foto_url", "attivo"])

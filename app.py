@@ -24,7 +24,6 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from sklearn.linear_model import LinearRegression
 from pathlib import Path
 from data_loader import load_all_data
 
@@ -38,6 +37,17 @@ except ImportError:
 # ──────────────────────────────────────────────────────────────────────
 
 # Configurazione pagina spostata sotto import streamlit
+
+@st.cache_data
+def get_logo_b64(path: str = "logo.png") -> str:
+    """Legge e codifica il logo in base64 una sola volta (cache su disco→memoria).
+    Il file non cambia mai, quindi evitiamo di rileggerlo a ogni rerun."""
+    import base64
+    try:
+        with open(path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except Exception:
+        return ""
 
 st.markdown("""
 <style>
@@ -604,14 +614,8 @@ def get_admin_password() -> str:
 # ──────────────────────────────────────────────────────────────────────
 
 if not st.session_state.authenticated:
-    b64_string = ""
-    try:
-        import base64
-        with open("logo.png", "rb") as img_file:
-            b64_string = base64.b64encode(img_file.read()).decode()
-    except Exception:
-        pass
-        
+    b64_string = get_logo_b64()
+
     st.markdown(f'''
     <div class="cover">
         <img class="cover-logo" src="data:image/png;base64,{b64_string}" alt="Logo">
@@ -1049,15 +1053,9 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
                         else:
                             st.error("❌ Errore nel salvataggio del PIN. Riprova.")
 else:
-    b64_string_logo = ""
-    try:
-        import base64
-        with open("logo.png", "rb") as img_file:
-            b64_string_logo = base64.b64encode(img_file.read()).decode()
-    except Exception:
-        pass
-        
-    logo_html = f'<div style="flex-shrink: 0; margin-top: 2px;"><img src="data:image/png;base64,{b64_string_logo}" style="width: 70px; height: 70px; border-radius: 50%; border: 3px solid #E8FF3A; box-shadow: 0 0 12px rgba(232,255,58,0.3); display: block;"></div>'
+    b64_string_logo = get_logo_b64()
+
+    logo_html =f'<div style="flex-shrink: 0; margin-top: 2px;"><img src="data:image/png;base64,{b64_string_logo}" style="width: 70px; height: 70px; border-radius: 50%; border: 3px solid #E8FF3A; box-shadow: 0 0 12px rgba(232,255,58,0.3); display: block;"></div>'
     
     st.markdown(f'''
         <div style="display: flex; align-items: flex-start; gap: 22px; margin-bottom: 24px;">
@@ -1570,7 +1568,7 @@ elif st.session_state.current_page == "Home":
 
     # ── LOGICA COMPLEANNI ──
     from supabase_connector import get_atleti
-    df_atleti_full = get_atleti()
+    df_atleti_full = get_atleti(with_foto=False)  # homepage: solo anagrafica, niente foto base64
     oggi_tz = pd.Timestamp.now().tz_localize(None)
     compleanni = []
     if not df_atleti_full.empty:
@@ -3358,6 +3356,7 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
                 df_tgt  = df_running[df_running['Distanza'] == target][['Data', 'Atleta', 'Tempo']].rename(columns={'Tempo': 'target'})
                 df_model = df_f1.merge(df_f2, on=['Data', 'Atleta']).merge(df_tgt, on=['Data', 'Atleta'])
                 if len(df_model) >= 5:
+                    from sklearn.linear_model import LinearRegression  # lazy import: libreria pesante usata solo qui
                     X, y = df_model[['t1', 't2']].values, df_model['target'].values
                     model_lr = LinearRegression().fit(X, y)
                     score = model_lr.score(X, y)
