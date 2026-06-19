@@ -96,6 +96,10 @@ textarea { font-family: 'Courier New', monospace; font-size: 12px; resize: verti
 .ibox-r { background: rgba(255,75,75,0.05); border: 1px solid rgba(255,75,75,0.2); color: var(--danger); }
 .ibox-o { background: rgba(255,154,58,0.05); border: 1px solid rgba(255,154,58,0.2); color: var(--orange); }
 
+/* Explanatory notes — visible on screen AND in printed/PDF export */
+.expl { padding: 10px 14px; border-radius: 8px; font-size: 12px; line-height: 1.55; margin: 10px 0 16px; background: rgba(191,95,255,0.06); border: 1px solid rgba(191,95,255,0.25); color: var(--muted); }
+.expl b { color: var(--text); }
+
 .results-section { display: none; animation: fadeIn 0.3s ease; }
 .results-section.show { display: block; }
 @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
@@ -187,6 +191,8 @@ textarea { font-family: 'Courier New', monospace; font-size: 12px; resize: verti
   .card-title { color: #333 !important; }
   .muted, [style*="color:var(--muted)"] { color: #444 !important; }
   .ibox { display: none !important; }
+  .expl { display: block !important; background: #f5f0ff !important; border: 1px solid #ccc !important; color: #333 !important; }
+  .expl b { color: #111 !important; }
   .section-hdr h2 { color: #111 !important; }
   .section-hdr h2 span { color: #333 !important; }
   .section-hdr p { color: #444 !important; }
@@ -213,7 +219,7 @@ textarea { font-family: 'Courier New', monospace; font-size: 12px; resize: verti
       <span style="color:rgba(255,255,255,0.2);font-size:20px;font-weight:300;margin:0 14px;">|</span>
       <span style="color:rgba(255,255,255,0.38);font-size:13px;font-weight:500;letter-spacing:1px;">A project from Amsicora Lab</span>
     </div>
-    <p>Profilo FVP · Correzione Parallasse · Previsioni Gara</p>
+    <p>Profilo FVP · Previsioni Gara</p>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:12px;padding-left:24px;">
     <div>
@@ -228,8 +234,7 @@ textarea { font-family: 'Courier New', monospace; font-size: 12px; resize: verti
 </div>
 
 <div class="tabs">
-  <div class="tab active" onclick="showTab('parallasse')">🎬 Parallasse</div>
-  <div class="tab" onclick="showTab('fvp-split')">⚡ FVP · Split Times</div>
+  <div class="tab active" onclick="showTab('fvp-split')">⚡ FVP · Split Times</div>
   <div class="tab" onclick="showTab('fvp-radar')">📡 FVP · Radar</div>
   <div class="tab" onclick="showTab('vittori')">🎯 Modello Vittori</div>
   <div class="tab" onclick="showTab('mod400')">🔵 Modello 400m</div>
@@ -239,57 +244,9 @@ textarea { font-family: 'Courier New', monospace; font-size: 12px; resize: verti
 <div class="content">
 
 <!-- ═══════════════════════════════════════════════════════ -->
-<!-- TAB 1 — PARALLASSE                                      -->
-<!-- ═══════════════════════════════════════════════════════ -->
-<div id="tab-parallasse" class="panel active">
-  <div class="section-hdr">
-    <h2>Correzione <span>Parallasse</span></h2>
-    <p>Corregge le posizioni dei marker (coni/fotocellule) quando la telecamera non è perpendicolare alla pista</p>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Parametri Telecamera</div>
-    <div class="grid g3">
-      <div>
-        <label>Dist. perpendicolare camera–atleta (m)</label>
-        <input type="number" id="p-dperp" value="6" step="0.1" oninput="calcParallax()">
-      </div>
-      <div>
-        <label>Separazione coni dalla linea (m)</label>
-        <input type="number" id="p-dsep" value="0.57" step="0.01" oninput="calcParallax()">
-      </div>
-      <div>
-        <label>Posizione camera dal via (m)</label>
-        <input type="number" id="p-pcam" value="15" step="0.5" oninput="calcParallax()">
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Posizioni Marker → Corrette</div>
-    <div class="ibox ibox-b" style="margin-bottom:14px;">
-      Formula: <b>pos_corretta = pos_atleta − (d_sep × (pos_atleta − pos_camera)) / d_perp</b>
-    </div>
-
-    <table class="stbl">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Posizione Atleta (m)</th>
-          <th>Posizione Corretta (m)</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="p-rows"></tbody>
-    </table>
-    <button class="btn-add" style="margin-top:8px;" onclick="addParallaxRow()">+ Aggiungi marker</button>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════ -->
 <!-- TAB 2 — FVP SPLIT TIMES                                 -->
 <!-- ═══════════════════════════════════════════════════════ -->
-<div id="tab-fvp-split" class="panel">
+<div id="tab-fvp-split" class="panel active">
   <div class="section-hdr">
     <h2>Profilo <span>Forza-Velocità</span> · Split Times</h2>
     <p>Inserisci i tempi di passaggio (fotocellule) · il modello ottimizza Vmax e Tau e calcola il profilo FVP</p>
@@ -355,6 +312,17 @@ textarea { font-family: 'Courier New', monospace; font-size: 12px; resize: verti
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title">Equilibrio Forza–Velocità (Imbalance)</div>
+      <div class="grid g3">
+        <div class="metric"><div class="mlabel">SFV attuale</div><div class="mvalue mv-muted" id="s-sfv">—</div><div class="munit">pendenza F-V</div></div>
+        <div class="metric"><div class="mlabel">SFV ottimale</div><div class="mvalue mv-purple" id="s-sfvopt">—</div><div class="munit">a Pmax invariato</div></div>
+        <div class="metric"><div class="mlabel">FV Imbalance</div><div class="mvalue mv-purple" id="s-fvimb">—</div><div class="munit">100% = equilibrato</div></div>
+      </div>
+      <div class="expl" id="s-fvimb-diag">—</div>
+      <div class="expl"><b>Cos'è l'imbalance F-V?</b> Confronta la pendenza forza-velocità (SFV) realmente espressa dall'atleta con quella teoricamente ottimale (SFVopt) per il suo stesso Pmax, calcolata simulando lo sprint sulla distanza misurata con il modello fisico già usato dal tool. Un valore &gt;100% indica un profilo troppo orientato alla forza (deficit di velocità da allenare), un valore &lt;100% indica un profilo troppo orientato alla velocità (deficit di forza da allenare). La curva tratteggiata viola nel grafico Forza-Velocità mostra il profilo ideale corrispondente.</div>
+    </div>
+
     <div class="grid g2">
       <div class="card">
         <div class="card-title">Profilo Forza–Velocità (FV)</div>
@@ -377,7 +345,14 @@ textarea { font-family: 'Courier New', monospace; font-size: 12px; resize: verti
     </div>
 
     <div class="card">
+      <div class="card-title">Velocità · Forza · Potenza nel Tempo</div>
+      <div class="chart-wrap-tall"><canvas id="s-chart-time"></canvas></div>
+      <div class="expl"><b>Come si legge:</b> le tre curve mostrano l'evoluzione simulata di velocità (giallo, asse sinistro), forza orizzontale per kg di massa (verde, asse sinistro) e potenza per kg (arancio, asse destro) nei primi secondi dello sprint. La forza è massima alla partenza e decresce mentre la velocità cresce; la potenza ha un picco intermedio (a Vopt, circa metà di V0) per poi calare quando la velocità si avvicina a V0.</div>
+    </div>
+
+    <div class="card">
       <div class="card-title">Confronto Tempi Misurati vs Modello</div>
+      <div class="expl"><b>Cosa sono i residui?</b> Per ogni split misurato, il modello calcola la posizione teorica raggiunta allo stesso tempo. Il residuo è la differenza (modello − misurato): valori vicini a 0 indicano un buon fit. Verde = residuo &lt;0.1m (ottimo), arancio = &lt;0.3m (accettabile), rosso = ≥0.3m (il modello non rappresenta bene i dati: verificare i tempi inseriti).</div>
       <div id="s-resid-table"></div>
     </div>
   </div>
@@ -466,6 +441,17 @@ textarea { font-family: 'Courier New', monospace; font-size: 12px; resize: verti
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title">Equilibrio Forza–Velocità (Imbalance)</div>
+      <div class="grid g3">
+        <div class="metric"><div class="mlabel">SFV attuale</div><div class="mvalue mv-muted" id="r-sfv">—</div><div class="munit">pendenza F-V</div></div>
+        <div class="metric"><div class="mlabel">SFV ottimale</div><div class="mvalue mv-purple" id="r-sfvopt">—</div><div class="munit">a Pmax invariato</div></div>
+        <div class="metric"><div class="mlabel">FV Imbalance</div><div class="mvalue mv-purple" id="r-fvimb">—</div><div class="munit">100% = equilibrato</div></div>
+      </div>
+      <div class="expl" id="r-fvimb-diag">—</div>
+      <div class="expl"><b>Cos'è l'imbalance F-V?</b> Confronta la pendenza forza-velocità (SFV) realmente espressa dall'atleta con quella teoricamente ottimale (SFVopt) per il suo stesso Pmax, calcolata simulando lo sprint su 30m con il modello fisico già usato dal tool. Un valore &gt;100% indica un profilo troppo orientato alla forza (deficit di velocità da allenare), un valore &lt;100% indica un profilo troppo orientato alla velocità (deficit di forza da allenare). La curva tratteggiata viola nel grafico Forza-Velocità mostra il profilo ideale corrispondente.</div>
+    </div>
+
     <div class="grid g2">
       <div class="card">
         <div class="card-title">Velocità: Misurata vs Modello</div>
@@ -485,6 +471,12 @@ textarea { font-family: 'Courier New', monospace; font-size: 12px; resize: verti
         <div class="card-title">Potenza Orizzontale vs Velocità</div>
         <div class="chart-wrap"><canvas id="r-chart-pv"></canvas></div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Velocità · Forza · Potenza nel Tempo</div>
+      <div class="chart-wrap-tall"><canvas id="r-chart-time"></canvas></div>
+      <div class="expl"><b>Come si legge:</b> le tre curve mostrano l'evoluzione simulata di velocità (giallo, asse sinistro), forza orizzontale per kg di massa (verde, asse sinistro) e potenza per kg (arancio, asse destro) nei primi secondi dello sprint. La forza è massima alla partenza e decresce mentre la velocità cresce; la potenza ha un picco intermedio (a Vopt, circa metà di V0) per poi calare quando la velocità si avvicina a V0.</div>
     </div>
   </div>
   </div><!-- /tab-outputs -->
@@ -660,7 +652,7 @@ textarea { font-family: 'Courier New', monospace; font-size: 12px; resize: verti
 // ═══════════════════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════
-const TABS = ['parallasse','fvp-split','fvp-radar','vittori','mod400','mod200'];
+const TABS = ['fvp-split','fvp-radar','vittori','mod400','mod200'];
 function showTab(id) {
   TABS.forEach(t => {
     document.getElementById('tab-'+t).classList.toggle('active', t===id);
@@ -771,6 +763,53 @@ function fvpMetrics(pts, lastDist) {
   return {F0_kg, V0, Pmax, RFmax, Drf, Vopt:V0/2, Vmaxm, SFV, F0_kg_intercept:F0_kg};
 }
 
+// ═══════════════════════════════════════════════════════════
+// FORCE-VELOCITY IMBALANCE (Morin/Samozino)
+// Sfvopt non ha una formula chiusa per la corsa: si trova per via
+// numerica simulando il tempo sulla distanza target a Pmax costante,
+// riusando lo stesso modello fisico (forza = accelerazione + drag/massa)
+// già usato dal resto del tool, e cercando il V0 che minimizza il tempo.
+// ═══════════════════════════════════════════════════════════
+function simTimeToDistance(F0, V0, massa, k, D) {
+  const dt = 0.005;
+  let v = 0, pos = 0, t = 0;
+  const maxT = 30;
+  while (pos < D && t < maxT) {
+    const a = F0*(1 - v/V0) - (k/massa)*v*v;
+    v += a*dt;
+    if (v < 0) v = 0;
+    pos += v*dt;
+    t += dt;
+    if (a<=0 && v<=0.001) return maxT; // non parte: configurazione non valida
+  }
+  return t;
+}
+
+function computeImbalance(m, massa, k, D) {
+  const Pmax = m.Pmax;
+  const timeForV0 = (V0) => simTimeToDistance(4*Pmax/V0, V0, massa, k, D);
+  // golden-section search sul minimo di tempo-su-distanza, V0 in [2,14] m/s
+  let a=2, b=14;
+  const gr = (Math.sqrt(5)-1)/2;
+  let c=b-gr*(b-a), d=a+gr*(b-a);
+  for(let i=0;i<50;i++){
+    if (timeForV0(c) < timeForV0(d)) b=d; else a=c;
+    c=b-gr*(b-a); d=a+gr*(b-a);
+  }
+  const V0opt = (a+b)/2;
+  const F0opt = 4*Pmax/V0opt;
+  const SFVopt = -F0opt/V0opt;
+  const FVimb = (m.SFV/SFVopt)*100;
+  return {V0opt, F0opt, SFVopt, FVimb};
+}
+
+function fvImbalanceDiag(FVimb) {
+  if(!isFinite(FVimb)) return '—';
+  if (FVimb > 110) return `⚠️ Profilo orientato alla <b>forza</b> (FVimb=${FVimb.toFixed(0)}%): possibile deficit di velocità. Privilegiare lavoro di velocità massima e tecnica di corsa.`;
+  if (FVimb < 90)  return `⚠️ Profilo orientato alla <b>velocità</b> (FVimb=${FVimb.toFixed(0)}%): possibile deficit di forza. Privilegiare lavoro di forza orizzontale (sled, partenze resistite).`;
+  return `✅ Profilo equilibrato (FVimb=${FVimb.toFixed(0)}%): nessun deficit marcato tra forza e velocità.`;
+}
+
 function r2(n) { return isNaN(n)||!isFinite(n)?'—':n.toFixed(2); }
 function r3(n) { return isNaN(n)||!isFinite(n)?'—':n.toFixed(3); }
 function r4(n) { return isNaN(n)||!isFinite(n)?'—':n.toFixed(4); }
@@ -799,44 +838,34 @@ function makeChart(id, type, datasets, xLabel, yLabel, extra={}) {
   });
 }
 
-// ═══════════════════════════════════════════════════════════
-// TAB 1 — PARALLASSE
-// ═══════════════════════════════════════════════════════════
-const pDefaultRows = [0,2.5,5,7.5,10,15,20,25,30];
-function initParallax() {
-  const tbody = document.getElementById('p-rows');
-  tbody.innerHTML = '';
-  pDefaultRows.forEach(v => addParallaxRow(v));
-  calcParallax();
-}
-
-function addParallaxRow(val='') {
-  const tbody = document.getElementById('p-rows');
-  const idx = tbody.rows.length+1;
-  const tr = document.createElement('tr');
-  tr.innerHTML = `<td style="color:var(--muted);font-size:12px;padding:6px 10px;">${idx}</td>
-    <td><input type="number" step="0.1" value="${val}" oninput="calcParallax()"></td>
-    <td id="p-res-${idx}" style="color:var(--accent);font-weight:700;padding:6px 10px;font-size:14px;">—</td>
-    <td><button class="del-btn" onclick="this.closest('tr').remove();calcParallax()">×</button></td>`;
-  tbody.appendChild(tr);
-  calcParallax();
-}
-
-function calcParallax() {
-  const dperp = parseFloat(document.getElementById('p-dperp').value)||6;
-  const dsep  = parseFloat(document.getElementById('p-dsep').value)||0.57;
-  const pcam  = parseFloat(document.getElementById('p-pcam').value)||15;
-  const rows  = document.getElementById('p-rows').rows;
-  Array.from(rows).forEach((tr,i)=>{
-    const inp = tr.querySelector('input');
-    const pos = parseFloat(inp.value);
-    const resEl = tr.cells[2];
-    if(!isNaN(pos)&&dperp>0){
-      const corrected = pos - (dsep*(pos-pcam))/dperp;
-      resEl.textContent = corrected.toFixed(3)+' m';
-      resEl.style.color = 'var(--accent)';
-    } else {
-      resEl.textContent = '—';
+// Grafico congiunto Velocità / Forza / Potenza nel tempo (stile Samozino), asse Y doppio
+function drawTimeChart(pts, m, pfx) {
+  const stride=3;
+  const tp = pts.filter((_,i)=>i%stride===0);
+  const id = `${pfx}-chart-time`;
+  if(chartInstances[id]) chartInstances[id].destroy();
+  const ctx = document.getElementById(id).getContext('2d');
+  chartInstances[id] = new Chart(ctx, {
+    type:'line',
+    data:{ datasets:[
+      {label:'Velocità (m/s)', yAxisID:'y', data:tp.map(p=>({x:p.t,y:p.v})),
+       borderColor:'#E8FF3A', backgroundColor:'rgba(232,255,58,0.08)', pointRadius:0, borderWidth:2, tension:0.25, fill:false},
+      {label:'Forza Hzt (N/kg)', yAxisID:'y', data:tp.map(p=>({x:p.t,y:p.FHzt_kg})),
+       borderColor:'#00e676', backgroundColor:'rgba(0,230,118,0.08)', pointRadius:0, borderWidth:2, tension:0.25, fill:false},
+      {label:'Potenza (W/kg)', yAxisID:'y1', data:tp.map(p=>({x:p.t,y:p.Pkg})),
+       borderColor:'#FF9A3A', backgroundColor:'rgba(255,154,58,0.08)', pointRadius:0, borderWidth:2, tension:0.25, fill:false}
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'rgba(255,255,255,0.5)',font:{size:10}}}},
+      scales:{
+        x:{type:'linear', title:{display:true,text:'Tempo (s)',color:'rgba(255,255,255,0.4)',font:{size:10}},
+           ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{position:'left', title:{display:true,text:'Velocità (m/s) · Forza (N/kg)',color:'rgba(255,255,255,0.4)',font:{size:10}},
+           ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'}},
+        y1:{position:'right', title:{display:true,text:'Potenza (W/kg)',color:'rgba(255,255,255,0.4)',font:{size:10}},
+           ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}}, grid:{display:false}}
+      }
     }
   });
 }
@@ -920,7 +949,13 @@ function calcFVPSplit() {
       setTxt('s-vopt', r2(m.Vopt));
       setTxt('s-vmaxm',r2(m.Vmaxm));
 
-      drawFVPCharts(pts, m, 's', splits, Vmax, tau);
+      const imb = computeImbalance(m, massa, k, lastDist);
+      setTxt('s-sfv',    r3(m.SFV));
+      setTxt('s-sfvopt', r3(imb.SFVopt));
+      setTxt('s-fvimb',  r2(imb.FVimb)+(isFinite(imb.FVimb)?'%':''));
+      document.getElementById('s-fvimb-diag').innerHTML = fvImbalanceDiag(imb.FVimb);
+
+      drawFVPCharts(pts, m, 's', splits, Vmax, tau, imb);
       drawResidTable(splits, Vmax, tau);
 
       document.getElementById('s-results').classList.add('show'); document.getElementById('s-placeholder').style.display='none';
@@ -944,7 +979,7 @@ function drawResidTable(splits, Vmax, tau) {
   el.innerHTML = h;
 }
 
-function drawFVPCharts(pts, m, pfx, splits, Vmax, tau) {
+function drawFVPCharts(pts, m, pfx, splits, Vmax, tau, imb) {
   const stride=5;
   const simPts = pts.filter((_,i)=>i%stride===0);
 
@@ -952,12 +987,18 @@ function drawFVPCharts(pts, m, pfx, splits, Vmax, tau) {
   const fvX = simPts.map(p=>p.v.toFixed(3));
   const fvY = simPts.map(p=>p.FHzt_kg);
   const fvLine = [{x:0,y:m.F0_kg},{x:m.V0,y:0}];
-  makeChart(`${pfx}-chart-fv`,'scatter',[
+  const fvDatasets = [
     {label:'FHzt simulata',data:simPts.map(p=>({x:p.v,y:p.FHzt_kg})),
      pointRadius:2,borderColor:'rgba(232,255,58,0.5)',backgroundColor:'rgba(232,255,58,0.2)',showLine:true},
     {label:`Retta FV (F0=${r2(m.F0_kg)}, V0=${r2(m.V0)})`,type:'line',
      data:fvLine,borderColor:'rgba(255,255,255,0.4)',borderDash:[4,3],pointRadius:0,showLine:true}
-  ],'Velocità (m/s)','Forza Orizz. (N/kg)');
+  ];
+  if(imb && isFinite(imb.F0opt) && isFinite(imb.V0opt)){
+    fvDatasets.push({label:`Profilo ideale (F0opt=${r2(imb.F0opt)}, V0opt=${r2(imb.V0opt)})`,type:'line',
+      data:[{x:0,y:imb.F0opt},{x:imb.V0opt,y:0}],
+      borderColor:'#bf5fff',borderDash:[6,3],borderWidth:2,pointRadius:0,showLine:true});
+  }
+  makeChart(`${pfx}-chart-fv`,'scatter',fvDatasets,'Velocità (m/s)','Forza Orizz. (N/kg)');
 
   // V-t chart
   const vtData = simPts.map(p=>({x:p.t,y:p.v}));
@@ -992,6 +1033,9 @@ function drawFVPCharts(pts, m, pfx, splits, Vmax, tau) {
     {label:'Vopt='+r2(m.Vopt)+'m/s',data:[{x:m.Vopt,y:m.Pmax},{x:m.Vopt,y:0}],
      type:'line',borderColor:'rgba(255,255,255,0.5)',borderDash:[4,3],pointRadius:0,showLine:true}
   ],'Velocità (m/s)','Potenza (W/kg)');
+
+  // Grafico congiunto Velocità/Forza/Potenza nel tempo
+  drawTimeChart(pts, m, pfx);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1073,6 +1117,12 @@ function calcFVPRadar() {
       setTxt('r-vopt', r2(m.Vopt));
       setTxt('r-vmaxm',r2(m.Vmaxm));
 
+      const imb = computeImbalance(m, massa, k, 30);
+      setTxt('r-sfv',    r3(m.SFV));
+      setTxt('r-sfvopt', r3(imb.SFVopt));
+      setTxt('r-fvimb',  r2(imb.FVimb)+(isFinite(imb.FVimb)?'%':''));
+      document.getElementById('r-fvimb-diag').innerHTML = fvImbalanceDiag(imb.FVimb);
+
       // V-t: measured vs model
       const simSample = times.map(t=>({x:t,y:velModel(t,Vmax,tau,tDelay)}));
       makeChart('r-chart-vt','scatter',[
@@ -1082,7 +1132,7 @@ function calcFVPRadar() {
          pointRadius:0,borderColor:'#E8FF3A',showLine:true,tension:0.3}
       ],'Tempo (s)','Velocità (m/s)');
 
-      drawFVPCharts(pts,m,'r',null,Vmax,tau);
+      drawFVPCharts(pts,m,'r',null,Vmax,tau,imb);
       document.getElementById('r-results').classList.add('show'); document.getElementById('r-placeholder').style.display='none';
       setStatus('r',`✅ Completato · N=${times.length} punti`);
     } catch(e){setStatus('r','❌ '+e.message,true);}
@@ -1349,7 +1399,6 @@ function setStatus(pfx,msg,err=false){
 // INIT
 // ═══════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{
-  initParallax();
   initSplits();
 });
 
