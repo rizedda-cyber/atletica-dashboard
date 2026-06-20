@@ -414,43 +414,61 @@ def bulk_insert_sessioni_vbt(records: list[dict]) -> int:
 # FOTO PROFILO (Storage)
 # ──────────────────────────────────────────────────────────────────────
 
+FOTO_BUCKET = "foto-atleti"  # nome dell'archivio (bucket) su Supabase Storage
+
+
 def upload_foto_profilo(atleta_id: int, file_bytes: bytes, filename: str) -> str | None:
     """
-    Comprime e salva la foto nel DB come stringa base64 (Bypassa Supabase Storage).
-    Restituisce l'URL interno o None in caso di errore.
+    Comprime la foto e la carica su Supabase Storage, salvando in 'foto_url'
+    solo il link pubblico (leggero) invece del blob base64.
+
+    Sicurezza: se l'archivio (bucket) non esiste ancora o l'upload fallisce,
+    ricade automaticamente sul vecchio metodo base64, cosi' il caricamento foto
+    continua a funzionare anche prima di aver configurato lo Storage.
+    Restituisce l'URL salvato, oppure "ERROR:..." in caso di errore.
     """
     import base64
+    import time
     from io import BytesIO
     from PIL import Image
 
     supabase = get_supabase()
+
+    # 1) Comprimi e ridimensiona (uguale a prima)
     try:
-        # Comprimi immagine con Pillow
         img = Image.open(BytesIO(file_bytes))
-        # Selettore colore standard
-        if img.mode in ("RGBA", "P"): 
+        if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
-            
-        # Ridimensiona il quadrato (max 250x250) per alleggerire la codifica base64 string
         img.thumbnail((250, 250))
         buffer = BytesIO()
         img.save(buffer, format="JPEG", quality=75)
-        
-        # Codifica in Base64
-        b64_str = base64.b64encode(buffer.getvalue()).decode('utf-8')
-        full_url = "data:image/jpeg;base64," + b64_str
-        
-        # Salva sulla tabella 'atleti'
-        supabase.table("atleti").update({"foto_url": full_url}).eq("id", atleta_id).execute()
-        return full_url
+        jpeg_bytes = buffer.getvalue()
     except Exception as e:
-        print(f"Errore upload foto: {e}")
         return f"ERROR:{e}"
 
+    # 2) Prova Supabase Storage (link leggero)
+    try:
+        path = f"atleti/{atleta_id}.jpg"
+        supabase.storage.from_(FOTO_BUCKET).upload(
+            path,
+            jpeg_bytes,
+            {"content-type": "image/jpeg", "upsert": "true", "cache-control": "3600"},
+        )
+        public_url = supabase.storage.from_(FOTO_BUCKET).get_public_url(path).rstrip("?")
+        # query string per "forzare" il browser a ricaricare la foto aggiornata
+        full_url = f"{public_url}?v={int(time.time())}"
+        supabase.table("atleti").update({"foto_url": full_url}).eq("id", atleta_id).execute()
+        return full_url
+    except Exception as storage_err:
+        # 3) FALLBACK: vecchio metodo base64 (l'archivio non c'e' ancora o upload fallito)
+        try:
+            b64_str = base64.b64encode(jpeg_bytes).decode("utf-8")
+            full_url = "data:image/jpeg;base64," + b64_str
+            supabase.table("atleti").update({"foto_url": full_url}).eq("id", atleta_id).execute()
+            return full_url
+        except Exception as e:
+            return f"ERROR:{e}"
 
-# ──────────────────────────────────────────────────────────────────────
-# GARE UFFICIALI (PB)
-# ──────────────────────────────────────────────────────────────────────
 
 def get_gare_ufficiali(atleta_id: int = None) -> pd.DataFrame:
     """Restituisce lo storico delle gare e PB ufficiali."""
