@@ -8,3 +8,4 @@ scipy
 streamlit-extras
 supabase
 Pillow
+statsmodels
