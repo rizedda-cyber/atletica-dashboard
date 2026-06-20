@@ -992,7 +992,7 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
         if atleta_info and atleta_info.get("data_nascita"):
             try:
                 dn_value = datetime.datetime.strptime(atleta_info["data_nascita"], "%Y-%m-%d").date()
-            except:
+            except Exception:
                 pass
                 
         n_data = st.date_input("Data di Nascita", value=dn_value, min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today())
@@ -1001,7 +1001,7 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
         if atleta_info and atleta_info.get("peso"):
             try:
                 peso_val = float(atleta_info["peso"])
-            except:
+            except Exception:
                 pass
         n_peso = st.number_input("Peso (kg)", min_value=30.0, max_value=150.0, step=0.1, value=peso_val)
         
@@ -1026,7 +1026,7 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
             today = datetime.date.today()
             anni = today.year - dt.year - ((today.month, today.day) < (dt.month, dt.day))
             eta_txt = f" • {anni} anni"
-        except:
+        except Exception:
             pass
             
     peso_str = str(atleta_info['peso']) if atleta_info and atleta_info.get('peso') else ""
@@ -1184,7 +1184,7 @@ if st.session_state.current_page == "Inserimento":
                                 ok = insert_sessione_corsa(atleta_sel, data_sel.strftime("%Y-%m-%d"), dist, parsed['tempo'], nota)
                                 if ok: successi += 1
                                 else: errori += 1
-                            except:
+                            except Exception:
                                 errori += 1
                         if successi > 0:
                             data_label = data_sel.strftime('%d/%m/%Y')
@@ -1602,7 +1602,7 @@ elif st.session_state.current_page == "Home":
                     dn = pd.to_datetime(row['data_nascita'])
                     if dn.month == oggi_tz.month and dn.day == oggi_tz.day:
                         compleanni.append(row['nome_completo'])
-                except:
+                except Exception:
                     pass
     # ── COMPLEANNI IN ARRIVO (prossimi 7 giorni, escluso oggi) ──
     compleanni_arrivo = []  # (nome, giorni_rimanenti)
@@ -1617,7 +1617,7 @@ elif st.session_state.current_page == "Home":
                     giorni = (prossimo.date() - oggi_tz.date()).days
                     if 0 < giorni <= 7:
                         compleanni_arrivo.append((row['nome_completo'], giorni))
-                except:
+                except Exception:
                     pass
     compleanni_arrivo.sort(key=lambda x: x[1])
 
@@ -2185,6 +2185,7 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
     
     tabs = st.tabs(tab_labels, key="dettaglio_tab_main", on_change="rerun")
     tab1, tab2, tab3, tab4, tab5 = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
+    _active_tab = st.session_state.get("dettaglio_tab_main", tab_labels[0])
 
 
     # ══════════════════════════════════════════════════════════════════════
@@ -2192,237 +2193,238 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
     # ══════════════════════════════════════════════════════════════════════
 
     with tab1:
-        if len(df_r) == 0:
-            st.warning("Nessun dato di corsa nel periodo/filtri selezionati.")
-        else:
-            st.subheader("📈 Trend dei Tempi per Distanza")
-
-            if selected_athlete == "Tutta la squadra":
-                trend_df = df_r.groupby(['Data', 'Distanza'])['Tempo'].mean().reset_index()
-                trend_df['Tipo'] = 'Media squadra'
+        if _active_tab in (tab_labels[0], 0):
+            if len(df_r) == 0:
+                st.warning("Nessun dato di corsa nel periodo/filtri selezionati.")
             else:
-                trend_df = df_r.copy()
-                trend_df['Tipo'] = selected_athlete
+                st.subheader("📈 Trend dei Tempi per Distanza")
 
-            trend_parts = []
-            for dist in sorted(trend_df['Distanza'].unique()):
-                sub = trend_df[trend_df['Distanza'] == dist].sort_values('Data').copy()
-                sub['Media Mobile (3 ses.)'] = sub['Tempo'].rolling(window=3, min_periods=1).mean()
-                trend_parts.append(sub)
+                if selected_athlete == "Tutta la squadra":
+                    trend_df = df_r.groupby(['Data', 'Distanza'])['Tempo'].mean().reset_index()
+                    trend_df['Tipo'] = 'Media squadra'
+                else:
+                    trend_df = df_r.copy()
+                    trend_df['Tipo'] = selected_athlete
 
-            if trend_parts:
-                trend_all = pd.concat(trend_parts)
-                trend_all['Distanza (m)'] = trend_all['Distanza'].astype(int).astype(str) + "m"
+                trend_parts = []
+                for dist in sorted(trend_df['Distanza'].unique()):
+                    sub = trend_df[trend_df['Distanza'] == dist].sort_values('Data').copy()
+                    sub['Media Mobile (3 ses.)'] = sub['Tempo'].rolling(window=3, min_periods=1).mean()
+                    trend_parts.append(sub)
 
-                hover_cols = None
-                if 'Note' in trend_all.columns and selected_athlete != "Tutta la squadra":
-                    hover_cols = ['Note']
+                if trend_parts:
+                    trend_all = pd.concat(trend_parts)
+                    trend_all['Distanza (m)'] = trend_all['Distanza'].astype(int).astype(str) + "m"
 
-                fig_trend = px.line(
-                    trend_all, x='Data', y='Tempo', color='Distanza (m)', markers=True,
-                    hover_data=hover_cols, title="Evoluzione Cronometrica Assoluta (Distanze Chiave)",
-                    labels={'Tempo': 'Tempo (sec)', 'Data': 'Data Test'},
-                    template=THEME_TEMPLATE, color_discrete_sequence=NEON_COLORS
-                )
-                for dist in sorted(trend_all['Distanza'].unique()):
-                    sub = trend_all[trend_all['Distanza'] == dist].sort_values('Data')
-                    fig_trend.add_trace(go.Scatter(
-                        x=sub['Data'], y=sub['Media Mobile (3 ses.)'], mode='lines',
-                        line=dict(dash='dot', width=2), name=f"{int(dist)}m (Trend)", opacity=0.7
-                    ))
+                    hover_cols = None
+                    if 'Note' in trend_all.columns and selected_athlete != "Tutta la squadra":
+                        hover_cols = ['Note']
+
+                    fig_trend = px.line(
+                        trend_all, x='Data', y='Tempo', color='Distanza (m)', markers=True,
+                        hover_data=hover_cols, title="Evoluzione Cronometrica Assoluta (Distanze Chiave)",
+                        labels={'Tempo': 'Tempo (sec)', 'Data': 'Data Test'},
+                        template=THEME_TEMPLATE, color_discrete_sequence=NEON_COLORS
+                    )
+                    for dist in sorted(trend_all['Distanza'].unique()):
+                        sub = trend_all[trend_all['Distanza'] == dist].sort_values('Data')
+                        fig_trend.add_trace(go.Scatter(
+                            x=sub['Data'], y=sub['Media Mobile (3 ses.)'], mode='lines',
+                            line=dict(dash='dot', width=2), name=f"{int(dist)}m (Trend)", opacity=0.7
+                        ))
             
-                # Nascondi le distanze meno comuni dalla visualizzazione base (evita l'effetto tela di ragno)
-                for trace in fig_trend.data:
-                    try:
-                        name_str = trace.name
-                        if 'Trend' in name_str:
-                            d_val = int(name_str.replace("m (Trend)", ""))
-                        else:
-                            d_val = int(name_str.replace("m", ""))
-                        # Lasciamo visibili le core distances classiche e nascondiamo le altre nella legenda
-                        if d_val not in [60, 100, 150, 200, 250, 300, 400]:
-                            trace.visible = 'legendonly'
-                    except:
-                        pass
+                    # Nascondi le distanze meno comuni dalla visualizzazione base (evita l'effetto tela di ragno)
+                    for trace in fig_trend.data:
+                        try:
+                            name_str = trace.name
+                            if 'Trend' in name_str:
+                                d_val = int(name_str.replace("m (Trend)", ""))
+                            else:
+                                d_val = int(name_str.replace("m", ""))
+                            # Lasciamo visibili le core distances classiche e nascondiamo le altre nella legenda
+                            if d_val not in [60, 100, 150, 200, 250, 300, 400]:
+                                trace.visible = 'legendonly'
+                        except Exception:
+                            pass
                     
-                fig_trend.update_layout(height=500, hovermode='x unified',
-                                         legend=dict(orientation='h', y=-0.15), margin=dict(t=50))
-                st.plotly_chart(fig_trend, use_container_width=True)
+                    fig_trend.update_layout(height=500, hovermode='x unified',
+                                             legend=dict(orientation='h', y=-0.15), margin=dict(t=50))
+                    st.plotly_chart(fig_trend, use_container_width=True)
 
-            # ── GRIGLIA CARD SEZIONI (Proposta C) ──────────────────────────
-            for k in ['_s1_pb', '_s1_storico', '_s1_correggi']:
-                if k not in st.session_state:
-                    st.session_state[k] = False
+                # ── GRIGLIA CARD SEZIONI (Proposta C) ──────────────────────────
+                for k in ['_s1_pb', '_s1_storico', '_s1_correggi']:
+                    if k not in st.session_state:
+                        st.session_state[k] = False
 
-            # Costruisce dinamicamente le card disponibili
-            _show_storico  = selected_athlete != "Tutta la squadra"
-            _show_correggi = can_edit and selected_athlete != "Tutta la squadra"
+                # Costruisce dinamicamente le card disponibili
+                _show_storico  = selected_athlete != "Tutta la squadra"
+                _show_correggi = can_edit and selected_athlete != "Tutta la squadra"
 
-            _pb_sub = "Migliori tempi · squadra" if selected_athlete == "Tutta la squadra" else "I migliori tempi dell'atleta"
-            _cards = [("🏆", "Classifica PB", _pb_sub, "_s1_pb")]
-            if _show_storico:
-                _cards.append(("📖", "Storico Completo", "Tutte le prove registrate", "_s1_storico"))
-            if _show_correggi:
-                _cards.append(("✏️", "Correggi Tempo", "Modifica o elimina · admin", "_s1_correggi"))
+                _pb_sub = "Migliori tempi · squadra" if selected_athlete == "Tutta la squadra" else "I migliori tempi dell'atleta"
+                _cards = [("🏆", "Classifica PB", _pb_sub, "_s1_pb")]
+                if _show_storico:
+                    _cards.append(("📖", "Storico Completo", "Tutte le prove registrate", "_s1_storico"))
+                if _show_correggi:
+                    _cards.append(("✏️", "Correggi Tempo", "Modifica o elimina · admin", "_s1_correggi"))
 
-            _sec_keys = [k for _, _, _, k in _cards]
+                _sec_keys = [k for _, _, _, k in _cards]
 
-            # Griglia bottoni card — Streamlit nativo con CSS marker
-            st.markdown('<span id="sec-cards-marker"></span>', unsafe_allow_html=True)
-            _btn_cols = st.columns(len(_cards))
-            for i, (icon, title, sub, key) in enumerate(_cards):
-                _is_active = st.session_state.get(key, False)
-                # Icona grande di sfondo nell'angolo (come le KPI card in alto)
-                st.markdown(
-                    "<style>.st-key-secbtn_" + key + " button[kind=\"secondary\"]::after{"
-                    "content:\"" + icon + "\";}</style>",
-                    unsafe_allow_html=True,
-                )
-                # Evidenzia in giallo la card attiva (sezione aperta)
-                if _is_active:
+                # Griglia bottoni card — Streamlit nativo con CSS marker
+                st.markdown('<span id="sec-cards-marker"></span>', unsafe_allow_html=True)
+                _btn_cols = st.columns(len(_cards))
+                for i, (icon, title, sub, key) in enumerate(_cards):
+                    _is_active = st.session_state.get(key, False)
+                    # Icona grande di sfondo nell'angolo (come le KPI card in alto)
                     st.markdown(
-                        "<style>.st-key-secbtn_" + key + " button[kind=\"secondary\"]{"
-                        "border-color:#E8FF3A !important;"
-                        "background:rgba(232,255,58,0.14) !important;"
-                        "color:#E8FF3A !important;"
-                        "box-shadow:0 0 22px rgba(232,255,58,0.18) !important;}</style>",
+                        "<style>.st-key-secbtn_" + key + " button[kind=\"secondary\"]::after{"
+                        "content:\"" + icon + "\";}</style>",
                         unsafe_allow_html=True,
                     )
-                lbl = f"**{title}**\n{sub}"
-                with _btn_cols[i]:
-                    if st.button(lbl, key=f"secbtn_{key}", use_container_width=True, type="secondary"):
-                        # Accordion: apri solo questa e chiudi le altre.
-                        # Ri-cliccando la card già attiva, la si chiude.
-                        for _k in _sec_keys:
-                            st.session_state[_k] = False
-                        st.session_state[key] = not _is_active
-                        st.rerun()
+                    # Evidenzia in giallo la card attiva (sezione aperta)
+                    if _is_active:
+                        st.markdown(
+                            "<style>.st-key-secbtn_" + key + " button[kind=\"secondary\"]{"
+                            "border-color:#E8FF3A !important;"
+                            "background:rgba(232,255,58,0.14) !important;"
+                            "color:#E8FF3A !important;"
+                            "box-shadow:0 0 22px rgba(232,255,58,0.18) !important;}</style>",
+                            unsafe_allow_html=True,
+                        )
+                    lbl = f"**{title}**\n{sub}"
+                    with _btn_cols[i]:
+                        if st.button(lbl, key=f"secbtn_{key}", use_container_width=True, type="secondary"):
+                            # Accordion: apri solo questa e chiudi le altre.
+                            # Ri-cliccando la card già attiva, la si chiude.
+                            for _k in _sec_keys:
+                                st.session_state[_k] = False
+                            st.session_state[key] = not _is_active
+                            st.rerun()
 
-            # ── CONTENUTO SEZIONE: CLASSIFICA PB ───────────────────────────
-            if st.session_state.get('_s1_pb'):
-                st.markdown('<div class="sec-content-block">', unsafe_allow_html=True)
-                st.markdown("#### 🏆 Classifica Personal Best")
-                if selected_athlete == "Tutta la squadra":
-                    pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
-                    pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
-                    pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
-                    st.dataframe(pb_pivot.style.highlight_min(axis=0, color='#90e0ef')
-                                 .highlight_max(axis=0, color='#fde2e4').format("{:.2f}s"),
-                                 use_container_width=True, height=350)
-                else:
-                    pb_df = df_r.groupby('Distanza').agg(
-                        Miglior_Tempo=('Tempo', 'min'),
-                        Data_Primo_PB=('Tempo', lambda x: df_r.loc[x.idxmin(), 'Data']),
-                        Note=('Tempo', lambda x: df_r.loc[x.idxmin(), 'Note'] if 'Note' in df_r.columns else ""),
-                        Tempo_Medio=('Tempo', 'mean'),
-                        Prove_Totali=('Tempo', 'count'),
-                    ).reset_index()
-                    if 'Note' in pb_df.columns and pb_df['Note'].astype(str).str.strip().eq("").all():
-                        pb_df = pb_df.drop(columns=['Note'])
-                    pb_df['Distanza'] = pb_df['Distanza'].astype(int).astype(str) + "m"
-                    pb_df['Data_Primo_PB'] = pb_df['Data_Primo_PB'].dt.strftime('%d/%m/%Y')
-                    st.dataframe(pb_df.style.format({'Miglior_Tempo': '{:.2f}', 'Tempo_Medio': '{:.2f}'})
-                                 .highlight_min(subset=['Miglior_Tempo'], color='#90e0ef'),
-                                 use_container_width=True, height=350)
-                st.markdown('</div>', unsafe_allow_html=True)
+                # ── CONTENUTO SEZIONE: CLASSIFICA PB ───────────────────────────
+                if st.session_state.get('_s1_pb'):
+                    st.markdown('<div class="sec-content-block">', unsafe_allow_html=True)
+                    st.markdown("#### 🏆 Classifica Personal Best")
+                    if selected_athlete == "Tutta la squadra":
+                        pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
+                        pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
+                        pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
+                        st.dataframe(pb_pivot.style.highlight_min(axis=0, color='#90e0ef')
+                                     .highlight_max(axis=0, color='#fde2e4').format("{:.2f}s"),
+                                     use_container_width=True, height=350)
+                    else:
+                        pb_df = df_r.groupby('Distanza').agg(
+                            Miglior_Tempo=('Tempo', 'min'),
+                            Data_Primo_PB=('Tempo', lambda x: df_r.loc[x.idxmin(), 'Data']),
+                            Note=('Tempo', lambda x: df_r.loc[x.idxmin(), 'Note'] if 'Note' in df_r.columns else ""),
+                            Tempo_Medio=('Tempo', 'mean'),
+                            Prove_Totali=('Tempo', 'count'),
+                        ).reset_index()
+                        if 'Note' in pb_df.columns and pb_df['Note'].astype(str).str.strip().eq("").all():
+                            pb_df = pb_df.drop(columns=['Note'])
+                        pb_df['Distanza'] = pb_df['Distanza'].astype(int).astype(str) + "m"
+                        pb_df['Data_Primo_PB'] = pb_df['Data_Primo_PB'].dt.strftime('%d/%m/%Y')
+                        st.dataframe(pb_df.style.format({'Miglior_Tempo': '{:.2f}', 'Tempo_Medio': '{:.2f}'})
+                                     .highlight_min(subset=['Miglior_Tempo'], color='#90e0ef'),
+                                     use_container_width=True, height=350)
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-            # ── CONTENUTO SEZIONE: STORICO COMPLETO ────────────────────────
-            if _show_storico and st.session_state.get('_s1_storico'):
-                st.markdown('<div class="sec-content-block">', unsafe_allow_html=True)
-                st.markdown("#### 📖 Storico Risultati Completo")
-                st.markdown("Tutte le prestazioni registrate dall'atleta, raggruppate per distanza. **Ordinate dalla più vecchia alla più recente.** *(I filtri distanze e date del menù laterale non influenzano questa tabella.)*")
-                df_storico = df_running[df_running['Atleta'] == selected_athlete].copy()
-                if not df_storico.empty:
-                    df_storico = df_storico.sort_values('Data', ascending=True)
-                    df_storico['Data'] = df_storico['Data'].dt.strftime('%d/%m/%Y')
-                    for d in sorted(df_storico['Distanza'].unique()):
-                        sub_df = df_storico[df_storico['Distanza'] == d][['Data', 'Tempo', 'Note']]
-                        st.markdown(f"**🏃 {int(d)}m** — {len(sub_df)} prove | PB: {sub_df['Tempo'].min():.2f}s")
-                        st.dataframe(sub_df, use_container_width=True, hide_index=True)
-                else:
-                    st.info("Nessuna prova presente per questo atleta.")
-                st.markdown('</div>', unsafe_allow_html=True)
+                # ── CONTENUTO SEZIONE: STORICO COMPLETO ────────────────────────
+                if _show_storico and st.session_state.get('_s1_storico'):
+                    st.markdown('<div class="sec-content-block">', unsafe_allow_html=True)
+                    st.markdown("#### 📖 Storico Risultati Completo")
+                    st.markdown("Tutte le prestazioni registrate dall'atleta, raggruppate per distanza. **Ordinate dalla più vecchia alla più recente.** *(I filtri distanze e date del menù laterale non influenzano questa tabella.)*")
+                    df_storico = df_running[df_running['Atleta'] == selected_athlete].copy()
+                    if not df_storico.empty:
+                        df_storico = df_storico.sort_values('Data', ascending=True)
+                        df_storico['Data'] = df_storico['Data'].dt.strftime('%d/%m/%Y')
+                        for d in sorted(df_storico['Distanza'].unique()):
+                            sub_df = df_storico[df_storico['Distanza'] == d][['Data', 'Tempo', 'Note']]
+                            st.markdown(f"**🏃 {int(d)}m** — {len(sub_df)} prove | PB: {sub_df['Tempo'].min():.2f}s")
+                            st.dataframe(sub_df, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Nessuna prova presente per questo atleta.")
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-            # ── SEZIONE CORREZIONE TEMPI (solo per atleta in sessione o admin) ──
-            if _show_correggi and st.session_state.get('_s1_correggi'):
-                st.markdown('<div class="sec-content-block">', unsafe_allow_html=True)
-                st.markdown("#### ✏️ Correggi o Elimina un Tempo")
-                st.markdown(
-                    "Qui puoi correggere un tempo inserito per errore o eliminare una prova. "
-                    "**Le modifiche sono permanenti nel database.** Usa con attenzione."
-                )
-                # Admin può scegliere l'atleta, atleta vede solo i propri
-                if st.session_state.is_admin:
-                    all_atl_list = sorted(df_running['Atleta'].unique().tolist())
-                    target_atleta = st.selectbox("Atleta", options=all_atl_list,
-                                                 index=all_atl_list.index(selected_athlete) if selected_athlete in all_atl_list else 0,
-                                                 key="corr_atleta_sel")
-                else:
-                    target_atleta = selected_athlete
-
-                df_corr = df_running[df_running['Atleta'] == target_atleta].copy()
-                if not df_corr.empty and 'id' in df_corr.columns:
-                    df_corr = df_corr.sort_values('Data', ascending=False).head(50)
-                    df_corr['Label'] = (
-                        df_corr['Data'].dt.strftime('%d/%m/%Y') + " — " +
-                        df_corr['Distanza'].astype(int).astype(str) + "m — " +
-                        df_corr['Tempo'].apply(lambda x: f"{x:.2f}s") +
-                        df_corr['Note'].apply(lambda n: f" ({n})" if pd.notna(n) and str(n).strip() else "")
+                # ── SEZIONE CORREZIONE TEMPI (solo per atleta in sessione o admin) ──
+                if _show_correggi and st.session_state.get('_s1_correggi'):
+                    st.markdown('<div class="sec-content-block">', unsafe_allow_html=True)
+                    st.markdown("#### ✏️ Correggi o Elimina un Tempo")
+                    st.markdown(
+                        "Qui puoi correggere un tempo inserito per errore o eliminare una prova. "
+                        "**Le modifiche sono permanenti nel database.** Usa con attenzione."
                     )
-                    label_to_id = dict(zip(df_corr['Label'], df_corr['id']))
-                    label_to_tempo = dict(zip(df_corr['Label'], df_corr['Tempo']))
-                    label_to_nota = dict(zip(df_corr['Label'], df_corr['Note'].fillna('')))
+                    # Admin può scegliere l'atleta, atleta vede solo i propri
+                    if st.session_state.is_admin:
+                        all_atl_list = sorted(df_running['Atleta'].unique().tolist())
+                        target_atleta = st.selectbox("Atleta", options=all_atl_list,
+                                                     index=all_atl_list.index(selected_athlete) if selected_athlete in all_atl_list else 0,
+                                                     key="corr_atleta_sel")
+                    else:
+                        target_atleta = selected_athlete
 
-                    sel_label = st.selectbox("Seleziona la prova da modificare", options=df_corr['Label'].tolist(), key="corr_sel_prova")
+                    df_corr = df_running[df_running['Atleta'] == target_atleta].copy()
+                    if not df_corr.empty and 'id' in df_corr.columns:
+                        df_corr = df_corr.sort_values('Data', ascending=False).head(50)
+                        df_corr['Label'] = (
+                            df_corr['Data'].dt.strftime('%d/%m/%Y') + " — " +
+                            df_corr['Distanza'].astype(int).astype(str) + "m — " +
+                            df_corr['Tempo'].apply(lambda x: f"{x:.2f}s") +
+                            df_corr['Note'].apply(lambda n: f" ({n})" if pd.notna(n) and str(n).strip() else "")
+                        )
+                        label_to_id = dict(zip(df_corr['Label'], df_corr['id']))
+                        label_to_tempo = dict(zip(df_corr['Label'], df_corr['Tempo']))
+                        label_to_nota = dict(zip(df_corr['Label'], df_corr['Note'].fillna('')))
 
-                    if sel_label:
-                        sel_id = label_to_id[sel_label]
-                        sel_tempo = label_to_tempo[sel_label]
-                        sel_nota = label_to_nota[sel_label]
+                        sel_label = st.selectbox("Seleziona la prova da modificare", options=df_corr['Label'].tolist(), key="corr_sel_prova")
 
-                        cc1, cc2 = st.columns(2)
-                        with cc1:
-                            with st.form("form_correggi_tempo", clear_on_submit=False):
-                                nuovo_tempo_str = st.text_input("Nuovo Tempo (secondi)", value=f"{sel_tempo:.2f}", key="corr_tempo_inp")
-                                nuova_nota = st.text_input("Note", value=sel_nota, key="corr_nota_inp")
-                                if st.form_submit_button("💾 Salva Correzione", type="primary", use_container_width=True):
-                                    try:
-                                        from data_loader import parse_time
-                                        parsed = parse_time(nuovo_tempo_str)
-                                        if parsed is None:
-                                            nuovo_t = float(nuovo_tempo_str.replace(',', '.'))
-                                        else:
-                                            nuovo_t = parsed['tempo']
-                                        from supabase_connector import update_sessione_corsa
-                                        ok = update_sessione_corsa(sel_id, nuovo_t, nuova_nota.strip())
-                                        if ok:
-                                            st.success("✅ Tempo corretto con successo!")
-                                            st.cache_data.clear()
-                                            st.rerun()
-                                        else:
-                                            st.error("❌ Errore nel salvataggio.")
-                                    except Exception as e:
-                                        st.error(f"❌ Formato tempo non valido: {e}")
-                        with cc2:
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            if st.button("🗑️ Elimina questa prova", type="secondary", use_container_width=True, key="corr_delete_btn"):
-                                st.session_state['_confirm_delete_id'] = sel_id
-                                st.session_state['_confirm_delete_label'] = sel_label
-                            if st.session_state.get('_confirm_delete_id') == sel_id:
-                                st.warning(f"⚠️ Sei sicuro di voler eliminare: **{sel_label}**?")
-                                if st.button("✅ Sì, elimina definitivamente", type="primary", key="corr_confirm_del", use_container_width=True):
-                                    from supabase_connector import delete_sessione_corsa
-                                    delete_sessione_corsa(sel_id)
-                                    st.session_state.pop('_confirm_delete_id', None)
-                                    st.session_state.pop('_confirm_delete_label', None)
-                                    st.success("🗑️ Prova eliminata.")
-                                    st.cache_data.clear()
-                                    st.rerun()
-                elif 'id' not in df_corr.columns:
-                    st.info("La correzione tempi è disponibile solo con i dati dal cloud (Supabase).")
-                else:
-                    st.info("Nessuna prova trovata per questo atleta.")
-                st.markdown('</div>', unsafe_allow_html=True)
+                        if sel_label:
+                            sel_id = label_to_id[sel_label]
+                            sel_tempo = label_to_tempo[sel_label]
+                            sel_nota = label_to_nota[sel_label]
+
+                            cc1, cc2 = st.columns(2)
+                            with cc1:
+                                with st.form("form_correggi_tempo", clear_on_submit=False):
+                                    nuovo_tempo_str = st.text_input("Nuovo Tempo (secondi)", value=f"{sel_tempo:.2f}", key="corr_tempo_inp")
+                                    nuova_nota = st.text_input("Note", value=sel_nota, key="corr_nota_inp")
+                                    if st.form_submit_button("💾 Salva Correzione", type="primary", use_container_width=True):
+                                        try:
+                                            from data_loader import parse_time
+                                            parsed = parse_time(nuovo_tempo_str)
+                                            if parsed is None:
+                                                nuovo_t = float(nuovo_tempo_str.replace(',', '.'))
+                                            else:
+                                                nuovo_t = parsed['tempo']
+                                            from supabase_connector import update_sessione_corsa
+                                            ok = update_sessione_corsa(sel_id, nuovo_t, nuova_nota.strip())
+                                            if ok:
+                                                st.success("✅ Tempo corretto con successo!")
+                                                st.cache_data.clear()
+                                                st.rerun()
+                                            else:
+                                                st.error("❌ Errore nel salvataggio.")
+                                        except Exception as e:
+                                            st.error(f"❌ Formato tempo non valido: {e}")
+                            with cc2:
+                                st.markdown("<br>", unsafe_allow_html=True)
+                                if st.button("🗑️ Elimina questa prova", type="secondary", use_container_width=True, key="corr_delete_btn"):
+                                    st.session_state['_confirm_delete_id'] = sel_id
+                                    st.session_state['_confirm_delete_label'] = sel_label
+                                if st.session_state.get('_confirm_delete_id') == sel_id:
+                                    st.warning(f"⚠️ Sei sicuro di voler eliminare: **{sel_label}**?")
+                                    if st.button("✅ Sì, elimina definitivamente", type="primary", key="corr_confirm_del", use_container_width=True):
+                                        from supabase_connector import delete_sessione_corsa
+                                        delete_sessione_corsa(sel_id)
+                                        st.session_state.pop('_confirm_delete_id', None)
+                                        st.session_state.pop('_confirm_delete_label', None)
+                                        st.success("🗑️ Prova eliminata.")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                    elif 'id' not in df_corr.columns:
+                        st.info("La correzione tempi è disponibile solo con i dati dal cloud (Supabase).")
+                    else:
+                        st.info("Nessuna prova trovata per questo atleta.")
+                    st.markdown('</div>', unsafe_allow_html=True)
 
 
     # ══════════════════════════════════════════════════════════════════════
