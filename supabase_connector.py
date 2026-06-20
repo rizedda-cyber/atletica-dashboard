@@ -417,24 +417,32 @@ def bulk_insert_sessioni_vbt(records: list[dict]) -> int:
 FOTO_BUCKET = "foto-atleti"  # nome dell'archivio (bucket) su Supabase Storage
 
 
+def _storage_path_from_url(url: str) -> str | None:
+    """Ricava il percorso interno al bucket da un link pubblico Supabase.
+    Es: '.../foto-atleti/atleti/abc.jpg?v=1' -> 'atleti/abc.jpg'. None se non è del bucket."""
+    if not url or f"/{FOTO_BUCKET}/" not in url:
+        return None
+    return url.split(f"/{FOTO_BUCKET}/", 1)[1].split("?", 1)[0]
+
+
 def upload_foto_profilo(atleta_id: int, file_bytes: bytes, filename: str) -> str | None:
     """
-    Comprime la foto e la carica su Supabase Storage, salvando in 'foto_url'
-    solo il link pubblico (leggero) invece del blob base64.
+    Comprime la foto e la carica su Supabase Storage con un nome di file CASUALE
+    (non indovinabile), salvando in 'foto_url' solo il link pubblico (leggero).
 
     Sicurezza: se l'archivio (bucket) non esiste ancora o l'upload fallisce,
     ricade automaticamente sul vecchio metodo base64, cosi' il caricamento foto
-    continua a funzionare anche prima di aver configurato lo Storage.
-    Restituisce l'URL salvato, oppure "ERROR:..." in caso di errore.
+    continua a funzionare. Restituisce l'URL salvato, oppure "ERROR:..." in caso di errore.
     """
     import base64
     import time
+    import secrets
     from io import BytesIO
     from PIL import Image
 
     supabase = get_supabase()
 
-    # 1) Comprimi e ridimensiona (uguale a prima)
+    # 1) Comprimi e ridimensiona
     try:
         img = Image.open(BytesIO(file_bytes))
         if img.mode in ("RGBA", "P"):
@@ -446,18 +454,33 @@ def upload_foto_profilo(atleta_id: int, file_bytes: bytes, filename: str) -> str
     except Exception as e:
         return f"ERROR:{e}"
 
-    # 2) Prova Supabase Storage (link leggero)
+    # 2) Prova Supabase Storage con nome casuale (link leggero e non indovinabile)
     try:
-        path = f"atleti/{atleta_id}.jpg"
+        # recupera il link precedente per cancellare la vecchia foto dopo l'upload
+        old_path = None
+        try:
+            prev = supabase.table("atleti").select("foto_url").eq("id", atleta_id).single().execute()
+            old_path = _storage_path_from_url((prev.data or {}).get("foto_url", ""))
+        except Exception:
+            old_path = None
+
+        token = secrets.token_hex(16)  # 32 caratteri casuali -> impossibile da indovinare
+        new_path = f"atleti/{token}.jpg"
         supabase.storage.from_(FOTO_BUCKET).upload(
-            path,
+            new_path,
             jpeg_bytes,
-            {"content-type": "image/jpeg", "upsert": "true", "cache-control": "3600"},
+            {"content-type": "image/jpeg", "cache-control": "3600"},
         )
-        public_url = supabase.storage.from_(FOTO_BUCKET).get_public_url(path).rstrip("?")
-        # query string per "forzare" il browser a ricaricare la foto aggiornata
+        public_url = supabase.storage.from_(FOTO_BUCKET).get_public_url(new_path).rstrip("?")
         full_url = f"{public_url}?v={int(time.time())}"
         supabase.table("atleti").update({"foto_url": full_url}).eq("id", atleta_id).execute()
+
+        # rimuovi la vecchia foto (best-effort, non blocca in caso di errore)
+        if old_path and old_path != new_path:
+            try:
+                supabase.storage.from_(FOTO_BUCKET).remove([old_path])
+            except Exception:
+                pass
         return full_url
     except Exception as storage_err:
         # 3) FALLBACK: vecchio metodo base64 (l'archivio non c'e' ancora o upload fallito)
