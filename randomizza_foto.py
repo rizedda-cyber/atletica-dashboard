@@ -1,25 +1,20 @@
 """
-randomizza_foto.py — Script UNA TANTUM.
+randomizza_foto.py — Script UNA TANTUM (v2, metodo robusto).
 
-Rinomina le foto degli atleti gia' presenti nel bucket 'foto-atleti' che hanno
-un nome PREVEDIBILE (es. atleti/21.jpg = numero dell'atleta) assegnando loro un
-nome CASUALE non indovinabile (es. atleti/9f3a...e7.jpg), e aggiorna il link
-nel database. Le foto gia' con nome casuale vengono ignorate.
+Da' alle foto degli atleti un nome di file CASUALE (non indovinabile).
+Metodo: scarica la foto dal suo link pubblico (HTTP), la ricarica nel bucket
+con un nome casuale, aggiorna il link nel database, e prova a rimuovere il
+vecchio file. Non usa 'move' (che dava 404). Le foto gia' casuali sono ignorate.
 
-Come si lancia (dalla cartella del progetto):
-    python randomizza_foto.py            # prova "a vuoto": mostra cosa farebbe, non cambia nulla
+Lancio (dalla cartella del progetto):
+    python randomizza_foto.py            # prova a vuoto (non cambia nulla)
     python randomizza_foto.py --esegui   # esegue davvero
-
-Credenziali: usa SUPABASE_URL / SUPABASE_KEY dalle variabili d'ambiente,
-oppure le legge da .streamlit/secrets.toml (sezione [secrets]).
-Serve una chiave con permessi di scrittura sullo Storage (la stessa usata per
-la migrazione precedente va bene).
 """
 import os
-import re
 import sys
 import time
 import secrets as _secrets
+import urllib.request
 from pathlib import Path
 
 from supabase import create_client
@@ -32,11 +27,10 @@ def carica_credenziali():
     key = os.environ.get("SUPABASE_KEY", "")
     if url and key:
         return url, key
-    # fallback: .streamlit/secrets.toml
     secrets_path = Path(__file__).parent / ".streamlit" / "secrets.toml"
     if secrets_path.exists():
         try:
-            import tomllib  # Python 3.11+
+            import tomllib
             data = tomllib.loads(secrets_path.read_text(encoding="utf-8"))
         except Exception:
             try:
@@ -50,67 +44,82 @@ def carica_credenziali():
     return url, key
 
 
-def path_da_url(url: str) -> str | None:
+def path_da_url(url: str):
     if not url or f"/{BUCKET}/" not in url:
         return None
     return url.split(f"/{BUCKET}/", 1)[1].split("?", 1)[0]
 
 
 def e_prevedibile(path: str) -> bool:
-    # path tipo "atleti/21.jpg" -> nome senza estensione "21" tutto numerico = prevedibile
     base = path.rsplit("/", 1)[-1]
     nome = base.rsplit(".", 1)[0]
     return nome.isdigit()
+
+
+def scarica(url: str) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": "randomizza-foto"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return r.read()
 
 
 def main():
     esegui = "--esegui" in sys.argv
     url, key = carica_credenziali()
     if not url or not key:
-        print("ERRORE: credenziali Supabase non trovate (env o secrets.toml).")
+        print("ERRORE: credenziali Supabase non trovate.")
         sys.exit(1)
 
     sb = create_client(url, key)
-    modo = "ESECUZIONE REALE" if esegui else "PROVA A VUOTO (nessuna modifica)"
-    print(f"== Randomizza nomi foto — {modo} ==")
+    print(f"== Randomizza nomi foto (v2) — {'ESECUZIONE REALE' if esegui else 'PROVA A VUOTO'} ==")
 
     res = sb.table("atleti").select("id, nome_completo, foto_url").execute()
-    atleti = res.data or []
-
     rinominate = ignorate = errori = 0
-    for a in atleti:
+
+    for a in (res.data or []):
         url_foto = a.get("foto_url") or ""
         p = path_da_url(url_foto)
         nome = a.get("nome_completo", f"id {a.get('id')}")
-        if not p:
-            ignorate += 1  # base64, vuoto o non del bucket
+        if not p or not e_prevedibile(p):
+            ignorate += 1
             continue
-        if not e_prevedibile(p):
-            ignorate += 1  # gia' casuale
-            continue
+
         token = _secrets.token_hex(16)
         nuovo = f"atleti/{token}.jpg"
         if not esegui:
             print(f"  [prova] {nome}: {p} -> {nuovo}")
             rinominate += 1
             continue
+
         try:
-            sb.storage.from_(BUCKET).move(p, nuovo)
+            # 1) scarica dal link pubblico (funziona: le foto si vedono nell'app)
+            dati = scarica(url_foto)
+            # 2) ricarica con nome casuale
+            sb.storage.from_(BUCKET).upload(
+                nuovo, dati,
+                {"content-type": "image/jpeg", "cache-control": "3600"},
+            )
+            # 3) aggiorna il link nel database
             public = sb.storage.from_(BUCKET).get_public_url(nuovo).rstrip("?")
             full = f"{public}?v={int(time.time())}"
             sb.table("atleti").update({"foto_url": full}).eq("id", a["id"]).execute()
-            print(f"  OK {nome}: {p} -> {nuovo}")
+            # 4) prova a rimuovere il vecchio file (se fallisce non blocca)
+            try:
+                sb.storage.from_(BUCKET).remove([p])
+                extra = "(vecchio file rimosso)"
+            except Exception:
+                extra = "(vecchio file NON rimosso: cancellalo a mano dal bucket)"
+            print(f"  OK {nome}: {p} -> {nuovo} {extra}")
             rinominate += 1
         except Exception as e:
             print(f"  ERRORE {nome}: {e}")
             errori += 1
 
     print("\n--- Riepilogo ---")
-    print(f"Da rinominare/rinominate: {rinominate}")
+    print(f"Rinominate: {rinominate}")
     print(f"Ignorate (gia' casuali / senza foto): {ignorate}")
     print(f"Errori: {errori}")
     if not esegui:
-        print("\nNessuna modifica fatta. Per eseguire davvero: python randomizza_foto.py --esegui")
+        print("\nProva a vuoto: nessuna modifica. Per eseguire: python randomizza_foto.py --esegui")
 
 
 if __name__ == "__main__":
