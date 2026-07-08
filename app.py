@@ -637,6 +637,29 @@ st.markdown("""
 
     /* 6. Spinner di caricamento giallo Amsicora */
     [data-testid="stSpinner"] i, .stSpinner > div { border-top-color: #E8FF3A !important; }
+
+    /* 7. Schede del profilo a tutta larghezza: le pill si dividono
+          equamente lo spazio invece di restare compatte a sinistra */
+    .stTabs [data-baseweb="tab-list"] {
+        width: 100% !important;
+        gap: 10px !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        flex: 1 1 0 !important;
+        justify-content: center !important;
+    }
+    /* Su schermi stretti (cellulare): schede impilate in verticale */
+    @media (max-width: 640px) {
+        .stTabs [data-baseweb="tab-list"] {
+            flex-direction: column !important;
+            overflow-x: visible !important;
+            align-items: stretch !important;
+        }
+        .stTabs [data-baseweb="tab"] {
+            width: 100% !important;
+            min-width: 0 !important;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
