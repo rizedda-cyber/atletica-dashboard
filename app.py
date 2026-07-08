@@ -640,22 +640,24 @@ st.markdown("""
 
     /* 7. Schede del profilo a tutta larghezza: le pill si dividono
           equamente lo spazio invece di restare compatte a sinistra */
-    .stTabs [data-baseweb="tab-list"] {
+    [data-baseweb="tab-list"] {
         width: 100% !important;
         gap: 10px !important;
     }
-    .stTabs [data-baseweb="tab"] {
+    [data-baseweb="tab"] {
         flex: 1 1 0 !important;
+        flex-shrink: 1 !important;
+        min-width: 0 !important;
         justify-content: center !important;
     }
     /* Su schermi stretti (cellulare): schede impilate in verticale */
     @media (max-width: 640px) {
-        .stTabs [data-baseweb="tab-list"] {
+        [data-baseweb="tab-list"] {
             flex-direction: column !important;
             overflow-x: visible !important;
             align-items: stretch !important;
         }
-        .stTabs [data-baseweb="tab"] {
+        [data-baseweb="tab"] {
             width: 100% !important;
             min-width: 0 !important;
         }
