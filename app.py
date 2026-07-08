@@ -552,6 +552,95 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ── RESTYLING 2026: micro-animazioni e rifiniture (solo estetica) ──────
+st.markdown("""
+<style>
+    /* 1. Dissolvenza morbida: i contenuti appaiono con grazia a ogni
+          ridisegno invece di "sbattere" sullo schermo. */
+    @keyframes contentFadeIn {
+        from { opacity: 0.25; transform: translateY(5px); }
+        to   { opacity: 1;    transform: translateY(0); }
+    }
+    .element-container, [data-testid="stElementContainer"] {
+        animation: contentFadeIn 0.30s ease-out;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .element-container, [data-testid="stElementContainer"] { animation: none !important; }
+    }
+
+    /* 2. Bottoni: sollevamento morbido al passaggio, pressione al click */
+    .stButton > button, [data-testid="stFormSubmitButton"] > button,
+    [data-testid="stDownloadButton"] > button {
+        transition: transform 0.16s ease, box-shadow 0.25s ease,
+                    border-color 0.25s ease, background 0.25s ease !important;
+    }
+    .stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover,
+    [data-testid="stDownloadButton"] > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.35), 0 0 14px rgba(232,255,58,0.12) !important;
+    }
+    .stButton > button:active, [data-testid="stFormSubmitButton"] > button:active,
+    [data-testid="stDownloadButton"] > button:active {
+        transform: translateY(0) scale(0.985);
+    }
+
+    /* 3. Menu a tendina e campi: stile card + alone giallo al focus */
+    div[data-baseweb="select"] > div {
+        background-color: #0F1219 !important;
+        border-color: rgba(255,255,255,0.14) !important;
+        border-radius: 10px !important;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+    }
+    div[data-baseweb="select"] > div:hover { border-color: rgba(232,255,58,0.45) !important; }
+    div[data-baseweb="select"]:focus-within > div {
+        border-color: #E8FF3A !important;
+        box-shadow: 0 0 0 3px rgba(232,255,58,0.10) !important;
+    }
+    div[data-baseweb="input"] {
+        border-radius: 10px !important;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    div[data-baseweb="input"]:focus-within {
+        border-color: #E8FF3A !important;
+        box-shadow: 0 0 0 3px rgba(232,255,58,0.10) !important;
+    }
+    /* tendina aperta: pannello scuro coerente col tema */
+    div[data-baseweb="popover"] ul[role="listbox"] {
+        background-color: #14171E !important;
+        border: 1px solid rgba(255,255,255,0.10) !important;
+        border-radius: 10px !important;
+    }
+    ul[role="listbox"] li { transition: background 0.12s ease; }
+    ul[role="listbox"] li:hover { background: rgba(232,255,58,0.08) !important; }
+
+    /* 4. Grafici e tabelle incorniciati come card */
+    [data-testid="stPlotlyChart"] {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px;
+        padding: 10px 6px 2px;
+    }
+    [data-testid="stDataFrame"], [data-testid="stTable"] {
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    /* 5. Avvisi ed espansori piu' morbidi */
+    [data-testid="stAlert"] { border-radius: 12px; }
+    [data-testid="stExpander"] details {
+        border-radius: 12px !important;
+        border: 1px solid rgba(255,255,255,0.09) !important;
+        transition: border-color 0.2s ease;
+    }
+    [data-testid="stExpander"] details:hover { border-color: rgba(232,255,58,0.35) !important; }
+
+    /* 6. Spinner di caricamento giallo Amsicora */
+    [data-testid="stSpinner"] i, .stSpinner > div { border-top-color: #E8FF3A !important; }
+</style>
+""", unsafe_allow_html=True)
+
+
 style_metric_cards(
     background_color="#14171E",
     border_left_color="#E8FF3A",

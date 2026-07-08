@@ -9,6 +9,7 @@ Ultimo aggiornamento: 08/07/2026.
 - **Fase B (tab pigre): FATTA** per la pagina Dettaglio Atleta (guardie `_active_tab` sulle 5 tab principali).
 - **statsmodels va tenuto in `requirements.txt`**: serve a Plotly per le linee di tendenza (`trendline='ols'`), anche se non è importato esplicitamente. Era stato rimosso per errore → crash sul cloud.
 - **Modularizzazione fase 1: FATTA** (08/07/2026). Nuovo file `ui_helpers.py` con 9 funzioni di servizio spostate da `app.py` (logo, credenziali, CSV, card KPI/avvisi, filtri, ordinamento). `filter_running`, `filter_vbt` e `get_sort_key` ora ricevono i valori come parametri espliciti invece di leggere variabili globali. `app.py`: 4303 → 4249 righe. Prossime fasi: CSS in file separato, poi sezioni grandi (Dettaglio Atleta ecc.) in moduli propri.
+- **08/07/2026 (stessa giornata):** rimossa scheda "⚖️ Transfer Palestra" dal Dettaglio Atleta (~790 righe, recuperabili da git); aggiunto ripristino automatico dello scroll nel Dettaglio Atleta (chiave `atl_scroll_dettaglio`, azzerata al cambio pagina); aggiunto blocco CSS "RESTYLING 2026" (fade-in contenuti, hover bottoni, focus giallo su campi/tendine, grafici e tabelle come card, spinner a tema). Solo estetica, nessuna logica toccata.
 
 ## Fatto (già su disco, app avviabile)
 
@@ -27,20 +28,4 @@ Nota: durante una scrittura l'ultima riga di `app.py` si era troncata ed è stat
 ### A. Foto profilo su Supabase Storage
 Oggi le foto sono salvate come stringa base64 in `atleti.foto_url` (vedi `upload_foto_profilo` in `supabase_connector.py`, riga ~407). Questo appesantisce anche il roster, che deve scaricare i blob.
 - Creare bucket Storage, caricare lì le immagini, salvare solo l'URL in `foto_url`.
-- Migrare le foto esistenti (script una tantum).
-- Aggiornare `upload_foto_profilo` e i punti di rendering (`app.py` ~931, ~2096).
-- Tocca DB + dati esistenti: fare backup prima.
-
-### B. Tab/colonne non pigre
-In Streamlit il codice dentro `st.tabs`/`st.columns` viene eseguito a ogni rerun anche per le sezioni non visibili: i grafici Plotly delle tab nascoste vengono comunque ricostruiti.
-- Convertire le sezioni più pesanti da `st.tabs` a `st.radio`/`st.selectbox` così solo il ramo selezionato viene eseguito.
-- Solo 3 `st.tabs` nel file: individuare quelle con più grafici e convertirle una alla volta, con test.
-
-## Come riprendere
-Incollare questa nota nella nuova sessione e indicare quale fase (A o B) affrontare. Far rileggere solo i file necessari a quella fase.
-
-## Verifica rapida che l'app parta
-```
-streamlit run app.py
-```
-Dalla cartella del progetto. Se Supabase risponde, i dati arrivano dal cloud; le foto del roster funzionano come prima.
+- Migrare le fot
