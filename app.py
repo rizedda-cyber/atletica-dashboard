@@ -610,6 +610,11 @@ if st.session_state.page_just_changed:
     
     st.session_state.page_just_changed = False
 
+    # Cambio pagina dal menu: dimentica la posizione di scroll salvata
+    # (si deve ripartire dall'alto, vedi ripristino scroll in Dettaglio Atleta)
+    import streamlit.components.v1 as _components_top
+    _components_top.html("<script>try{window.parent.sessionStorage.removeItem('atl_scroll_dettaglio');}catch(e){}</script>", height=0)
+
 
 
 # get_team_pin: spostata in ui_helpers.py
@@ -1187,6 +1192,55 @@ if st.session_state.current_page == "Inserimento":
                             st.error("❌ Errore nel salvataggio.")
 
 elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
+    # ── RIPRISTINO SCROLL ─────────────────────────────────────────────
+    # Streamlit ridisegna la pagina a ogni click (cambio scheda, bottoni):
+    # senza questo script si torna in cima (grafico tonnellaggio) a ogni
+    # interazione. Qui salviamo di continuo la posizione di scorrimento e
+    # la ripristiniamo dopo il ridisegno. Se l'utente scorre/tocca durante
+    # il ripristino, il ripristino si interrompe e comanda lui.
+    import streamlit.components.v1 as _components_scroll
+    _components_scroll.html("""
+    <script>
+    (function() {
+        var P = window.parent;
+        var KEY = 'atl_scroll_dettaglio';
+        function getScroller() {
+            var cands = [
+                P.document.querySelector('[data-testid=\"stAppViewContainer\"]'),
+                P.document.querySelector('section.main'),
+                P.document.querySelector('[data-testid=\"stMain\"]'),
+                P.document.scrollingElement
+            ];
+            for (var i = 0; i < cands.length; i++) {
+                var el = cands[i];
+                if (el && el.scrollHeight > el.clientHeight + 10) return el;
+            }
+            return P.document.scrollingElement;
+        }
+        var saved = parseFloat(P.sessionStorage.getItem(KEY) || '0');
+        var restoring = saved > 1;
+        var tries = 0;
+        function restore() {
+            if (!restoring) return;
+            try {
+                var sc = getScroller();
+                if (Math.abs(sc.scrollTop - saved) > 2) sc.scrollTop = saved;
+            } catch (e) {}
+            tries++;
+            if (tries < 25) { setTimeout(restore, 120); } else { restoring = false; }
+        }
+        ['wheel', 'touchstart', 'keydown'].forEach(function(ev) {
+            try { P.addEventListener(ev, function() { restoring = false; }, {passive: true, once: true}); } catch (e) {}
+        });
+        setInterval(function() {
+            if (restoring) return;
+            try { P.sessionStorage.setItem(KEY, String(getScroller().scrollTop)); } catch (e) {}
+        }, 250);
+        restore();
+    })();
+    </script>
+    """, height=0, scrolling=False)
+
     # ── BREADCRUMB E NAVIGAZIONE PROFILO ──────────────────────────────────
     nav_col1, nav_col2 = st.columns([1, 1])
     with nav_col1:
@@ -2127,10 +2181,10 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
         st.markdown(f"## 👤 {selected_athlete}")
         st.markdown("---")
     tab_labels = ["⚡ Velocità & Trend", "💪 Forza & VBT",
-                  "🔮 Previsioni Gara", "⚖️ Transfer Palestra", "🏅 PB & Gare"]
+                  "🔮 Previsioni Gara", "🏅 PB & Gare"]
     
     tabs = st.tabs(tab_labels, key="dettaglio_tab_main", on_change="rerun")
-    tab1, tab2, tab3, tab4, tab5 = tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
+    tab1, tab2, tab3, tab4 = tabs[0], tabs[1], tabs[2], tabs[3]
     _active_tab = st.session_state.get("dettaglio_tab_main", tab_labels[0])
 
 
@@ -3375,797 +3429,11 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
                     st.warning("Distanze insufficienti nel database per il modello lineare.")
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB 4 — TRANSFER E CORRELAZIONE (GYM ↔ CORSA)
+    # TAB 4 — PB & GARE
     # ══════════════════════════════════════════════════════════════════════
 
     with tab4:
         if _active_tab in (tab_labels[3], 3):
-            st.subheader("⚖️ Transfer Palestra → Pista")
-            st.markdown(
-                "Analisi ispirata alla metodologia **Forza-Velocità** di JB Morin PhD. "
-                "Profilo Load-Velocity in palestra, curva di potenza, transfer temporale verso la pista, "
-                "e calcolo del profilo sprint meccanico da split.",
-                help="Fonte: JB Morin – jbmorin.net/downloads"
-            )
-
-            sub_t1, sub_t2, sub_t3, sub_t4 = st.tabs([
-                "🔵 Profilo Load-Velocity",
-                "⚡ Curva Potenza",
-                "📊 Transfer Temporale",
-                "🏃 Sprint F-V (calcolo)"
-            ], key="transfer_subtabs", on_change="rerun")
-
-            # ── SEZIONE A: LOAD-VELOCITY PROFILE ──────────────────────────────
-            with sub_t1:
-                st.markdown("### Profilo Forza-Velocità in Palestra")
-                st.markdown(
-                    "Metodo Morin & Samozino. Dalla regressione lineare Carico↔Velocità si ricavano "
-                    "**V₀** (velocità teorica a carico zero), **L₀** (carico teorico massimo), "
-                    "**Pmax** e il **carico ottimale**. I punti sono colorati per zona (%vDec).",
-                    help="Morin JB, Samozino P (2016). Int J Sports Physiol Perform."
-                )
-
-                if len(df_v) == 0:
-                    st.warning("Nessun dato VBT disponibile.")
-                else:
-                    lv_exercises = sorted([e for e in df_v['Esercizio'].dropna().unique() if e != 'General'])
-                    if not lv_exercises:
-                        lv_exercises = sorted(df_v['Esercizio'].dropna().unique())
-
-                    col_lv1, col_lv2 = st.columns(2)
-                    default_ex_lv = "Squat" if "Squat" in lv_exercises else lv_exercises[0]
-                    lv_ex = col_lv1.selectbox(
-                        "Esercizio", lv_exercises,
-                        index=lv_exercises.index(default_ex_lv),
-                        key="lv_ex"
-                    )
-
-                    lv_athletes_for_ex = sorted(
-                        df_v[df_v['Esercizio'] == lv_ex]['Atleta'].dropna().unique()
-                    )
-                    if selected_athlete != "Tutta la squadra" and selected_athlete in lv_athletes_for_ex:
-                        default_lv_atl = lv_athletes_for_ex.index(selected_athlete)
-                    else:
-                        default_lv_atl = 0
-                    lv_atl = col_lv2.selectbox(
-                        "Atleta", lv_athletes_for_ex,
-                        index=default_lv_atl, key="lv_atl"
-                    )
-
-                    df_lv = df_v[
-                        (df_v['Esercizio'] == lv_ex) & (df_v['Atleta'] == lv_atl)
-                    ].dropna(subset=['Carico', 'Vel_media'])
-
-                    if len(df_lv) < 3:
-                        st.warning(
-                            f"Servono almeno 3 set con carico e velocità per costruire il profilo. "
-                            f"{lv_atl} ha {len(df_lv)} righe per {lv_ex}."
-                        )
-                    else:
-                        df_lv_agg = df_lv.groupby('Carico')['Vel_media'].median().reset_index()
-                        df_lv_agg = df_lv_agg[df_lv_agg['Vel_media'] > 0].sort_values('Carico')
-
-                        if len(df_lv_agg) < 2:
-                            st.warning("Servono almeno 2 carichi diversi per la regressione.")
-                        else:
-                            coeffs_lv = np.polyfit(df_lv_agg['Carico'], df_lv_agg['Vel_media'], 1)
-                            a_lv, b_lv = coeffs_lv
-
-                            if b_lv <= 0 or a_lv >= 0:
-                                st.warning(
-                                    "Profilo LV non valido: la velocità deve diminuire "
-                                    "all'aumentare del carico."
-                                )
-                            else:
-                                V0_lv       = b_lv
-                                L0_lv       = -b_lv / a_lv
-                                Pmax_lv     = (V0_lv * L0_lv) / 4
-                                opt_load_lv = L0_lv / 2
-                                opt_vel_lv  = V0_lv / 2
-
-                                k1, k2, k3, k4 = st.columns(4)
-                                k1.metric("V₀ teorico", f"{V0_lv:.2f} m/s",
-                                          help="Velocità estrapolata a carico nullo")
-                                k2.metric("L₀ (1RM meccanico)", f"{L0_lv:.1f} kg",
-                                          help="Carico estrapolato a velocità nulla")
-                                k3.metric("Pmax teorica", f"{Pmax_lv:.0f} kg·m/s",
-                                          help="(V₀ × L₀) / 4")
-                                k4.metric("Carico ottimale", f"{opt_load_lv:.1f} kg",
-                                          help="L₀/2 — carico che massimizza la potenza")
-
-                                df_lv_agg['pct_vDec'] = (
-                                    1 - df_lv_agg['Vel_media'] / V0_lv
-                                ) * 100
-
-                                def _vdec_zone(pct):
-                                    if pct < 20:   return "Velocità / Tecnica"
-                                    elif pct < 40: return "Forza-Velocità"
-                                    elif pct < 60: return "Potenza (Pmax)"
-                                    elif pct < 80: return "Velocità-Forza"
-                                    else:          return "Forza Massima"
-
-                                _ZC = {
-                                    "Velocità / Tecnica": "#00C8FF",
-                                    "Forza-Velocità":     "#00FF99",
-                                    "Potenza (Pmax)":     "#E8FF3A",
-                                    "Velocità-Forza":     "#FF9900",
-                                    "Forza Massima":      "#FF4444",
-                                }
-                                df_lv_agg['Zona'] = df_lv_agg['pct_vDec'].apply(_vdec_zone)
-
-                                x_reg = np.linspace(
-                                    max(0, df_lv_agg['Carico'].min() * 0.8),
-                                    L0_lv * 1.05, 120
-                                )
-                                y_reg = np.clip(np.polyval(coeffs_lv, x_reg), 0, None)
-
-                                fig_lv = go.Figure()
-
-                                for flo, fhi, zn, zcol in [
-                                    (0.0, 0.2, "Velocità/Tecnica",   "rgba(0,200,255,0.07)"),
-                                    (0.2, 0.4, "Forza-Velocità",     "rgba(0,255,153,0.07)"),
-                                    (0.4, 0.6, "Potenza (Pmax)",     "rgba(232,255,58,0.10)"),
-                                    (0.6, 0.8, "Velocità-Forza",     "rgba(255,153,0,0.07)"),
-                                    (0.8, 1.0, "Forza Massima",      "rgba(255,68,68,0.07)"),
-                                ]:
-                                    fig_lv.add_vrect(
-                                        x0=L0_lv * flo, x1=L0_lv * fhi,
-                                        fillcolor=zcol, line_width=0,
-                                        annotation_text=zn,
-                                        annotation_position="top left",
-                                        annotation_font_size=9,
-                                        annotation_font_color="rgba(255,255,255,0.4)"
-                                    )
-
-                                fig_lv.add_trace(go.Scatter(
-                                    x=x_reg, y=y_reg, mode='lines',
-                                    name='Profilo L-V',
-                                    line=dict(color='rgba(232,255,58,0.6)', width=2, dash='dash')
-                                ))
-
-                                for zname, zdf in df_lv_agg.groupby('Zona'):
-                                    fig_lv.add_trace(go.Scatter(
-                                        x=zdf['Carico'], y=zdf['Vel_media'],
-                                        mode='markers+text', name=zname,
-                                        marker=dict(
-                                            color=_ZC[zname], size=11,
-                                            line=dict(width=1, color='white')
-                                        ),
-                                        text=zdf['Carico'].apply(lambda x: f"{x:.0f}kg"),
-                                        textposition='top center',
-                                        textfont=dict(size=9, color='rgba(255,255,255,0.6)')
-                                    ))
-
-                                fig_lv.add_trace(go.Scatter(
-                                    x=[opt_load_lv], y=[opt_vel_lv],
-                                    mode='markers', name='⭐ Carico Ottimale Pmax',
-                                    marker=dict(
-                                        symbol='star', size=18, color='#E8FF3A',
-                                        line=dict(width=1, color='white')
-                                    )
-                                ))
-
-                                fig_lv.update_layout(
-                                    title=f"Profilo Load-Velocity — {lv_atl} · {lv_ex}",
-                                    xaxis_title="Carico (kg)",
-                                    yaxis_title="Velocità Media (m/s)",
-                                    template=THEME_TEMPLATE,
-                                    height=490,
-                                    legend=dict(orientation='v', x=1.01, y=1)
-                                )
-                                fig_lv.update_xaxes(range=[0, L0_lv * 1.1])
-                                fig_lv.update_yaxes(range=[0, V0_lv * 1.18])
-                                st.plotly_chart(fig_lv, use_container_width=True)
-
-                                st.markdown("#### 🧠 Interpretazione")
-                                mean_vdec = df_lv_agg['pct_vDec'].mean()
-                                if mean_vdec < 35:
-                                    _btxt = (
-                                        f"**⚡ Orientamento Velocità** — {lv_atl} lavora prevalentemente "
-                                        f"con carichi leggeri (%vDec medio: {mean_vdec:.0f}%). "
-                                        f"Considera più lavoro nella zona Potenza e Velocità-Forza "
-                                        f"(carichi vicino a {opt_load_lv:.0f}–{opt_load_lv*1.2:.0f} kg)."
-                                    )
-                                elif mean_vdec > 65:
-                                    _btxt = (
-                                        f"**💪 Orientamento Forza** — {lv_atl} lavora prevalentemente "
-                                        f"con carichi pesanti (%vDec medio: {mean_vdec:.0f}%). "
-                                        f"Per il transfer in pista aggiungi lavoro esplosivo "
-                                        f"nella zona Potenza (≈ {opt_load_lv:.0f} kg)."
-                                    )
-                                else:
-                                    _btxt = (
-                                        f"**⚖️ Profilo Bilanciato** — {lv_atl} copre bene le zone "
-                                        f"(%vDec medio: {mean_vdec:.0f}%). "
-                                        f"Carico ottimale per Pmax: **{opt_load_lv:.1f} kg**."
-                                    )
-                                st.info(_btxt)
-
-                                with st.expander("📋 Dettaglio %vDec per carico"):
-                                    _dd = df_lv_agg[
-                                        ['Carico', 'Vel_media', 'pct_vDec', 'Zona']
-                                    ].copy()
-                                    _dd.columns = [
-                                        'Carico (kg)', 'Vel Media (m/s)', '%vDec', 'Zona'
-                                    ]
-                                    _dd['%vDec'] = _dd['%vDec'].round(1)
-                                    _dd['Vel Media (m/s)'] = _dd['Vel Media (m/s)'].round(3)
-                                    st.dataframe(_dd, use_container_width=True, hide_index=True)
-
-            # ── SEZIONE B: POWER-VELOCITY CURVE ───────────────────────────────
-            with sub_t2:
-                st.markdown("### Curva Potenza-Velocità")
-                st.markdown(
-                    "Mostra come la potenza espressa varia con la velocità di esecuzione. "
-                    "Il picco teorico si trova a V₀/2 (carico ottimale). "
-                    "Confronta i tuoi carichi con la zona di massima potenza."
-                )
-
-                if len(df_v) == 0:
-                    st.warning("Nessun dato VBT disponibile.")
-                else:
-                    pv_exercises = sorted(
-                        [e for e in df_v['Esercizio'].dropna().unique() if e != 'General']
-                    )
-                    if not pv_exercises:
-                        pv_exercises = sorted(df_v['Esercizio'].dropna().unique())
-
-                    col_pv1, col_pv2 = st.columns(2)
-                    default_ex_pv = "Squat" if "Squat" in pv_exercises else pv_exercises[0]
-                    pv_ex = col_pv1.selectbox(
-                        "Esercizio", pv_exercises,
-                        index=pv_exercises.index(default_ex_pv),
-                        key="pv_ex"
-                    )
-
-                    pv_athletes = sorted(
-                        df_v[df_v['Esercizio'] == pv_ex]['Atleta'].dropna().unique()
-                    )
-                    if selected_athlete != "Tutta la squadra" and selected_athlete in pv_athletes:
-                        default_pv_atl = pv_athletes.index(selected_athlete)
-                    else:
-                        default_pv_atl = 0
-                    pv_atl = col_pv2.selectbox(
-                        "Atleta", pv_athletes,
-                        index=default_pv_atl, key="pv_atl"
-                    )
-
-                    df_pv_raw = df_v[
-                        (df_v['Esercizio'] == pv_ex) & (df_v['Atleta'] == pv_atl)
-                    ].dropna(subset=['Carico', 'Vel_media'])
-                    df_pv_raw = df_pv_raw[
-                        df_pv_raw['Potenza_max'].notna() | df_pv_raw['Potenza_media'].notna()
-                    ].copy()
-
-                    if len(df_pv_raw) < 3:
-                        st.warning(
-                            f"Servono almeno 3 record con dati di potenza "
-                            f"per {pv_atl} su {pv_ex}."
-                        )
-                    else:
-                        _nmax = df_pv_raw['Potenza_max'].notna().sum()
-                        _nmed = df_pv_raw['Potenza_media'].notna().sum()
-                        use_pot_col = 'Potenza_max' if _nmax >= _nmed else 'Potenza_media'
-                        label_pot = (
-                            "Potenza Max (W)" if use_pot_col == 'Potenza_max'
-                            else "Potenza Media (W)"
-                        )
-
-                        df_pv_agg = (
-                            df_pv_raw.dropna(subset=['Vel_media', use_pot_col])
-                            .groupby('Carico')
-                            .agg(
-                                Vel_media=('Vel_media', 'median'),
-                                Potenza=(use_pot_col, 'max')
-                            )
-                            .reset_index()
-                            .sort_values('Vel_media')
-                        )
-
-                        idx_max_pot = df_pv_agg['Potenza'].idxmax()
-                        row_max_pot = df_pv_agg.loc[idx_max_pot]
-
-                        has_parabola_pv = False
-                        try:
-                            c2 = np.polyfit(df_pv_agg['Vel_media'], df_pv_agg['Potenza'], 2)
-                            vel_th = np.linspace(
-                                df_pv_agg['Vel_media'].min() * 0.8,
-                                df_pv_agg['Vel_media'].max() * 1.12,
-                                100
-                            )
-                            pot_th = np.polyval(c2, vel_th)
-                            vel_pk = -c2[1] / (2 * c2[0])
-                            pot_pk = np.polyval(c2, vel_pk)
-                            has_parabola_pv = c2[0] < 0
-                        except Exception:
-                            pass
-
-                        fig_pv = go.Figure()
-                        if has_parabola_pv:
-                            fig_pv.add_trace(go.Scatter(
-                                x=vel_th, y=pot_th, mode='lines',
-                                name='Curva teorica',
-                                line=dict(color='rgba(232,255,58,0.4)', width=2, dash='dot')
-                            ))
-                            fig_pv.add_trace(go.Scatter(
-                                x=[vel_pk], y=[pot_pk], mode='markers',
-                                name=f'Picco teorico ({vel_pk:.2f} m/s)',
-                                marker=dict(symbol='star', size=16, color='#E8FF3A')
-                            ))
-
-                        fig_pv.add_trace(go.Bar(
-                            x=df_pv_agg['Vel_media'],
-                            y=df_pv_agg['Potenza'],
-                            name=label_pot,
-                            marker_color=[
-                                '#E8FF3A' if i == idx_max_pot
-                                else 'rgba(232,255,58,0.3)'
-                                for i in df_pv_agg.index
-                            ],
-                            text=df_pv_agg['Carico'].apply(lambda x: f"{x:.0f}kg"),
-                            textposition='outside'
-                        ))
-
-                        fig_pv.update_layout(
-                            title=f"Curva Potenza-Velocità — {pv_atl} · {pv_ex}",
-                            xaxis_title="Velocità Media (m/s)",
-                            yaxis_title=label_pot,
-                            template=THEME_TEMPLATE,
-                            height=440,
-                            bargap=0.3
-                        )
-                        st.plotly_chart(fig_pv, use_container_width=True)
-
-                        kpv1, kpv2, kpv3 = st.columns(3)
-                        kpv1.metric("Picco Potenza", f"{row_max_pot['Potenza']:.0f} W")
-                        kpv2.metric("Velocità al picco", f"{row_max_pot['Vel_media']:.3f} m/s")
-                        kpv3.metric("Carico al picco", f"{row_max_pot['Carico']:.1f} kg")
-
-            # ── SEZIONE C: TRANSFER TEMPORALE (migliorato) ────────────────────
-            with sub_t3:
-                st.markdown("### Transfer Temporale Palestra → Pista")
-                st.markdown(
-                    "Correlazione tra carichi medi mensili e tempi medi mensili di sprint. "
-                    "Una correlazione **negativa** (r < 0) indica transfer positivo.",
-                    help=(
-                        "Dati aggregati per mese per compensare la non-contemporaneità "
-                        "degli allenamenti."
-                    )
-                )
-
-                if len(df_v) == 0 or len(df_r) == 0:
-                    st.warning("Servono dati di corsa E di palestra per calcolare il transfer.")
-                else:
-                    col_c1, col_c2 = st.columns(2)
-                    _vbt_ex = sorted(df_v['Esercizio'].dropna().unique())
-                    _run_dist = [d for d in sorted(df_r['Distanza'].unique()) if d >= 20]
-
-                    _def_vbt = "Squat" if "Squat" in _vbt_ex else (_vbt_ex[0] if _vbt_ex else "")
-                    ex_choice = col_c1.selectbox(
-                        "Esercizio VBT", _vbt_ex,
-                        index=_vbt_ex.index(_def_vbt) if _def_vbt in _vbt_ex else 0,
-                        key="transfer_ex"
-                    )
-
-                    _def_run = 60 if 60 in _run_dist else (_run_dist[0] if _run_dist else 20)
-                    dist_choice = col_c2.selectbox(
-                        "Distanza Sprint", _run_dist,
-                        index=_run_dist.index(_def_run) if _def_run in _run_dist else 0,
-                        key="transfer_dist"
-                    )
-
-                    if selected_athlete == "Tutta la squadra":
-                        st.info(
-                            "🔍 Seleziona un atleta dalla sidebar per l'analisi "
-                            "di transfer personalizzata."
-                        )
-                    else:
-                        df_r_sub = df_r[df_r['Distanza'] == dist_choice].copy()
-                        df_v_sub = df_v[df_v['Esercizio'] == ex_choice].copy()
-
-                        if len(df_r_sub) == 0 and len(df_v_sub) == 0:
-                            st.warning(
-                                f"Mancano sia prove sui {int(dist_choice)}m "
-                                f"che sessioni di {ex_choice}."
-                            )
-                        elif len(df_r_sub) == 0:
-                            st.warning(
-                                f"Nessuna prova sui {int(dist_choice)}m. "
-                                f"Prova distanza diversa o amplia le date."
-                            )
-                        elif len(df_v_sub) == 0:
-                            st.warning(
-                                f"Nessuna sessione di {ex_choice}. "
-                                f"Prova esercizio diverso o amplia le date."
-                            )
-                        else:
-                            df_r_sub['Mese'] = df_r_sub['Data'].dt.to_period('M')
-                            df_v_sub['Mese'] = df_v_sub['Data'].dt.to_period('M')
-                            aggr_r = df_r_sub.groupby('Mese')['Tempo'].mean().reset_index()
-                            aggr_v = df_v_sub.groupby('Mese')['Carico'].mean().reset_index()
-                            merged = pd.merge(aggr_r, aggr_v, on='Mese', how='inner')
-                            merged['Mese_Str'] = merged['Mese'].astype(str)
-
-                            if len(merged) < 3:
-                                _mr = set(df_r_sub['Data'].dt.to_period('M').unique())
-                                _mv = set(df_v_sub['Data'].dt.to_period('M').unique())
-                                st.warning(
-                                    f"Servono almeno **3 mesi** in comune. "
-                                    f"Attualmente: **{len(_mr & _mv)}** mese/i "
-                                    f"(sprint: {len(_mr)} mesi, palestra: {len(_mv)} mesi). "
-                                    f"Amplia il range date o cambia distanza/esercizio."
-                                )
-                            else:
-                                import scipy.stats as stats
-                                r_val, p_val = stats.pearsonr(merged['Carico'], merged['Tempo'])
-
-                                fig_corr = px.scatter(
-                                    merged, x='Carico', y='Tempo', color='Mese_Str',
-                                    trendline="ols",
-                                    title=(
-                                        f"Transfer {ex_choice} → {int(dist_choice)}m "
-                                        f"· {selected_athlete}"
-                                    ),
-                                    labels={
-                                        'Carico': f'Carico Medio {ex_choice} (kg)',
-                                        'Tempo': f'Tempo Medio {int(dist_choice)}m (s)',
-                                        'Mese_Str': 'Mese'
-                                    },
-                                    template=THEME_TEMPLATE,
-                                    color_discrete_sequence=NEON_COLORS
-                                )
-                                fig_corr.update_layout(height=430)
-                                st.plotly_chart(fig_corr, use_container_width=True)
-
-                                p_sig = p_val < 0.05
-                                col_r1, col_r2 = st.columns(2)
-                                col_r1.metric("Correlazione Pearson (r)", f"{r_val:.3f}")
-                                col_r2.metric(
-                                    "Significatività",
-                                    f"p = {p_val:.3f} {'✅' if p_sig else '⚠️'}"
-                                )
-
-                                st.markdown("#### 🤖 Interpretazione")
-                                if r_val < -0.3 and p_sig:
-                                    _ctxt = (
-                                        f"**🟢 Transfer Positivo (r={r_val:.2f}, p={p_val:.3f})**: "
-                                        f"Correlazione inversa significativa — all'aumentare del carico "
-                                        f"in {ex_choice} i tempi sui {int(dist_choice)}m diminuiscono."
-                                    )
-                                elif r_val < -0.3:
-                                    _ctxt = (
-                                        f"**🟡 Tendenza Positiva (r={r_val:.2f})**: "
-                                        f"Direzione corretta ma servono più dati "
-                                        f"(p={p_val:.3f}) per confermare."
-                                    )
-                                elif r_val > 0.3:
-                                    _ctxt = (
-                                        f"**🔴 Attenzione (r={r_val:.2f})**: "
-                                        f"Carico alto coincide con tempi alti — possibile "
-                                        f"affaticamento o latenza del transfer. "
-                                        f"Valuta riduzione del carico o finestra temporale più ampia."
-                                    )
-                                else:
-                                    _ctxt = (
-                                        f"**⚪ Transfer Non Lineare (r={r_val:.2f})**: "
-                                        f"La variazione di carico non impatta linearmente i tempi. "
-                                        f"Il transfer potrebbe essere mediato da tecnica o "
-                                        f"freschezza neuromuscolare."
-                                    )
-                                st.info(_ctxt)
-
-            # ── SEZIONE D: SPRINT F-V PROFILE — modello Morin-Samozino completo
-            with sub_t4:
-                st.markdown("### Profilo F-V Sprint — Modello Morin-Samozino")
-                st.markdown(
-                    "Inserisci i **tempi cumulativi** da **uno stesso sprint** "
-                    "(fotocellule a 10m, 20m, 30m...). "
-                    "Il modello adatta una curva esponenziale **v(t) = Vmax·(1−e^(−t/τ))** "
-                    "agli split, ricava la forza orizzontale istantanea (con correzione aerodinamica) "
-                    "e costruisce il profilo F-V: **F₀**, **V₀**, **Pmax**, **RF_max**, **Drf**.",
-                    help=(
-                        "Morin JB & Samozino P (2016). Interpreting power-force-velocity profiles "
-                        "for individualized and specific training. Int J Sports Physiol Perform. "
-                        "Split dallo stesso sprint (es. fotocellule a 10, 20, 30, 40m). "
-                        "Aerodrag: k = 0.5·ρ·Cd·Af."
-                    )
-                )
-                st.info("📌 Calcolo al momento — nessun dato viene salvato nel database.")
-                st.markdown("---")
-
-                # ── Parametri atleta ──
-                st.markdown("**Parametri atleta:**")
-                cpa1, cpa2, cpa3, cpa4 = st.columns(4)
-                sp_mass   = cpa1.number_input("Massa (kg)", min_value=40.0, max_value=150.0,
-                                               value=75.0, step=0.5, key="sp_mass")
-                sp_height = cpa2.number_input("Altezza (m)", min_value=1.40, max_value=2.20,
-                                               value=1.80, step=0.01, key="sp_height",
-                                               format="%.2f")
-                sp_temp   = cpa3.number_input("T° aria (°C)", min_value=-10.0, max_value=45.0,
-                                               value=20.0, step=1.0, key="sp_temp",
-                                               format="%.0f")
-                sp_press  = cpa4.number_input("Pressione (hPa)", min_value=800.0, max_value=1050.0,
-                                               value=1013.0, step=1.0, key="sp_press",
-                                               format="%.0f")
-
-                # ── Tempi cumulativi ──
-                st.markdown("**Tempi cumulativi dalla partenza (s) — t₀ = 0:**")
-                cs1, cs2, cs3, cs4, cs5, cs6 = st.columns(6)
-                sp_t10  = cs1.number_input("10m",  min_value=0.0, max_value=5.0,  value=0.0, step=0.01, key="sp_t10",  format="%.2f")
-                sp_t20  = cs2.number_input("20m",  min_value=0.0, max_value=5.0,  value=0.0, step=0.01, key="sp_t20",  format="%.2f")
-                sp_t30  = cs3.number_input("30m",  min_value=0.0, max_value=6.0,  value=0.0, step=0.01, key="sp_t30",  format="%.2f")
-                sp_t40  = cs4.number_input("40m",  min_value=0.0, max_value=7.0,  value=0.0, step=0.01, key="sp_t40",  format="%.2f")
-                sp_t60  = cs5.number_input("60m",  min_value=0.0, max_value=10.0, value=0.0, step=0.01, key="sp_t60",  format="%.2f")
-                sp_t100 = cs6.number_input("100m", min_value=0.0, max_value=15.0, value=0.0, step=0.01, key="sp_t100", format="%.2f")
-                st.caption("💡 Inserisci 0 nei gate non disponibili. Servono almeno 3 checkpoint per un profilo affidabile.")
-
-                if st.button("⚡ Calcola Profilo Sprint F-V", type="primary", key="btn_sprint_fv"):
-                    from scipy.optimize import minimize as _sp_minimize
-
-                    _gmap  = {10: sp_t10, 20: sp_t20, 30: sp_t30,
-                              40: sp_t40, 60: sp_t60, 100: sp_t100}
-                    _gates = [(float(d), float(t)) for d, t in sorted(_gmap.items()) if t > 0]
-
-                    if len(_gates) < 2:
-                        st.error("Inserisci almeno 2 checkpoint con tempo > 0.")
-                    else:
-                        try:
-                            # ── 1. Calcolo parametri aerodinamici ──────────────────
-                            _g    = 9.81       # m/s²
-                            _Cd   = 0.9        # drag coefficient (Morin default)
-                            _rho  = 1.293 * (273.15 / (273.15 + sp_temp)) * (sp_press / 1013.25)
-                            # Af formula Samozino — coerente con Excel e sprint_tools.html
-                            _Af   = 0.2025 * (sp_height ** 0.725) * (sp_mass ** 0.425) * 0.266
-                            _k    = 0.5 * _rho * _Cd * _Af   # kg/m
-
-                            # ── 2. Fit modello esponenziale agli split ──────────────
-                            # s(t) = Vmax * (t + tau * exp(-t/tau) - tau)
-                            def _pos_model(t_val, Vmax_v, tau_v):
-                                return Vmax_v * (t_val + tau_v * np.exp(-t_val / tau_v) - tau_v)
-
-                            def _obj(params):
-                                Vmax_v, tau_v = params
-                                if Vmax_v <= 0 or tau_v <= 0.01:
-                                    return 1e9
-                                return sum(
-                                    (_pos_model(t_val, Vmax_v, tau_v) - d_val) ** 2
-                                    for d_val, t_val in _gates
-                                )
-
-                            # Initial guess: Vmax from last gate, tau ~ 0.7 s
-                            _d_last, _t_last = _gates[-1]
-                            _Vmax0 = _d_last / _t_last * 1.6
-                            _res = _sp_minimize(_obj, [_Vmax0, 0.7],
-                                                method='Nelder-Mead',
-                                                options={'xatol': 1e-9, 'fatol': 1e-12, 'maxiter': 20000})
-                            _Vmax_fit, _tau_fit = _res.x
-
-                            if _Vmax_fit <= 0 or _tau_fit <= 0:
-                                st.error("Ottimizzazione del modello esponenziale fallita. "
-                                         "Controlla i tempi inseriti.")
-                            else:
-                                # ── 3. Curva continua F-V ────────────────────────────
-                                _dt    = 0.01
-                                _t_arr = np.arange(0.001, _t_last + 2.5, _dt)
-                                _v_arr = _Vmax_fit * (1 - np.exp(-_t_arr / _tau_fit))
-                                _a_arr = (_Vmax_fit / _tau_fit) * np.exp(-_t_arr / _tau_fit)
-                                _Fair  = _k * _v_arr ** 2
-                                _Fdrive = sp_mass * _a_arr + _Fair   # forza orizzontale totale
-
-                                # Usa solo la fase di vera accelerazione (v < 0.96 * Vmax)
-                                _mask = _v_arr < _Vmax_fit * 0.96
-                                _v_fv = _v_arr[_mask]
-                                _F_fv = _Fdrive[_mask]
-
-                                if len(_v_fv) < 10:
-                                    st.error("Dati insufficienti per la regressione F-V.")
-                                else:
-                                    # ── 4. Regressione lineare F-V ─────────────────
-                                    _cfv = np.polyfit(_v_fv, _F_fv, 1)
-                                    _afv, _bfv = _cfv
-
-                                    if _bfv <= 0 or _afv >= 0:
-                                        st.error("Regressione F-V non valida. "
-                                                 "Controlla tempi e parametri.")
-                                    else:
-                                        _F0   = _bfv                  # N
-                                        _V0   = -_bfv / _afv          # m/s
-                                        _Sfv  = -_afv                 # N·s/m (slope magnitude)
-                                        _Pmax = (_F0 * _V0) / 4       # W
-                                        _Vopt = _V0 / 2               # m/s
-
-                                        # Ratio of Force
-                                        # RFmax e Drf calcolati da t≥0.51s (Excel/Samozino: colonna P parte da riga 52)
-                                        _RF_arr = _F_fv / np.sqrt(_F_fv**2 + (sp_mass * _g)**2)
-                                        _t_fv   = _t_arr[_mask]
-                                        _rf51   = _t_fv >= 0.51
-                                        if _rf51.any():
-                                            _RF_max     = _RF_arr[_rf51][0]
-                                            _drf_coeffs = np.polyfit(_v_fv[_rf51], _RF_arr[_rf51], 1)
-                                        else:
-                                            _RF_max     = _RF_arr[0]
-                                            _drf_coeffs = np.polyfit(_v_fv, _RF_arr, 1)
-                                        _Drf = _drf_coeffs[0] * 100   # %/(m/s)
-
-                                        # ── 5. KPI ─────────────────────────────────
-                                        fs1, fs2, fs3, fs4 = st.columns(4)
-                                        fs1.metric("F₀", f"{_F0:.1f} N",
-                                                   f"{_F0/sp_mass:.2f} N/kg",
-                                                   help="Forza orizzontale teorica massima (a v=0)")
-                                        fs2.metric("V₀ teorica", f"{_V0:.2f} m/s",
-                                                   help="Velocità teorica massima (a F=0)")
-                                        fs3.metric("Pmax", f"{_Pmax:.0f} W",
-                                                   f"{_Pmax/sp_mass:.1f} W/kg",
-                                                   help="Potenza massima = F₀·V₀/4")
-                                        fs4.metric("Sfv", f"{_Sfv:.1f} N·s/m",
-                                                   help="Pendenza profilo F-V: alta = orientato forza")
-
-                                        fs5, fs6, fs7, fs8 = st.columns(4)
-                                        fs5.metric("Vmax (fit)", f"{_Vmax_fit:.2f} m/s",
-                                                   help="Velocità massima dal fit esponenziale")
-                                        fs6.metric("τ (costante tempo)", f"{_tau_fit:.3f} s",
-                                                   help="Costante di tempo dell'accelerazione")
-                                        fs7.metric("RF_max", f"{_RF_max*100:.1f} %",
-                                                   help="Ratio of Force massimo (a v=0)")
-                                        fs8.metric("Drf", f"{_Drf:.3f} %/(m/s)",
-                                                   help="Decremento di RF per unità di velocità (deve essere < 0)")
-
-                                        # ── 6. Grafici ─────────────────────────────
-                                        tab_fv1, tab_fv2, tab_fv3 = st.tabs([
-                                            "📈 Profilo F-V", "⚡ Potenza-Velocità", "📉 Ratio of Force"
-                                        ], key="forza_velocita_subtabs", on_change="rerun")
-
-                                        with tab_fv1:
-                                            _vr  = np.linspace(0, _V0 * 1.05, 200)
-                                            _fr  = np.clip(np.polyval(_cfv, _vr), 0, None)
-                                            fig_fv = go.Figure()
-                                            fig_fv.add_trace(go.Scatter(
-                                                x=_vr, y=_fr, mode='lines',
-                                                name='Profilo F-V (lineare)',
-                                                line=dict(color='rgba(232,255,58,0.6)', width=2, dash='dash')
-                                            ))
-                                            fig_fv.add_trace(go.Scatter(
-                                                x=_v_fv[::10], y=_F_fv[::10],
-                                                mode='markers', name='Dati modello',
-                                                marker=dict(size=4, color='rgba(255,255,255,0.3)')
-                                            ))
-                                            fig_fv.add_trace(go.Scatter(
-                                                x=[_Vopt], y=[_F0/2],
-                                                mode='markers', name='⭐ Pmax',
-                                                marker=dict(symbol='star', size=18, color='#FF9900')
-                                            ))
-                                            # Annotazioni split gate
-                                            for _d_g, _t_g in _gates:
-                                                _v_at_gate = _Vmax_fit * (1 - np.exp(-_t_g / _tau_fit))
-                                                _a_at_gate = (_Vmax_fit / _tau_fit) * np.exp(-_t_g / _tau_fit)
-                                                _F_at_gate = sp_mass * _a_at_gate + _k * _v_at_gate**2
-                                                fig_fv.add_trace(go.Scatter(
-                                                    x=[_v_at_gate], y=[_F_at_gate],
-                                                    mode='markers+text',
-                                                    name=f'{int(_d_g)}m',
-                                                    marker=dict(size=10, color='#E8FF3A',
-                                                                line=dict(width=1, color='black')),
-                                                    text=[f"{int(_d_g)}m"],
-                                                    textposition='top center',
-                                                    textfont=dict(size=9, color='rgba(255,255,255,0.7)'),
-                                                    showlegend=True
-                                                ))
-                                            fig_fv.update_layout(
-                                                title="Profilo Forza-Velocità Sprint",
-                                                xaxis_title="Velocità (m/s)",
-                                                yaxis_title="Forza orizzontale (N)",
-                                                template=THEME_TEMPLATE, height=430
-                                            )
-                                            fig_fv.update_xaxes(range=[0, _V0 * 1.1])
-                                            fig_fv.update_yaxes(range=[0, _F0 * 1.2])
-                                            st.plotly_chart(fig_fv, use_container_width=True)
-
-                                        with tab_fv2:
-                                            _vr2  = np.linspace(0, _V0, 200)
-                                            _Fr2  = np.clip(np.polyval(_cfv, _vr2), 0, None)
-                                            _Pr2  = _Fr2 * _vr2
-                                            fig_pv2 = go.Figure()
-                                            fig_pv2.add_trace(go.Scatter(
-                                                x=_vr2, y=_Pr2, mode='lines',
-                                                name='Curva Potenza',
-                                                line=dict(color='#E8FF3A', width=2)
-                                            ))
-                                            fig_pv2.add_trace(go.Scatter(
-                                                x=[_Vopt], y=[_Pmax],
-                                                mode='markers', name=f'Pmax = {_Pmax:.0f} W',
-                                                marker=dict(symbol='star', size=18, color='#FF9900')
-                                            ))
-                                            fig_pv2.update_layout(
-                                                title="Curva Potenza-Velocità Sprint",
-                                                xaxis_title="Velocità (m/s)",
-                                                yaxis_title="Potenza (W)",
-                                                template=THEME_TEMPLATE, height=400
-                                            )
-                                            st.plotly_chart(fig_pv2, use_container_width=True)
-
-                                        with tab_fv3:
-                                            _RF_line = _F_fv / np.sqrt(_F_fv**2 + (sp_mass*_g)**2) * 100
-                                            fig_rf = go.Figure()
-                                            fig_rf.add_trace(go.Scatter(
-                                                x=_v_fv[::5], y=_RF_line[::5],
-                                                mode='lines', name='RF (%)',
-                                                line=dict(color='#00C8FF', width=2)
-                                            ))
-                                            fig_rf.add_hline(
-                                                y=_RF_max*100, line_dash='dash',
-                                                line_color='rgba(232,255,58,0.4)',
-                                                annotation_text=f"RF_max = {_RF_max*100:.1f}%"
-                                            )
-                                            fig_rf.update_layout(
-                                                title="Ratio of Force (efficacia meccanica)",
-                                                xaxis_title="Velocità (m/s)",
-                                                yaxis_title="RF (%)",
-                                                template=THEME_TEMPLATE, height=380
-                                            )
-                                            st.plotly_chart(fig_rf, use_container_width=True)
-                                            st.caption(
-                                                "RF = Fh/Ftot — percentuale della forza totale diretta "
-                                                "nella direzione del movimento. Deve essere alta all'inizio "
-                                                "e diminuire gradualmente (Drf < 0)."
-                                            )
-
-                                        # ── 7. Verifica fit split ───────────────────
-                                        with st.expander("📋 Verifica fit modello sugli split"):
-                                            _fit_rows = []
-                                            for _d_g, _t_g in _gates:
-                                                _s_model = _pos_model(_t_g, _Vmax_fit, _tau_fit)
-                                                _fit_rows.append({
-                                                    'Gate': f"{int(_d_g)}m",
-                                                    't misurato (s)': round(_t_g, 3),
-                                                    's modello (m)': round(_s_model, 3),
-                                                    'Errore (m)': round(_s_model - _d_g, 4),
-                                                })
-                                            st.dataframe(
-                                                pd.DataFrame(_fit_rows),
-                                                use_container_width=True, hide_index=True
-                                            )
-                                            st.caption(
-                                                f"Vmax fit = {_Vmax_fit:.3f} m/s | "
-                                                f"τ = {_tau_fit:.4f} s | "
-                                                f"k (aerodrag) = {_k:.4f} kg/m | "
-                                                f"ρ = {_rho:.4f} kg/m³ | "
-                                                f"Af = {_Af:.4f} m²"
-                                            )
-
-                                        # ── 8. Interpretazione ──────────────────────
-                                        st.markdown("#### 🧠 Interpretazione")
-                                        if _Sfv > 35:
-                                            _stxt = (
-                                                f"**💪 Orientato alla Forza** (Sfv = {_Sfv:.1f} N·s/m): "
-                                                f"Alta forza nelle fasi iniziali, ma decadenza marcata "
-                                                f"con la velocità. "
-                                                f"Considera sprint resistiti e lavoro forza-velocità."
-                                            )
-                                        elif _Sfv < 20:
-                                            _stxt = (
-                                                f"**⚡ Orientato alla Velocità** (Sfv = {_Sfv:.1f} N·s/m): "
-                                                f"Buona velocità massima ({_Vmax_fit:.2f} m/s) "
-                                                f"ma forza di accelerazione contenuta. "
-                                                f"Considera partenze in blocco o sprint in salita breve."
-                                            )
-                                        else:
-                                            _stxt = (
-                                                f"**⚖️ Profilo Equilibrato** (Sfv = {_Sfv:.1f} N·s/m): "
-                                                f"Buon bilanciamento forza/velocità. "
-                                                f"Mantieni varietà tra lavoro di forza e sprint lanciati."
-                                            )
-                                        st.info(_stxt)
-
-                        except Exception as _e_fv:
-                            st.error(f"Errore nel calcolo F-V: {_e_fv}")
-                            import traceback
-                            st.code(traceback.format_exc())
-
-    # TAB 5 — PB & GARE
-    # ══════════════════════════════════════════════════════════════════════
-
-    with tab5:
-        if _active_tab in (tab_labels[4], 4):
             st.subheader("🏅 Storico Gare Ufficiali e Personal Best")
     
             from supabase_connector import get_gare_ufficiali
