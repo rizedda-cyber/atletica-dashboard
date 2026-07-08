@@ -2688,7 +2688,7 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
                 st.markdown("<br>", unsafe_allow_html=True)
 
                 tr1, tr2 = st.columns([1, 2])
-                tgt_dist = tr1.selectbox("Gara Obiettivo", ["80m", "100m", "200m", "250m", "400m"])
+                tgt_dist = tr1.selectbox("Gara Obiettivo", ["80m", "100m", "200m", "400m"])
                 tgt_t = tr2.number_input("Tempo Bersaglio (s)", value=None, step=0.10, placeholder="es. 10.85 per i 100m")
 
                 p_tgt = tgt_t if (tgt_t and tgt_t > 0) else None
@@ -3161,8 +3161,9 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
 | SR200 | Profilo | Cosa significa |
 |-------|---------|----------------|
 | < 1.07 | Velocista Puro | 200m quasi doppio 100m. Vmax altissima, meno speed endurance |
-| 1.07 – 1.10 | 200m Specialist | Equilibrio ottimale. Profilo più competitivo |
-| > 1.10 | Speed Endurance | Tiene bene nel retto finale, ma meno Vmax di partenza |
+| 1.07 – 1.085 | 200m Specialist | Equilibrio ottimale. Profilo più competitivo |
+| 1.085 – 1.10 | Speed Endurance | Tiene bene nel retto finale, ma meno Vmax di partenza |
+| > 1.10 | Resistenza Base | Forte tenuta ma Vmax limitata. Priorità: sviluppare la velocità |
 
 **Come usare la predizione:**
 - Se hai solo il PB 100m → scegli il profilo SR200 target per stimare il potenziale
@@ -3208,10 +3209,12 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
                 if (_m200_t200_cal and _m200_t100_eff) else None
 
             def _sr200_to_idx(sr):
+                # Soglie allineate a sprint_tools: <1.07 / <=1.085 / <=1.10 / oltre
                 if sr is None: return 1
-                if sr < 1.07:  return 0
-                if sr <= 1.10: return 1
-                return 2
+                if sr < 1.07:   return 0
+                if sr <= 1.085: return 1
+                if sr <= 1.10:  return 2
+                return 3
 
             sr200_default_idx = _sr200_to_idx(SR200_db_200m)
 
@@ -3245,19 +3248,20 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
             _sr200_override_note = " *(pre-selezionato dal DB — modificabile)*" if SR200_db_200m else ""
             sr200_profilo = m200_radio_col.radio(
                 f"Profilo SR200{_sr200_override_note}",
-                options=["🟠 Velocista Puro  (SR200 ≈ 1.06)", "🟣 200m Specialist  (SR200 ≈ 1.08)", "🔵 Speed Endurance  (SR200 ≈ 1.10)"],
+                options=["🟠 Velocista Puro  (SR200 ≈ 1.065)", "🟣 200m Specialist  (SR200 ≈ 1.080)", "🔵 Speed Endurance  (SR200 ≈ 1.095)", "🔴 Resistenza Base  (SR200 ≈ 1.110)"],
                 index=sr200_default_idx,
-                help="SR200 < 1.07 → Velocista Puro; 1.07-1.10 → 200m Specialist; >1.10 → Speed Endurance. "
+                help="SR200 < 1.07 → Velocista Puro; ≤1.085 → 200m Specialist; ≤1.10 → Speed Endurance; >1.10 → Resistenza Base (valori allineati a Sprint Tools). "
                      "Cambia il profilo per simulare scenari 'what if'."
             )
-            _sr200_opts = ["🟠 Velocista Puro  (SR200 ≈ 1.06)", "🟣 200m Specialist  (SR200 ≈ 1.08)", "🔵 Speed Endurance  (SR200 ≈ 1.10)"]
+            _sr200_opts = ["🟠 Velocista Puro  (SR200 ≈ 1.065)", "🟣 200m Specialist  (SR200 ≈ 1.080)", "🔵 Speed Endurance  (SR200 ≈ 1.095)", "🔴 Resistenza Base  (SR200 ≈ 1.110)"]
             if SR200_db_200m and _sr200_opts.index(sr200_profilo) != sr200_default_idx:
                 m200_radio_col.caption(f"⚠️ Override manuale attivo — SR200 reale dal DB: {SR200_db_200m:.4f}")
 
             _sr200_val_map = {
-                "🟠 Velocista Puro  (SR200 ≈ 1.06)": 1.06,
-                "🟣 200m Specialist  (SR200 ≈ 1.08)": 1.08,
-                "🔵 Speed Endurance  (SR200 ≈ 1.10)": 1.10,
+                "🟠 Velocista Puro  (SR200 ≈ 1.065)": 1.065,
+                "🟣 200m Specialist  (SR200 ≈ 1.080)": 1.080,
+                "🔵 Speed Endurance  (SR200 ≈ 1.095)": 1.095,
+                "🔴 Resistenza Base  (SR200 ≈ 1.110)": 1.110,
             }
             sr200_chosen_val = _sr200_val_map[sr200_profilo]
             # Usa sempre il valore del profilo teorico selezionato per poter calcolare un margine reale
@@ -3269,18 +3273,20 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
                 T200_pred = round(2 * _m200_t100_eff * sr200_for_pred, 2)
 
                 _si = _sr200_to_idx(sr200_for_pred)
-                _sr200_colors  = ["#ff9800", "#bf5fff", "#4A9EFF"]
-                _sr200_bgs     = ["rgba(255,152,0,0.08)", "rgba(191,95,255,0.08)", "rgba(74,158,255,0.08)"]
-                _sr200_borders = ["rgba(255,152,0,0.3)", "rgba(191,95,255,0.3)", "rgba(74,158,255,0.3)"]
+                _sr200_colors  = ["#ff9800", "#bf5fff", "#4A9EFF", "#ff4b4b"]
+                _sr200_bgs     = ["rgba(255,152,0,0.08)", "rgba(191,95,255,0.08)", "rgba(74,158,255,0.08)", "rgba(255,75,75,0.08)"]
+                _sr200_borders = ["rgba(255,152,0,0.3)", "rgba(191,95,255,0.3)", "rgba(74,158,255,0.3)", "rgba(255,75,75,0.3)"]
                 _sr200_desc    = [
                     "Velocità massima altissima, ma la seconda parte del 200m è esigente. L'atleta vive di Vmax e fatica nel mantenimento lungo il rettilineo finale. Il 100m è la specialità più naturale.",
                     "Eccellente equilibrio tra velocità di base e resistenza sulla curva + rettilineo. È il profilo tipico del 200m specialist competitivo. Margini di miglioramento su entrambe le componenti.",
                     "Tiene bene nel retto finale e gestisce bene la curva, ma la velocità di partenza è meno esplosiva. Può trarre vantaggio da gare tattiche ed è spesso più competitivo anche sui 400m.",
+                    "Forte tenuta sulla distanza ma velocità massima limitata. Il 200m è solido ma il margine vero sta nello sviluppare la componente veloce (accelerazione e Vmax).",
                 ][_si]
                 _sr200_action  = [
                     "⚡ Lavora su accelerazione e Vmax (sprint lanciati 30–60m, lavoro neuromuscolare). La speed endurance sul 200m si sviluppa con ripetute 150m ad altissima intensità.",
                     "📈 Profilo ideale. Mantieni l'equilibrio tra lavoro di velocità pura (60–80m) e ripetute di speed endurance (150–200m). Cura la tecnica di curva per guadagnare 0.05–0.10s.",
                     "🔵 Punta a migliorare la velocità di base (lavoro neuromuscolare, forza esplosiva, sprint brevi). Abbassare il T100 sposta il profilo verso 200m Specialist.",
+                    "🔴 Priorità assoluta alla componente veloce: sprint brevi (30–60m), forza esplosiva, tecnica di accelerazione. La tenuta c'è già: ogni decimo guadagnato sul 100m si riflette doppio sul 200m.",
                 ][_si]
 
                 st.markdown("<div style='font-family:DM Mono; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:2px; margin-bottom:12px;'>STEP 3 · RISULTATI</div>", unsafe_allow_html=True)
