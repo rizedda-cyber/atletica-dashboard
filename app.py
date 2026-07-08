@@ -127,9 +127,6 @@ st.markdown("""
         position: relative; z-index: 1;
     }
 
-    .stTabs [data-baseweb="tab-list"] { gap: 16px; padding-bottom: 8px; }
-    .stTabs [data-baseweb="tab"] { padding: 10px 24px; border-radius: 8px 8px 0 0; font-weight: 500; font-size: 1.1em; color: rgba(255,255,255,0.4); }
-    .stTabs [data-baseweb="tab"][aria-selected="true"] { border-bottom-color: #E8FF3A !important; color: #E8FF3A !important; background: rgba(232,255,58,0.05); }
     /* Expander card-style (usato ancora in tab2, tab3, ecc.) */
     .streamlit-expanderHeader {
         font-weight: 700 !important;
@@ -276,52 +273,54 @@ st.markdown("""
         letter-spacing: 1px;
     }
 
-    /* Tabs to Pill Buttons Style */
-    [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: transparent !important;
-        overflow-x: auto !important;
-        padding-bottom: 15px !important;
-        flex-wrap: nowrap !important;
+    /* Tabs "pillole" a tutta larghezza — markup Streamlit recente:
+       [data-testid="stTab"] / [role="tablist"] (data-baseweb non esiste piu').
+       Stile validato dal vivo sull'app pubblicata l'8/07/2026. */
+    .stTabs [role="tablist"] {
+        width: 100% !important;
+        gap: 10px !important;
+        border-bottom: none !important;
+        padding-bottom: 10px !important;
     }
-    [data-baseweb="tab"] {
+    .stTabs [data-testid="stTab"] {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        justify-content: center !important;
         background-color: #14171E !important;
-        border-radius: 10px !important;
-        padding: 14px 22px !important;
-        color: #FFFFFF !important;
         border: 2px solid rgba(255,255,255,0.12) !important;
-        font-family: 'DM Sans', sans-serif !important;
-        font-weight: 700 !important;
-        font-size: 1.15em !important;
-        white-space: nowrap !important;
-        min-width: 130px !important;
-        text-align: center !important;
+        border-radius: 10px !important;
+        padding: 14px 10px !important;
         transition: all 0.18s ease !important;
-        letter-spacing: 0.3px !important;
+        cursor: pointer;
     }
-    [data-baseweb="tab"][aria-selected="true"] {
+    .stTabs [data-testid="stTab"] p {
+        font-size: 1.05rem !important;
+        font-weight: 700 !important;
+        color: rgba(255,255,255,0.85) !important;
+        letter-spacing: 0.3px;
+        transition: color 0.18s ease;
+    }
+    .stTabs [data-testid="stTab"][aria-selected="true"] {
         background-color: #E8FF3A !important;
-        border: 2px solid #E8FF3A !important;
+        border-color: #E8FF3A !important;
         box-shadow: 0 4px 18px rgba(232,255,58,0.35) !important;
-        transform: translateY(-2px) !important;
+        transform: translateY(-2px);
     }
-    /* Forza il testo dentro la tab attiva ad essere scuro */
-    [data-baseweb="tab"][aria-selected="true"] p,
-    [data-baseweb="tab"][aria-selected="true"] span,
-    [data-baseweb="tab"][aria-selected="true"] div {
-        color: #0A0D14 !important;
-    }
-    [data-baseweb="tab"]:hover:not([aria-selected="true"]) {
-        background-color: rgba(232,255,58,0.12) !important;
+    .stTabs [data-testid="stTab"][aria-selected="true"] p { color: #0A0D14 !important; }
+    .stTabs [data-testid="stTab"]:hover:not([aria-selected="true"]) {
+        background: rgba(232,255,58,0.12) !important;
         border-color: rgba(232,255,58,0.35) !important;
-        transform: translateY(-1px) !important;
     }
-    [data-baseweb="tab"]:hover:not([aria-selected="true"]) p,
-    [data-baseweb="tab"]:hover:not([aria-selected="true"]) span,
-    [data-baseweb="tab"]:hover:not([aria-selected="true"]) div {
-        color: #E8FF3A !important;
+    .stTabs [data-testid="stTab"]:hover:not([aria-selected="true"]) p { color: #E8FF3A !important; }
+    /* Cellulare: schede impilate in verticale, una sotto l'altra */
+    @media (max-width: 640px) {
+        .stTabs [role="tablist"] {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            overflow-x: visible !important;
+        }
+        .stTabs [data-testid="stTab"] { width: 100% !important; }
     }
-    [data-baseweb="tab-highlight"] { display: none !important; }
     
     /* Nascondi solo i menu secondari tecnici (Deploy/Settings) in alto a destra, senza oscurare il contenitore del bottone menu sinistro */
     .stAppDeployButton,   
@@ -638,30 +637,6 @@ st.markdown("""
     /* 6. Spinner di caricamento giallo Amsicora */
     [data-testid="stSpinner"] i, .stSpinner > div { border-top-color: #E8FF3A !important; }
 
-    /* 7. Schede del profilo a tutta larghezza: le pill si dividono
-          equamente lo spazio invece di restare compatte a sinistra */
-    [data-baseweb="tab-list"] {
-        width: 100% !important;
-        gap: 10px !important;
-    }
-    [data-baseweb="tab"] {
-        flex: 1 1 0 !important;
-        flex-shrink: 1 !important;
-        min-width: 0 !important;
-        justify-content: center !important;
-    }
-    /* Su schermi stretti (cellulare): schede impilate in verticale */
-    @media (max-width: 640px) {
-        [data-baseweb="tab-list"] {
-            flex-direction: column !important;
-            overflow-x: visible !important;
-            align-items: stretch !important;
-        }
-        [data-baseweb="tab"] {
-            width: 100% !important;
-            min-width: 0 !important;
-        }
-    }
 </style>
 """, unsafe_allow_html=True)
 
