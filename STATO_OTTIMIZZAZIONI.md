@@ -1,7 +1,14 @@
 # Stato ottimizzazioni — Atletica Dashboard
 
 Nota di passaggio tra sessioni. Riferimento: `MIGLIORAMENTI_GENERALI.md`, sezione "Velocità e leggerezza".
-Ultimo aggiornamento: 19/06/2026.
+Ultimo aggiornamento: 08/07/2026.
+
+## Aggiornamenti successivi al 19/06
+
+- **Fase A (foto su Storage): FATTA** (giu 2026). Bucket `foto-atleti`, foto esistenti migrate, upload nuovo su Storage con fallback base64.
+- **Fase B (tab pigre): FATTA** per la pagina Dettaglio Atleta (guardie `_active_tab` sulle 5 tab principali).
+- **statsmodels va tenuto in `requirements.txt`**: serve a Plotly per le linee di tendenza (`trendline='ols'`), anche se non è importato esplicitamente. Era stato rimosso per errore → crash sul cloud.
+- **Modularizzazione fase 1: FATTA** (08/07/2026). Nuovo file `ui_helpers.py` con 9 funzioni di servizio spostate da `app.py` (logo, credenziali, CSV, card KPI/avvisi, filtri, ordinamento). `filter_running`, `filter_vbt` e `get_sort_key` ora ricevono i valori come parametri espliciti invece di leggere variabili globali. `app.py`: 4303 → 4249 righe. Prossime fasi: CSS in file separato, poi sezioni grandi (Dettaglio Atleta ecc.) in moduli propri.
 
 ## Fatto (già su disco, app avviabile)
 

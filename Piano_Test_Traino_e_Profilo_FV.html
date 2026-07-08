@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Piano di lavoro — Test del Traino (Morin) e Profilo Forza-Velocità</title>
+<style>
+  :root{
+    --bg:#0f1720; --panel:#fff; --ink:#1b2430; --muted:#5b6878;
+    --accent:#1f6feb; --accent2:#0e9f6e; --warn:#d97706; --line:#e4e8ee;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    background:#f4f6f9; color:var(--ink); line-height:1.55;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:32px 24px 80px;}
+  header.top{
+    background:linear-gradient(135deg,#13233f,#0f1720); color:#fff;
+    padding:40px 24px; border-radius:0 0 18px 18px; margin-bottom:8px;
+  }
+  header.top .inner{max-width:920px;margin:0 auto;}
+  header.top h1{margin:0 0 8px;font-size:28px;}
+  header.top p{margin:0;color:#b9c4d4;font-size:15px;}
+  .badge{
+    display:inline-block; background:rgba(255,255,255,.12); color:#fff;
+    font-size:12px; padding:4px 10px; border-radius:999px; margin-right:8px;
+  }
+  section{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:24px 28px; margin:20px 0; box-shadow:0 1px 3px rgba(20,30,50,.04);
+  }
+  h2{font-size:20px; margin:0 0 4px; color:var(--ink);}
+  h2 .num{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:28px;height:28px;border-radius:8px;background:var(--accent);
+    color:#fff;font-size:14px;margin-right:10px;vertical-align:middle;
+  }
+  h3{font-size:15px;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;margin:22px 0 8px;}
+  .why{
+    background:#f0f6ff;border-left:3px solid var(--accent);
+    padding:12px 16px;border-radius:0 8px 8px 0;margin:10px 0;font-size:14.5px;
+  }
+  .how{
+    background:#f1faf6;border-left:3px solid var(--accent2);
+    padding:12px 16px;border-radius:0 8px 8px 0;margin:10px 0;font-size:14.5px;
+  }
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;}
+  th{background:#f7f9fc;font-weight:600;}
+  code{background:#eef1f6;padding:1px 6px;border-radius:5px;font-size:13px;}
+  ul{margin:8px 0;padding-left:22px;}
+  li{margin:4px 0;}
+  .tag{
+    display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;
+    border-radius:6px;margin-left:6px;vertical-align:middle;
+  }
+  .tag.new{background:#e6f4ea;color:#0e7a3e;}
+  .tag.change{background:#fff3e0;color:#b25e00;}
+  .status{font-size:13px;color:var(--muted);margin-top:-2px;margin-bottom:10px;}
+  .refs li{margin-bottom:10px;font-size:13.5px;}
+  .refs a{color:var(--accent);text-decoration:none;}
+  .pillrow{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;}
+  .pill{
+    background:#f7f9fc;border:1px solid var(--line);border-radius:10px;
+    padding:10px 14px;font-size:13.5px;flex:1;min-width:160px;
+  }
+  .pill b{display:block;font-size:13px;color:var(--accent);margin-bottom:2px;}
+  footer{text-align:center;color:var(--muted);font-size:12.5px;margin-top:30px;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="inner">
+    <span class="badge">Piano di lavoro</span><span class="badge">sprint_tools.html</span>
+    <h1>Test del Traino (Morin) + Profilo Forza-Velocità</h1>
+    <p>Guida dettagliata a cosa verrà aggiunto/modificato, perché (base scientifica) e come (funzionamento pratico nel programma). Nessuna modifica al file è ancora stata fatta: questo documento serve per allinearci prima di partire.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <h2><span class="num">0</span>Obiettivo generale</h2>
+  <p>Oggi <code>sprint_tools.html</code> calcola il profilo Forza-Velocità (F0, V0, Pmax, pendenza reale) a partire dai tempi di uno sprint sui 30 metri. L'obiettivo è:</p>
+  <ul>
+    <li>Rendere il giudizio "che lavoro serve a questo atleta" basato sul confronto tra la pendenza reale e quella ottimale, non sul numero %FVimb (che la letteratura che hai fornito definisce poco robusto).</li>
+    <li>Aggiungere un nuovo test — il <b>test del traino</b> (metodo Morin/Cross) — che traduce quel giudizio in un carico in kg concreto da usare in allenamento.</li>
+    <li>Rendere entrambi i test flessibili sulle distanze, così puoi usarli con l'attrezzatura e gli spazi che hai davvero a disposizione.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">1</span>Tab Profilo FV esistente <span class="tag change">modifica</span></h2>
+  <div class="status">File: tab "FVP · Split" e "FVP · Radar" — già esistenti, non vengono ricreati da zero.</div>
+
+  <div class="why">
+    <b>Perché:</b> nel file Word hai messo la gerarchia dei dati: F0, V0, Pmax, pendenza reale (SFV) sono "quelli che contano davvero"; la pendenza ottimale (SFVopt) e %FVimb sono "supporto alla decisione, non verità assoluta". Il messaggio allenante utile è "la pendenza reale è più ripida/più piatta di quella ottimale", non un numero percentuale come 180% o 215%.
+  </div>
+  <div class="how">
+    <b>Come:</b> nel grafico del profilo, le due rette (reale e ottimale) restano in primo piano come oggi. Aggiungo sopra al grafico una frase di sintesi automatica (es. "Pendenza reale più ripida dell'ottimale → profilo orientato alla forza, serve lavoro di velocità") calcolata dal confronto diretto tra le due pendenze. Il valore %FVimb resta visibile ma in un riquadro più piccolo e secondario, non più come titolo del giudizio.
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">2</span>Test del profilo FV (30 m) con split configurabili <span class="tag change">modifica</span></h2>
+
+  <div class="why">
+    <b>Perché:</b> il modello di Morin/Samozino funziona anche con pochi punti (è valido già da soli split a 10-20-30m, come confermato dalla metodologia ufficiale), ma più punti intermedi (ogni 5m) danno una curva più precisa. Oggi il tool probabilmente assume un set fisso di celle fotoelettriche; in pratica il numero di celle disponibili varia da seduta a seduta.
+  </div>
+  <div class="how">
+    <b>Come:</b> prima di calcolare, una riga di checkbox lascia scegliere quali distanze hai effettivamente cronometrato (5, 10, 15, 20, 25, 30 m — minimo 3 punti, es. solo 10-20-30). La tabella di inserimento tempi mostra solo le colonne selezionate. Il calcolo del profilo (F0, V0, Pmax, pendenza) si adatta automaticamente ai punti disponibili, esattamente come fa oggi ma con un filtro a monte invece di un set fisso.
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">3</span>Nuovo tab "Test del Traino" (Morin/Cross) <span class="tag new">nuovo</span></h2>
+
+  <div class="why">
+    <b>Perché — letteratura di riferimento:</b>
+    <ul>
+      <li><b>Cross et al. 2017 (IJSPP)</b> — la relazione tra carico sulla slitta e velocità massima raggiunta è lineare (R² &gt; 0.97); da questa retta si calcola il carico per qualunque %Vdec (decremento di velocità rispetto allo sprint libero) senza dover misurare l'attrito slitta/terreno, che varia da pista a pista.</li>
+      <li><b>JB Morin, metodologia "velocity-based"</b> — il metodo consigliato in campo è proprio questo: uno sprint libero + 2-3 sprint con carichi crescenti, misurare solo la velocità massima ottenuta in ognuno. Inoltre Vopt (la velocità a cui si produce la massima potenza) è sempre la metà di V0 — un dato già disponibile dal profilo FV, utile come controllo di coerenza.</li>
+      <li><b>Cahill et al. 2020 (J Strength Cond Res)</b> — su atleti giovani, carichi che producono Vdec 25/50/75% corrispondono a zone di lavoro diverse: leggero → velocità/decontrazione, moderato → potenza, pesante → forza/accelerazione iniziale (F0).</li>
+    </ul>
+  </div>
+
+  <div class="how">
+    <b>Come funziona il nuovo tab, passo per passo:</b>
+    <ol>
+      <li><b>Scelta della distanza del test:</b> selettore con due opzioni — 20 m (più rapido, standard usato negli studi Cross/Morin per questo specifico test) oppure 30 m (stessa distanza del test FVP, per riutilizzare lo stesso protocollo che già conosci). Anche qui, se scegli 30 m, puoi usare gli stessi split intermedi configurabili del punto 2.</li>
+      <li><b>Dati atleta:</b> peso corporeo (input manuale) e V0 — con un bottone "usa V0 dal profilo FVP" se hai già fatto il test del punto 2 per lo stesso atleta nella sessione.</li>
+      <li><b>Tabella prove:</b> una riga per ogni sprint eseguito — carico in kg (0 kg = sprint libero, poi 2-3 carichi crescenti) e la velocità massima misurata in quella prova (presa dal miglior split, stesso principio già usato nel resto del programma).</li>
+      <li><b>Calcolo automatico:</b> il programma traccia la retta carico→velocità (regressione lineare, stesso tipo di calcolo già usato altrove nel file) e mostra il grafico con i punti delle prove.</li>
+      <li><b>Output:</b> dato un %Vdec target (selezionabile: leggero 10-20% / moderato ~50% / pesante 50-75%), il programma legge sulla retta il carico in kg corrispondente. Mostra anche Vopt = V0/2 come riferimento incrociato — se il carico al 50%Vdec produce una velocità vicina a Vopt, è un buon segnale che il test è coerente.</li>
+    </ol>
+  </div>
+
+  <h3>Zone di carico e significato allenante</h3>
+  <table>
+    <tr><th>%Vdec</th><th>Zona</th><th>Effetto principale (letteratura)</th></tr>
+    <tr><td>10-20%</td><td>Leggero — velocità</td><td>Stimola il sistema nervoso a muoversi veloce con resistenza minima; utile se la pendenza reale è troppo ripida (serve più velocità)</td></tr>
+    <tr><td>~50%</td><td>Moderato — potenza (Lopt)</td><td>Massimizza la potenza prodotta (Pmax); coincide teoricamente con Vopt = V0/2</td></tr>
+    <tr><td>50-75%</td><td>Pesante — forza</td><td>Migliora F0 e accelerazione nei primi metri; utile se la pendenza reale è troppo piatta (serve più forza)</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2><span class="num">4</span>Collegamento automatico Profilo ↔ Traino <span class="tag new">nuovo</span></h2>
+  <div class="why">
+    <b>Perché:</b> è il punto centrale della tua richiesta iniziale — unire i due sistemi così il programma non si limita a mostrare due test separati, ma trasforma la diagnosi del profilo in un numero di allenamento pratico.
+  </div>
+  <div class="how">
+    <b>Come:</b> il tab del traino legge il confronto tra pendenza reale e ottimale calcolato nel tab del profilo (punto 1) e pre-seleziona la zona %Vdec consigliata:
+    <div class="pillrow">
+      <div class="pill"><b>Pendenza più ripida</b>→ serve velocità → consiglio Vdec 10-20%</div>
+      <div class="pill"><b>Pendenza più piatta</b>→ serve forza → consiglio Vdec 50-75%</div>
+      <div class="pill"><b>Bilanciata</b>→ consiglio Vdec ~50% (potenza)</div>
+    </div>
+    Resta sempre possibile scegliere manualmente una zona diversa: è un consiglio automatico, non un blocco.
+  </div>
+</section>
+
+<section>
+  <h2>Riepilogo di cosa cambia</h2>
+  <table>
+    <tr><th>Elemento</th><th>Tipo</th><th>Nota</th></tr>
+    <tr><td>Messaggio guida sul profilo (rette vs %FVimb)</td><td>Modifica</td><td>%FVimb resta visibile, secondario</td></tr>
+    <tr><td>Split del test 30m configurabili</td><td>Modifica</td><td>Checkbox 5/10/15/20/25/30m prima del calcolo</td></tr>
+    <tr><td>Nuovo tab Test del Traino</td><td>Nuovo</td><td>Distanza 20m o 30m selezionabile</td></tr>
+    <tr><td>Collegamento automatico profilo → carico consigliato</td><td>Nuovo</td><td>Suggerimento, non vincolante</td></tr>
+  </table>
+</section>
+
+<section class="refs">
+  <h2>Fonti scientifiche usate</h2>
+  <ul>
+    <li>Cahill MJ, Oliver JL, Cronin JB, et al. <i>Influence of Resisted Sled-Pull Training on the Sprint Force-Velocity Profile of Male High School Athletes.</i> J Strength Cond Res, 2020. — Zone di carico 25/50/75% Vdec ed effetti su F0/Pmax/Vmax.</li>
+    <li>Cross MR, Brughelli M, Samozino P, Brown SR, Morin JB. <i>Optimal Loading for Maximizing Power During Sled-Resisted Sprinting.</i> Int J Sports Physiol Perform, 2017. — <a href="https://pubmed.ncbi.nlm.nih.gov/28051333/" target="_blank">PubMed 28051333</a></li>
+    <li>Cross MR, Lahti J, Brown SR, et al. <i>Training at maximal power in resisted sprinting: Optimal load determination methodology and pilot results in team sport athletes.</i> PLoS One, 2018. — <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5895020/" target="_blank">PMC5895020</a></li>
+    <li>Samozino P, Peyrot N, Edouard P, et al. <i>Optimal mechanical force-velocity profile for sprint acceleration performance.</i> Scand J Med Sci Sports, 2021. — <a href="https://pubmed.ncbi.nlm.nih.gov/34775654/" target="_blank">PubMed 34775654</a></li>
+    <li>Samozino P, Rabita G, Dorel S, et al. <i>A simple method for measuring power, force, velocity properties, and mechanical effectiveness in sprint running.</i> Scand J Med Sci Sports, 2016. — base del modello usato da MySprint e dal foglio Excel.</li>
+    <li>Morin JB. <i>Resisted Sprinting: known and unknowns.</i> Blog metodologico, 2018 (aggiornato) — <a href="https://jbmorin.net/2018/11/21/resisted-sprint-methodology/" target="_blank">jbmorin.net</a> — metodo "velocity-based" senza misura dell'attrito, Vopt = V0/2.</li>
+    <li>Petrakos G. <i>Resisted Sled Sprint Training — Part 1: Methods of Sled Load Prescription.</i> SimpliFaster, 2016 (aggiornato 2026) — <a href="https://simplifaster.com/articles/resisted-sled-sprint-training-part-1-methods-of-sled-load-prescription/" target="_blank">simplifaster.com</a> — confronto tra metodi di carico (%BM, %Vdec, MRSL).</li>
+    <li>Letteratura scientifica.docx — appunti e risposte raccolte da te, base della gerarchia dei dati (Livello 1/2/3) e della regola "serve più velocità → Vdec 10-20%, serve più forza → Vdec 50-75%".</li>
+  </ul>
+</section>
+
+<footer>Documento di pianificazione — nessuna modifica è stata applicata a sprint_tools.html. Da confermare prima di iniziare.</footer>
+
+</div>
+</body>
+</html>

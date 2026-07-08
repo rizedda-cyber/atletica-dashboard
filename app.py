@@ -26,6 +26,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
 from data_loader import load_all_data
+from ui_helpers import (
+    get_logo_b64, get_team_pin, get_admin_password, convert_df_to_csv,
+    get_sort_key, filter_running, filter_vbt, make_kpi_card, make_alert_card,
+)
 
 try:
     from streamlit_extras.metric_cards import style_metric_cards
@@ -38,16 +42,7 @@ except ImportError:
 
 # Configurazione pagina spostata sotto import streamlit
 
-@st.cache_data
-def get_logo_b64(path: str = "logo.png") -> str:
-    """Legge e codifica il logo in base64 una sola volta (cache su disco→memoria).
-    Il file non cambia mai, quindi evitiamo di rileggerlo a ogni rerun."""
-    import base64
-    try:
-        with open(path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
-    except Exception:
-        return ""
+# get_logo_b64: spostata in ui_helpers.py
 
 st.markdown("""
 <style>
@@ -617,21 +612,9 @@ if st.session_state.page_just_changed:
 
 
 
-def get_team_pin() -> str:
-    if "TEAM_PIN" in st.secrets:
-        return str(st.secrets["TEAM_PIN"])
-    if "secrets" in st.secrets and "TEAM_PIN" in st.secrets["secrets"]:
-        return str(st.secrets["secrets"]["TEAM_PIN"])
-    return "1234"
+# get_team_pin: spostata in ui_helpers.py
 
-def get_admin_password() -> str:
-    # Prova prima ADMIN_PASSWORD, poi TEAM_PASSWORD come fallback
-    for key in ["ADMIN_PASSWORD", "TEAM_PASSWORD"]:
-        if key in st.secrets:
-            return str(st.secrets[key])
-        if "secrets" in st.secrets and key in st.secrets["secrets"]:
-            return str(st.secrets["secrets"][key])
-    return ""
+# get_admin_password: spostata in ui_helpers.py
 
 # ──────────────────────────────────────────────────────────────────────
 # SCHERMATA DI VISIBILITA' BLOCCATA (HOME AMSICORA)
@@ -780,14 +763,11 @@ if not df_vbt.empty:
         elif pd.notnull(data):
             last_active_dates[atl] = data
 
-def get_sort_key(atl):
-    dt = last_active_dates.get(atl)
-    if pd.isnull(dt): return (0, atl)
-    return (dt.timestamp(), atl)
+# get_sort_key: spostata in ui_helpers.py
 
 all_athletes_set = set(df_running['Atleta'].unique()) if not df_running.empty else set()
 if not df_vbt.empty: all_athletes_set |= set(df_vbt['Atleta'].unique())
-all_athletes = sorted(list(all_athletes_set), key=lambda x: (-get_sort_key(x)[0], x))
+all_athletes = sorted(list(all_athletes_set), key=lambda x: (-get_sort_key(x, last_active_dates)[0], x))
 
 with st.sidebar:
     st.markdown("### 🏃 Menu Navigazione")
@@ -895,32 +875,20 @@ selected_athlete = st.session_state.app_athlete
 # False se si è entrati solo con il PIN squadra (accesso in sola lettura).
 can_edit = st.session_state.is_admin or st.session_state.is_athlete_session
 
-@st.cache_data
-def convert_df_to_csv(df):
-    return df.to_csv(index=False).encode('utf-8')
+# convert_df_to_csv: spostata in ui_helpers.py
 
 # ──────────────────────────────────────────────────────────────────────
 # FILTRAGGIO DATI
 # ──────────────────────────────────────────────────────────────────────
 
-def filter_running(df):
-    mask = (df['Data'].dt.date >= start_date) & (df['Data'].dt.date <= end_date)
-    if selected_athlete != "Tutta la squadra":
-        mask &= df['Atleta'] == selected_athlete
-    return df[mask].copy()
+# filter_running: spostata in ui_helpers.py
 
 
-def filter_vbt(df):
-    mask = pd.Series(True, index=df.index)
-    if 'Data' in df.columns:
-        mask &= (df['Data'].dt.date >= start_date) & (df['Data'].dt.date <= end_date)
-    if selected_athlete != "Tutta la squadra":
-        mask &= df['Atleta'] == selected_athlete
-    return df[mask].copy()
+# filter_vbt: spostata in ui_helpers.py
 
 
-df_r = filter_running(df_running)
-df_v = filter_vbt(df_vbt)
+df_r = filter_running(df_running, start_date, end_date, selected_athlete)
+df_v = filter_vbt(df_vbt, start_date, end_date, selected_athlete)
 
 # Download CSV Sidebar
 st.sidebar.divider()
@@ -1092,31 +1060,9 @@ else:
     ''', unsafe_allow_html=True)
 
 # KPI HTML Generation
-def make_kpi_card(title, value, delta_text, trend, icon, val_class=""):
-    delta_class = "delta-neu"
-    if trend == "pos": delta_class = "delta-pos"
-    elif trend == "neg": delta_class = "delta-neg"
-    
-    return f"""<div class="kpi-card">
-<div class="kpi-icon">{icon}</div>
-<div class="kpi-title">{title}</div>
-<div class="kpi-value {val_class}">{value}</div>
-<div class="kpi-delta {delta_class}">{delta_text}</div>
-</div>"""
+# make_kpi_card: spostata in ui_helpers.py
 
-def make_alert_card(label, text, icon, color, bg_alpha="0.1"):
-    """Card alert generica con bordo colorato a sinistra, in stile coerente con quelle esistenti in Home."""
-    return f"""
-    <div style="background: rgba({color[1]},{bg_alpha}); border-left: 4px solid {color[0]}; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-        <div style="display: flex; gap: 10px; align-items: flex-start;">
-            <span style="font-size: 24px; margin-top: 2px;">{icon}</span>
-            <div style="flex: 1;">
-                <div style="color: {color[0]}; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">{label}</div>
-                <div style="color: #fff; font-size: 0.9em;">{text}</div>
-            </div>
-        </div>
-    </div>
-    """
+# make_alert_card: spostata in ui_helpers.py
 
 if st.session_state.current_page == "Inserimento":
     st.markdown("## ➕ Inserisci Nuovo Allenamento")
