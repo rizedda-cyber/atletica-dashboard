@@ -186,36 +186,42 @@ textarea { font-family: 'Courier New', monospace; font-size: 12px; resize: verti
 @media (max-width: 950px) { .tab-2col { grid-template-columns: 1fr; } }
 
 /* ── Print / PDF export ─────────────────────────────────── */
+/* Le variabili colore vengono ridefinite qui per lo sfondo bianco della stampa: ogni
+   regola del foglio che usa var(--text)/var(--muted)/var(--accent)/ecc — incluso lo
+   style inline sparso nell'HTML — eredita da sola la versione leggibile su bianco,
+   senza dover elencare ogni singola classe (approccio precedente, incompleto: mancavano
+   fra gli altri .mv-muted e gli inline color:var(--text)/--accent*, invisibili su bianco).
+   I grafici Chart.js vivono su <canvas> e il CSS non può ricolorarli: la loro
+   ricolorazione per la stampa è gestita in JS, vedi PRINT_COLOR_MAP più in basso. */
 @media print {
+  :root {
+    --bg: #ffffff; --card: #f6f6f6; --card2: #ececec;
+    --border: #cccccc;
+    --accent: #7a6d00; --accent2: #1a5fb4; --accent3: #0d7a3f;
+    --text: #111111; --muted: #4a4a4a;
+    --danger: #a3241c; --orange: #a35400; --purple: #6a1fb0;
+  }
   .tabs, .btn, .btn-add, .del-btn, .no-print { display: none !important; }
   .panel { display: block !important; }
   .panel:not(.active) { display: none !important; }
   .results-section { display: block !important; }
   .results-placeholder { display: none !important; }
-  body { background: #fff !important; color: #111 !important; }
-  .header { background: #fff; border-bottom: 2px solid #111; }
-  .header h1 { color: #111 !important; }
-  .header p, .header span { color: #444 !important; }
-  .badge-spinoff { color: #333 !important; border-color: #333 !important; background: transparent !important; }
-  .card, .card-sm { background: #f5f5f5 !important; border: 1px solid #ccc !important; }
-  .metric { background: #ebebeb !important; border: 1px solid #bbb !important; }
-  .mvalue { color: #111 !important; }
-  .mv-accent, .mv-accent2, .mv-accent3, .mv-orange, .mv-purple { color: #111 !important; }
-  .mlabel, .munit { color: #444 !important; }
-  label { color: #444 !important; }
-  .card-title { color: #333 !important; }
-  .muted, [style*="color:var(--muted)"] { color: #444 !important; }
+  .header { border-bottom: 2px solid #111; }
+  .badge-spinoff { background: transparent !important; }
   .ibox { display: none !important; }
-  .expl { display: block !important; background: #f5f0ff !important; border: 1px solid #ccc !important; color: #333 !important; }
-  .expl b { color: #111 !important; }
-  .section-hdr h2 { color: #111 !important; }
-  .section-hdr h2 span { color: #333 !important; }
-  .section-hdr p { color: #444 !important; }
-  .stbl th { color: #333 !important; }
-  .stbl td { color: #111 !important; }
+  .expl { display: block !important; background: #f5f0ff !important; }
   .tab-2col, .chart-grid3 { display: block !important; }
   .chart-wrap, .chart-wrap-tall { height: 180px; }
   .print-athlete { display: block !important; }
+
+  /* Non tagliare mai un box a metà tra due pagine: se non ci sta intero nello
+     spazio rimasto, scala alla pagina successiva piuttosto che spezzarsi. */
+  .card, .card-sm, .metric, .step-card, .big-result, .gap-card,
+  .ibox, .expl, .chart-wrap, .chart-wrap-tall, .grid {
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .stbl tr { break-inside: avoid; page-break-inside: avoid; }
+  .section-hdr { break-after: avoid; page-break-after: avoid; }
 }
 .print-athlete {
   display: none;
@@ -902,6 +908,72 @@ Chart.register({
 });
 
 const chartInstances = {};
+
+// ── Ricolorazione grafici per la stampa/PDF ──────────────────────────────────
+// I grafici Chart.js sono pixel su <canvas>: il CSS @media print non può toccarli.
+// Alla stampa si sostituiscono qui i colori "da sfondo scuro" con varianti scure
+// leggibili su sfondo bianco (stessa identità cromatica, solo più scure); al termine
+// della stampa (evento afterprint) si ripristinano i colori originali per l'uso a schermo.
+let PRINT_MODE = false;
+const PRINT_COLOR_MAP = {
+  'rgba(255,255,255,0.5)':  'rgba(0,0,0,0.65)',
+  'rgba(255,255,255,0.45)': 'rgba(0,0,0,0.6)',
+  'rgba(255,255,255,0.4)':  'rgba(0,0,0,0.55)',
+  'rgba(255,255,255,0.05)': 'rgba(0,0,0,0.08)',
+  'rgba(255,255,255,0.10)': 'rgba(0,0,0,0.12)',
+  'rgba(255,255,255,0.045)':'rgba(0,0,0,0.05)',
+  'rgba(255,255,255,0.09)': 'rgba(0,0,0,0.10)',
+  'rgba(255,255,255,0.16)': 'rgba(0,0,0,0.18)',
+  '#E8FF3A': '#8a7d00',
+  '#00e676': '#0d7a3f',
+  '#4A9EFF': '#1a5fb4',
+  '#FF9A3A': '#a35400',
+  '#bf5fff': '#6a1fb0',
+  '#ffffff': '#222222',
+  'rgba(232,255,58,0.6)':  'rgba(138,125,0,0.55)',
+  'rgba(232,255,58,0.5)':  'rgba(138,125,0,0.45)',
+  'rgba(232,255,58,0.2)':  'rgba(138,125,0,0.18)',
+  'rgba(232,255,58,0.08)': 'rgba(138,125,0,0.10)',
+  'rgba(74,158,255,0.8)':  'rgba(26,95,180,0.75)',
+  'rgba(74,158,255,0.6)':  'rgba(26,95,180,0.55)',
+  'rgba(0,230,118,0.5)':   'rgba(13,122,63,0.5)',
+  'rgba(0,230,118,0.2)':   'rgba(13,122,63,0.18)',
+  'rgba(0,230,118,0.08)':  'rgba(13,122,63,0.10)',
+  'rgba(255,154,58,0.6)':  'rgba(163,84,0,0.55)',
+  'rgba(255,154,58,0.15)': 'rgba(163,84,0,0.15)',
+  'rgba(255,154,58,0.08)': 'rgba(163,84,0,0.10)',
+};
+const PRINT_COLOR_MAP_REV = Object.fromEntries(Object.entries(PRINT_COLOR_MAP).map(([k,v])=>[v,k]));
+
+function remapColor(val) {
+  const map = PRINT_MODE ? PRINT_COLOR_MAP : PRINT_COLOR_MAP_REV;
+  return Object.prototype.hasOwnProperty.call(map, val) ? map[val] : val;
+}
+// Cammina ricorsivamente in un oggetto opzioni/dataset di Chart.js e ricolora ogni
+// proprietà il cui nome contiene "color" (borderColor, backgroundColor, ticks.color,
+// title.color, plugins.legend.labels.color, plugins.zoneBands.bands[].color, ...).
+function remapChartColors(obj) {
+  if(!obj || typeof obj !== 'object') return;
+  for(const key of Object.keys(obj)) {
+    const val = obj[key];
+    if(typeof val === 'string' && /color/i.test(key)) {
+      obj[key] = remapColor(val);
+    } else if(val && typeof val === 'object') {
+      remapChartColors(val);
+    }
+  }
+}
+function setChartsPrintMode(on) {
+  PRINT_MODE = on;
+  Object.values(chartInstances).forEach(chart => {
+    if(!chart) return;
+    remapChartColors(chart.options);
+    chart.data.datasets.forEach(ds => remapChartColors(ds));
+    chart.update('none');
+  });
+}
+window.addEventListener('afterprint', () => setChartsPrintMode(false));
+
 function makeChart(id, type, datasets, xLabel, yLabel, extra={}) {
   if(chartInstances[id]) chartInstances[id].destroy();
   const ctx = document.getElementById(id).getContext('2d');
@@ -1762,7 +1834,10 @@ function exportPDF() {
   const tabName = activeTab ? activeTab.textContent.trim() : '';
   
   ph.innerHTML = '<strong>' + name + '</strong> &nbsp;&middot;&nbsp; ' + tabName + ' &nbsp;&middot;&nbsp; ' + dateStr + ' ' + timeStr;
-  
+
+  // Ricolora i grafici (canvas) in versione leggibile su sfondo bianco prima di stampare;
+  // window.afterprint li riporta ai colori originali per l'uso a schermo.
+  setChartsPrintMode(true);
   window.print();
 }
 </script>
