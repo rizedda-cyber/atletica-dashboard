@@ -1036,7 +1036,8 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
                     url = upload_foto_profilo(atleta_info["id"], uploaded_file.getvalue(), uploaded_file.name)
                     if url and not url.startswith("ERROR:"):
                         st.success("✅ Foto profilo aggiornata con successo!")
-                        st.cache_data.clear()
+                        from supabase_connector import get_atleti
+                        get_atleti.clear()
                         st.rerun()
                     else:
                         err_msg = url.replace("ERROR:", "") if url else "Sconosciuto"
@@ -1074,7 +1075,8 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
             n_data_str = n_data.strftime("%Y-%m-%d") if n_data else None
             update_atleta_profile(atleta_info["id"], n_data_str, n_peso, n_bio)
             st.success("✅ Profilo aggiornato!")
-            st.cache_data.clear()
+            from supabase_connector import get_atleti
+            get_atleti.clear()
             st.rerun()
 
     # Prepara dati per HTML header
@@ -1134,7 +1136,8 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
                         ok = set_atleta_pin(atleta_info['id'], p1.strip())
                         if ok:
                             st.success("✅ PIN personale impostato! Dalla prossima sessione potrai accedere direttamente con questo PIN.")
-                            st.cache_data.clear()
+                            from supabase_connector import get_atleti
+                            get_atleti.clear()
                             st.rerun()
                         else:
                             st.error("❌ Errore nel salvataggio del PIN. Riprova.")
@@ -1158,129 +1161,8 @@ else:
 
 # make_alert_card: spostata in ui_helpers.py
 
-if st.session_state.current_page == "Inserimento":
-    st.markdown("## ➕ Inserisci Nuovo Allenamento")
-    
-    # Mostra messaggio di conferma se c'è (persiste attraverso il rerun)
-    if st.session_state.get('upload_success_msg'):
-        msg = st.session_state.pop('upload_success_msg')
-        st.success(msg)
-        st.balloons()
-    
-    if DATA_SOURCE != "cloud":
-        st.warning("⚠️ La dashboard sta usando i dati locali (Excel). L'inserimento richiede la connessione al cloud.")
-    else:
-        st.markdown("I dati vengono salvati direttamente nel cloud e saranno visibili a tutta la squadra.")
-        
-        tipo_form = st.radio("Seleziona attività:", ["🏃 Pista (corsa)", "🏋️ Palestra (VBT)"], horizontal=True, key="tipo_allenamento")
-        st.divider()
-        
-        atleti_list = all_athletes
-        default_atleta_idx = 0
-        if selected_athlete != "Tutta la squadra" and selected_athlete in atleti_list:
-            default_atleta_idx = atleti_list.index(selected_athlete)
-            
-        if tipo_form == "🏃 Pista (corsa)":
-            from supabase_connector import insert_sessione_corsa
-            with st.form("form_corsa", clear_on_submit=True):
-                st.markdown("**Sessione in Pista**")
-                col_a, col_b = st.columns(2)
-                if st.session_state.is_athlete_session:
-                    atleta_sel = st.session_state.logged_athlete_name
-                    col_a.markdown(f"**Atleta:** {atleta_sel}")
-                else:
-                    atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_corsa")
-                data_sel = col_b.date_input("Data", key="data_corsa")
-
-                st.markdown("---")
-                st.markdown("**Prove effettuate**")
-                distanze_opts = [30, 40, 50, 60, 80, 100, 120, 150, 180, 200, 250, 300, 400]
-                prove = []
-                for i in range(1, 13):
-                    if i > 1:
-                        st.markdown("<hr class='mobile-divider'>", unsafe_allow_html=True)
-                    c1, c2, c3 = st.columns([1, 1, 2])
-
-                    dist_i = c1.selectbox(f"🎯 PROVA {i} (Distanza)", ["-"] + [f"{d}m" for d in distanze_opts], key=f"dist_{i}")
-                    tempo_i = c2.text_input(f"⏱️ TEMPO {i}", key=f"tempo_{i}", placeholder="es. 7.12")
-                    nota_i = c3.text_input(f"📝 NOTE {i}", key=f"nota_{i}", placeholder="es. vento, elettrico...")
-
-                    if dist_i != "-" and tempo_i.strip():
-                        prove.append((int(dist_i.replace("m", "")), tempo_i.strip(), nota_i.strip()))
-
-                submitted = st.form_submit_button("✅ Salva Sessione in Pista", type="primary", use_container_width=True)
-
-                if submitted:
-                    if not prove:
-                        st.error("Inserisci almeno una prova.")
-                    else:
-                        successi, errori = 0, 0
-                        for dist, tempo_raw, nota in prove:
-                            try:
-                                from data_loader import parse_time
-                                parsed = parse_time(tempo_raw)
-                                if parsed is None:
-                                    errori += 1; continue
-                                ok = insert_sessione_corsa(atleta_sel, data_sel.strftime("%Y-%m-%d"), dist, parsed['tempo'], nota)
-                                if ok: successi += 1
-                                else: errori += 1
-                            except Exception:
-                                errori += 1
-                        if successi > 0:
-                            data_label = data_sel.strftime('%d/%m/%Y')
-                            st.session_state['upload_success_msg'] = (
-                                f"✅ Allenamento caricato! **{successi} {'prove' if successi > 1 else 'prova'}** "
-                                f"salvate per **{atleta_sel}** in data {data_label}. "
-                                f"I dati sono visibili a tutta la squadra. 🏋️"
-                            )
-                            st.cache_data.clear()
-                            st.rerun()
-                        if errori > 0:
-                            st.warning(f"⚠️ {errori} prove non salvate (controlla il formato tempo).")
-
-        elif tipo_form == "🏋️ Palestra (VBT)":
-            from supabase_connector import insert_sessione_vbt
-            esercizi_noti = sorted(set(df_vbt['Esercizio'].dropna().unique()) - {'General'})
-            with st.form("form_vbt", clear_on_submit=True):
-                st.markdown("**Sessione in Palestra (VBT)**")
-                col_a, col_b = st.columns(2)
-                if st.session_state.is_athlete_session:
-                    atleta_sel = st.session_state.logged_athlete_name
-                    col_a.markdown(f"**Atleta:** {atleta_sel}")
-                else:
-                    atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_vbt")
-                data_sel = col_b.date_input("Data", key="data_vbt")
-                st.markdown("---")
-                esercizio_sel = st.selectbox("Esercizio", options=esercizi_noti, key="esercizio_sel")
-                c1, c2, c3 = st.columns(3)
-                carico = c1.number_input("Carico (kg)", min_value=0.0, step=2.5, key="carico")
-                vel_media = c2.number_input("Velocità Media (m/s)", min_value=0.0, step=0.01, format="%.3f", key="vel_media")
-                vel_max = c3.number_input("Velocità Max (m/s)", min_value=0.0, step=0.01, format="%.3f", key="vel_max")
-                c4, c5, c6 = st.columns(3)
-                pot_media = c4.number_input("Potenza Media (W)", min_value=0.0, step=10.0, key="pot_media")
-                pot_max = c5.number_input("Potenza Max (W)", min_value=0.0, step=10.0, key="pot_max")
-                forza_max = c6.number_input("Forza Max (N)", min_value=0.0, step=10.0, key="forza_max")
-                c7, c8 = st.columns(2)
-                serie = c7.number_input("Serie", min_value=1, value=3, step=1, key="serie")
-                rip = c8.number_input("Ripetizioni", min_value=1, value=5, step=1, key="ripetizioni")
-                submitted_vbt = st.form_submit_button("✅ Salva Sessione Palestra", type="primary", use_container_width=True)
-                if submitted_vbt:
-                    if carico == 0:
-                        st.error("Inserisci il carico utilizzato.")
-                    else:
-                        ok = insert_sessione_vbt(atleta_sel, data_sel.strftime("%Y-%m-%d"), esercizio_sel, carico, vel_media or None, vel_max or None, pot_media or None, pot_max or None, forza_max or None, int(serie), int(rip))
-                        if ok:
-                            data_label = data_sel.strftime('%d/%m/%Y')
-                            st.session_state['upload_success_msg'] = (
-                                f"✅ Sessione palestra caricata! Allenamento VBT di **{atleta_sel}** "
-                                f"del {data_label} salvato con successo nel cloud. 💪"
-                            )
-                            st.cache_data.clear()
-                            st.rerun()
-                        else:
-                            st.error("❌ Errore nel salvataggio.")
-
-elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
+@st.fragment
+def _render_dettaglio_tonnellaggio():
     # ── RIPRISTINO SCROLL ─────────────────────────────────────────────
     # Streamlit ridisegna la pagina a ogni click (cambio scheda, bottoni):
     # senza questo script si torna in cima (grafico tonnellaggio) a ogni
@@ -1578,691 +1460,9 @@ elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete !=
     else:
         st.info("Nessuna sessione di pesistica (VBT) inserita per questo atleta nel periodo.")
 
-elif st.session_state.current_page == "Home":
-    # ────────────────────────────────────────────────────────────────
-    # CALCOLO KPI DI SQUADRA (HOME)
-    # ────────────────────────────────────────────────────────────────
-    start_d = pd.to_datetime(start_date)
-    end_d = pd.to_datetime(end_date)
-    duration_days = max(1, (end_d - start_d).days)
-    prev_start_d = start_d - pd.Timedelta(days=duration_days)
-    prev_end_d = start_d - pd.Timedelta(days=1)
-    
-    # Maschere e subset pre-periodo
-    mask_prev_r = (df_running['Data'].dt.date >= prev_start_d.date()) & (df_running['Data'].dt.date <= prev_end_d.date())
-    df_r_prev = df_running[mask_prev_r]
-    
-    mask_prev_v = (df_vbt['Data'].dt.date >= prev_start_d.date()) & (df_vbt['Data'].dt.date <= prev_end_d.date())
-    df_v_prev = df_vbt[mask_prev_v]
 
-    # KPI 1. Sessioni (Presenze Atleti, calcolato come combinazioni Atleta-Giorno)
-    sess_curr = df_r.groupby(['Atleta', df_r['Data'].dt.date]).ngroups if len(df_r) > 0 else 0
-    sess_prev = df_r_prev.groupby(['Atleta', df_r_prev['Data'].dt.date]).ngroups if len(df_r_prev) > 0 else 0
-    delta_sess = sess_curr - sess_prev
-
-    # KPI 2. Prove
-    prove_curr = len(df_r)
-    prove_totali = len(df_running)
-    
-    # KPI 3. Record VBT
-    storico_vbt = df_vbt[df_vbt['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Esercizio'])['Potenza_max'].max().to_dict()
-    nuovi_vbt = 0
-    df_v_ex = df_v[df_v['Esercizio'] != 'General']
-    for idx, row in df_v_ex.iterrows():
-        k = (row['Atleta'], row['Esercizio'])
-        if k in storico_vbt:
-            if row['Potenza_max'] > storico_vbt[k]:
-                nuovi_vbt += 1
-                storico_vbt[k] = row['Potenza_max']
-        else:
-            storico_vbt[k] = row['Potenza_max']
-            nuovi_vbt += 1
-
-    # KPI Row 2 calcoli
-    # 1. Atleti con PB nel periodo (SOLO se attivi negli ultimi 30 giorni)
-    storico_pb = df_running[df_running['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Distanza'])['Tempo'].min().to_dict()
-
-    # Calcola atleti attivi negli ultimi 30 giorni per filtrare falsi positivi
-    ultimi_30gg = pd.Timestamp.now().tz_localize(None) - pd.Timedelta(days=30)
-    df_r_30gg = df_r[df_r['Data'] >= ultimi_30gg].copy()
-    atleti_attivi_30gg = set(df_r_30gg['Atleta'].unique()) if not df_r_30gg.empty else set()
-
-    atleti_pb = set()
-    for idx, row in df_r.iterrows():
-        # Verifica che l'atleta sia attivo negli ultimi 30 giorni
-        if row['Atleta'] not in atleti_attivi_30gg:
-            continue
-
-        k = (row['Atleta'], row['Distanza'])
-        if k in storico_pb:
-            if row['Tempo'] < storico_pb[k]:
-                atleti_pb.add(row['Atleta'])
-                storico_pb[k] = row['Tempo']
-        else:
-            # Distanza nuova: conta come PB solo se registrata negli ultimi 30 giorni
-            atleti_pb.add(row['Atleta'])
-            storico_pb[k] = row['Tempo']
-            
-    # 2. Atleti inattivi
-    ultime_date = pd.concat([df_running[['Atleta', 'Data']], df_vbt[['Atleta', 'Data']]]).groupby('Atleta')['Data'].max()
-    inattivi = []
-    for atl, ud in ultime_date.items():
-        if pd.notnull(ud) and (pd.Timestamp.now().tz_localize(None) - ud).days > 7:
-            inattivi.append(atl)
-            
-    # 3. Media sessioni/settimana
-    settimane = max(1, duration_days / 7)
-    tot_sess_atl = df_r.groupby('Atleta')['Data'].nunique()
-    media_sess = tot_sess_atl.mean() / settimane if len(tot_sess_atl) > 0 else 0
-    
-    # 4. Km squadra
-    km_curr = df_r['Distanza'].sum() / 1000
-    km_prev = df_r_prev['Distanza'].sum() / 1000
-    delta_km = km_curr - km_prev
-    p_km = (delta_km / km_prev * 100) if km_prev > 0 else 0
-
-    c1 = make_kpi_card("Sessioni Pista", sess_curr, f"↑ {delta_sess} vs prec." if delta_sess > 0 else (f"↓ {abs(delta_sess)}" if delta_sess < 0 else "Invariato"), "pos" if delta_sess > 0 else ("neg" if delta_sess<0 else "neu"), "🏟️", "kpi-glow")
-    c2 = make_kpi_card("Prove Registrate", prove_curr, f"{prove_totali} totali tracciate", "neu", "🏃")
-    c3 = make_kpi_card("Record (VBT)", len(df_v), f"↑ {nuovi_vbt} freschi" if nuovi_vbt > 0 else "Nessun nuovo PB", "pos" if nuovi_vbt > 0 else "neu", "🏋️")
-    c4 = make_kpi_card("Atleti a Sistema", df_r['Atleta'].nunique() if len(df_r) > 0 else 0, "Attivi nel periodo", "neu", "👥")
-    
-    c5 = make_kpi_card("Atleti in PB", len(atleti_pb), f"🌟 Formidabile" if len(atleti_pb) > 0 else "Costanza", "pos" if len(atleti_pb) > 0 else "neu", "🏅", "kpi-glow" if len(atleti_pb) > 0 else "")
-    c6 = make_kpi_card("Inattivi (>7 gg)", len(inattivi), "Da richiamare!" if len(inattivi) > 0 else "Ottimi, nessuno fermo", "neg" if len(inattivi) > 0 else "pos", "⚠️", "kpi-alert" if len(inattivi) > 0 else "")
-    c7 = make_kpi_card("Media (Sett.)", f"{media_sess:.1f}", "Sess / Atleta", "neu", "📉")
-    c8 = make_kpi_card("Volume Squadra", f"{km_curr:.1f} km", f"↑ {delta_km:+.1f}km ({p_km:+.0f}%)" if delta_km > 0 else (f"↓ {delta_km:+.1f}km ({p_km:+.0f}%)" if delta_km < 0 else "Invariato"), "pos" if delta_km > 0 else ("neg" if delta_km < 0 else "neu"), "🛣️")
-
-    st.markdown(f'<div class="kpi-grid">{c1}{c2}{c3}{c4}{c5}{c6}{c7}{c8}</div>', unsafe_allow_html=True)
-    
-    # ══════════════════════════════════════════════════════════════════════
-    # NOTIFICHE AUTOMATICHE, COMPLEANNI E ALERT STRUTTURATO
-    # ══════════════════════════════════════════════════════════════════════
-    st.markdown("<hr class='gold'>", unsafe_allow_html=True)
-    st.markdown("#### 🔔 Alert & Notifiche Group")
-
-    # ── LOGICA COMPLEANNI ──
-    from supabase_connector import get_atleti
-    df_atleti_full = get_atleti(with_foto=False)  # homepage: solo anagrafica, niente foto base64
-    oggi_tz = pd.Timestamp.now().tz_localize(None)
-    compleanni = []
-    if not df_atleti_full.empty:
-        for _, row in df_atleti_full.iterrows():
-            if pd.notna(row.get('data_nascita')):
-                try:
-                    dn = pd.to_datetime(row['data_nascita'])
-                    if dn.month == oggi_tz.month and dn.day == oggi_tz.day:
-                        compleanni.append(row['nome_completo'])
-                except Exception:
-                    pass
-    # ── COMPLEANNI IN ARRIVO (prossimi 7 giorni, escluso oggi) ──
-    compleanni_arrivo = []  # (nome, giorni_rimanenti)
-    if not df_atleti_full.empty:
-        for _, row in df_atleti_full.iterrows():
-            if pd.notna(row.get('data_nascita')):
-                try:
-                    dn = pd.to_datetime(row['data_nascita'])
-                    prossimo = dn.replace(year=oggi_tz.year)
-                    if prossimo.date() < oggi_tz.date():
-                        prossimo = prossimo.replace(year=oggi_tz.year + 1)
-                    giorni = (prossimo.date() - oggi_tz.date()).days
-                    if 0 < giorni <= 7:
-                        compleanni_arrivo.append((row['nome_completo'], giorni))
-                except Exception:
-                    pass
-    compleanni_arrivo.sort(key=lambda x: x[1])
-
-    # ── TIMELINE EVENTI: unisce compleanni di oggi (giorni=0) e in arrivo (1-7gg).
-    #    Se non ci sono compleanni, la timeline resta comunque visibile con il solo
-    #    marcatore "OGGI" a indicare il giorno corrente. ──
-    eventi_compleanno = [(nome, 0) for nome in compleanni] + list(compleanni_arrivo)
-    eventi_compleanno.sort(key=lambda x: x[1])
-
-    nodi_html = ""
-    ha_oggi = any(g == 0 for _, g in eventi_compleanno)
-    if not ha_oggi:
-        data_oggi = oggi_tz.strftime('%d %b').upper()
-        nodi_html += f"""
-        <div class="evt-node evt-today">
-            <div class="evt-node-date">{data_oggi}</div>
-            <div class="evt-node-dot">📍</div>
-            <div class="evt-node-name">Oggi</div>
-            <div class="evt-node-tag">Nessun compleanno</div>
-        </div>
-        """
-    for nome, giorni in eventi_compleanno:
-        data_evt = (oggi_tz + pd.Timedelta(days=giorni)).strftime('%d %b').upper()
-        is_today = giorni == 0
-        nodo_cls = "evt-node evt-today" if is_today else "evt-node"
-        tag = "OGGI 🎉" if is_today else f"in {giorni} gg"
-        nodi_html += f"""
-        <div class="{nodo_cls}">
-            <div class="evt-node-date">{data_evt}</div>
-            <div class="evt-node-dot">🎂</div>
-            <div class="evt-node-name">{nome}</div>
-            <div class="evt-node-tag">{tag}</div>
-        </div>
-        """
-    html_timeline = f"""
-    <div class="evt-timeline-wrap" style="height: 100%; margin: 0;">
-        <div class="evt-timeline-track">{nodi_html}</div>
-    </div>
-    """
-
-    # ── STOP VBT: atleti attivi in pista ma fermi sul monitoraggio forza (>14 gg) ──
-    running_last = df_running.groupby('Atleta')['Data'].max() if not df_running.empty else pd.Series(dtype='datetime64[ns]')
-    vbt_last = df_vbt.groupby('Atleta')['Data'].max() if not df_vbt.empty else pd.Series(dtype='datetime64[ns]')
-    stop_vbt = []
-    for atl, rdate in running_last.items():
-        if pd.notnull(rdate) and (oggi_tz - rdate).days <= 14:
-            vdate = vbt_last.get(atl)
-            if pd.isnull(vdate) or (oggi_tz - vdate).days > 14:
-                stop_vbt.append(atl)
-
-    # ── TREND NEGATIVO: peggioramento sulle ultime sessioni di una distanza ──
-    trend_negativo = []  # (atleta, distanza, var_pct)
-    if not df_running.empty:
-        for (atl, dist), g in df_running.groupby(['Atleta', 'Distanza']):
-            g2 = g.dropna(subset=['Tempo']).sort_values('Data')
-            if len(g2) >= 4:
-                last4 = g2['Tempo'].tail(4).to_numpy()
-                prev2_avg, last2_avg = last4[:2].mean(), last4[2:].mean()
-                if prev2_avg > 0:
-                    var_pct = (last2_avg - prev2_avg) / prev2_avg * 100
-                    if var_pct > 2:
-                        trend_negativo.append((atl, dist, var_pct))
-    trend_negativo.sort(key=lambda x: -x[2])
-
-    # ── TOP ADERENZA SETTIMANALE ──
-    ultimi_7gg = oggi_tz - pd.Timedelta(days=7)
-    sess_7 = pd.concat([df_running[['Atleta', 'Data']], df_vbt[['Atleta', 'Data']]]) if (not df_running.empty or not df_vbt.empty) else pd.DataFrame(columns=['Atleta', 'Data'])
-    sess_7 = sess_7[sess_7['Data'] >= ultimi_7gg]
-    top_aderenza, top_aderenza_count = None, 0
-    if not sess_7.empty:
-        giorni_count = sess_7.groupby('Atleta')['Data'].apply(lambda s: s.dt.date.nunique())
-        if not giorni_count.empty and giorni_count.max() >= 3:
-            top_aderenza = giorni_count.idxmax()
-            top_aderenza_count = int(giorni_count.max())
-
-    # ── ANAGRAFICA INCOMPLETA ──
-    anagrafica_incompleta = []
-    if not df_atleti_full.empty:
-        df_atleti_attivi = df_atleti_full
-        if 'attivo' in df_atleti_full.columns:
-            df_atleti_attivi = df_atleti_full[df_atleti_full['attivo'].fillna(True) != False]
-        for _, row in df_atleti_attivi.iterrows():
-            if pd.isna(row.get('data_nascita')) or pd.isna(row.get('peso')):
-                anagrafica_incompleta.append(row['nome_completo'])
-
-    # ── ALERT PERFORMANCE E MONITORAGGIO: card pre-costruite e poi accoppiate
-    #    in righe (timeline+periodo, pb+inattivi, trend+stopvbt, ...) così non
-    #    si creano più "buchi" quando una colonna ha più card dell'altra. ──
-    html_periodo = f"""
-    <div style="background: rgba(255,255,255,0.02); border-left: 4px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px; height: 100%;">
-        <div style="display: flex; gap: 10px; align-items: flex-start;">
-            <span style="font-size: 24px;">📊</span>
-            <div style="flex: 1;">
-                <div style="color: rgba(255,255,255,0.5); font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">PERIODO ANALIZZATO</div>
-                <div style="color: rgba(255,255,255,0.7); font-size: 0.9em;">
-                    Dal {start_d.strftime('%d/%m/%Y')} al {end_date.strftime('%d/%m/%Y')} ({duration_days} giorni)
-                </div>
-            </div>
-        </div>
-    </div>
-    """
-
-    if atleti_pb:
-        txt = " e altri" if len(atleti_pb) > 3 else ""
-        pb_list = ', '.join(list(atleti_pb)[:3]) + txt
-        html_pb = f"""
-        <div style="background: rgba(184,255,138,0.1); border-left: 4px solid #B8FF8A; border-radius: 8px; padding: 14px;">
-            <div style="display: flex; gap: 10px; align-items: flex-start;">
-                <span style="font-size: 24px; margin-top: 2px;">🏆</span>
-                <div style="flex: 1;">
-                    <div style="color: #B8FF8A; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">RECORD INFRANTI</div>
-                    <div style="color: #fff; font-size: 0.9em;">
-                        <strong>{pb_list}</strong> hanno battuto il PB in questo periodo! 🔥
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
-    else:
-        html_pb = f"""
-        <div style="background: rgba(255,255,255,0.02); border-left: 4px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px;">
-            <div style="display: flex; gap: 10px; align-items: flex-start;">
-                <span style="font-size: 24px;">💪</span>
-                <div style="flex: 1;">
-                    <div style="color: rgba(255,255,255,0.5); font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">NESSUN NUOVO PB</div>
-                    <div style="color: rgba(255,255,255,0.7); font-size: 0.9em;">
-                        Continuate a spingere! Il prossimo record è vicino.
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
-
-    if inattivi:
-        txt2 = " e altri" if len(inattivi) > 3 else ""
-        inattivi_list = ', '.join(inattivi[:3]) + txt2
-        html_inattivi = f"""
-        <div style="background: rgba(255,75,75,0.15); border-left: 4px solid #FF6B6B; border-radius: 8px; padding: 14px;">
-            <div style="display: flex; gap: 10px; align-items: flex-start;">
-                <span style="font-size: 24px;">⚠️</span>
-                <div style="flex: 1;">
-                    <div style="color: #FF6B6B; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">ATLETI INATTIVI (>7 GG)</div>
-                    <div style="color: #fff; font-size: 0.9em;">
-                        <strong>{inattivi_list}</strong> non si allenano da più di una settimana. Richiedere contatti! 📞
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
-    else:
-        html_inattivi = f"""
-        <div style="background: rgba(22,163,74,0.1); border-left: 4px solid #16a34a; border-radius: 8px; padding: 14px;">
-            <div style="display: flex; gap: 10px; align-items: flex-start;">
-                <span style="font-size: 24px;">✅</span>
-                <div style="flex: 1;">
-                    <div style="color: #16a34a; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">SQUADRA ATTIVA</div>
-                    <div style="color: #fff; font-size: 0.9em;">
-                        Tutti gli atleti si allenano regolarmente. Ottimo lavoro! 🎉
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
-
-    html_trend = None
-    if trend_negativo:
-        righe_t = [f"{atl} sui {int(dist)}m ({var:+.1f}%)" for atl, dist, var in trend_negativo[:3]]
-        html_trend = make_alert_card(
-            "TREND IN CALO",
-            f"Tempi in peggioramento nelle ultime sessioni: <strong>{', '.join(righe_t)}</strong>. Da monitorare.",
-            "📉", ("#FF6B6B", "255,107,107")
-        )
-
-    html_stopvbt = None
-    if stop_vbt:
-        txt3 = " e altri" if len(stop_vbt) > 3 else ""
-        stop_vbt_list = ', '.join(stop_vbt[:3]) + txt3
-        html_stopvbt = make_alert_card(
-            "STOP VBT (>14 GG)",
-            f"<strong>{stop_vbt_list}</strong> si allenano in pista ma non registrano sessioni VBT da oltre 14 giorni. Monitoraggio forza fermo.",
-            "🏋️", ("#FF9A3A", "255,154,58")
-        )
-
-    html_volume = None
-    if p_km > 0:
-        html_volume = f"""
-        <div style="background: rgba(100,200,255,0.1); border-left: 4px solid #64C8FF; border-radius: 8px; padding: 14px;">
-            <div style="display: flex; gap: 10px; align-items: flex-start;">
-                <span style="font-size: 24px;">📈</span>
-                <div style="flex: 1;">
-                    <div style="color: #64C8FF; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">VOLUME IN CRESCITA</div>
-                    <div style="color: #fff; font-size: 0.9em;">
-                        La squadra ha aumentato i km di <strong>{p_km:+.1f}%</strong> vs il periodo precedente.
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
-
-    html_aderenza = None
-    if top_aderenza:
-        html_aderenza = make_alert_card(
-            "TOP ADERENZA (7 GG)",
-            f"<strong>{top_aderenza}</strong> è l'atleta più costante della settimana con {top_aderenza_count} giorni di allenamento. 💪",
-            "🔥", ("#E8FF3A", "232,255,58")
-        )
-
-    html_anagrafica = None
-    if anagrafica_incompleta:
-        txt4 = " e altri" if len(anagrafica_incompleta) > 3 else ""
-        anagrafica_list = ', '.join(anagrafica_incompleta[:3]) + txt4
-        html_anagrafica = make_alert_card(
-            "ANAGRAFICA INCOMPLETA",
-            f"<strong>{anagrafica_list}</strong> non hanno data di nascita o peso salvati nel profilo.",
-            "📋", ("rgba(255,255,255,0.5)", "255,255,255")
-        )
-
-    def render_row(left_html, right_html=None):
-        """Riga a due colonne se entrambe le card sono presenti, altrimenti
-        la singola card occupa tutta la larghezza: niente più "buchi"."""
-        if left_html and right_html:
-            rc1, rc2 = st.columns(2)
-            with rc1:
-                st.markdown(left_html, unsafe_allow_html=True)
-            with rc2:
-                st.markdown(right_html, unsafe_allow_html=True)
-        elif left_html:
-            st.markdown(left_html, unsafe_allow_html=True)
-        elif right_html:
-            st.markdown(right_html, unsafe_allow_html=True)
-        if left_html or right_html:
-            st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
-
-    render_row(html_timeline, html_periodo)
-    render_row(html_pb, html_inattivi)
-    render_row(html_trend, html_stopvbt)
-    render_row(html_volume, html_aderenza)
-    render_row(html_anagrafica, None)
-
-st.divider()
-
-if st.session_state.current_page == "Home":
-    with st.expander("📅 Riepilogo Dettagliato Allenamenti (Vista Excel)", expanded=False):
-        st.markdown("Spulcia le tabelle inserite giorno per giorno. Le colonne si espandono in base a quante prove sono state svolte sulla singola distanza nell'arco della seduta.")
-        if not df_r.empty:
-            giorni_sett = {0: 'Lunedì', 1: 'Martedì', 2: 'Mercoledì', 3: 'Giovedì', 4: 'Venerdì', 5: 'Sabato', 6: 'Domenica'}
-            mesi = {1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile', 5: 'Maggio', 6: 'Giugno', 7: 'Luglio', 8: 'Agosto', 9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'}
-            
-            df_r_opt = df_r.copy()
-            df_r_opt['Data_date'] = df_r_opt['Data'].dt.date
-            date_uniche = sorted(df_r_opt['Data_date'].unique(), reverse=True)
-            
-            date_options = {}
-            for d in date_uniche:
-                g_str = giorni_sett[d.weekday()]
-                m_str = mesi[d.month]
-                num_prove = len(df_r_opt[df_r_opt['Data_date'] == d])
-                lbl = f"🗓️ {g_str} {d.day} {m_str} {d.year} — ({num_prove} prove)"
-                date_options[d] = lbl
-                
-            sel_giorno = st.selectbox("Seleziona la data dell'allenamento:", date_uniche, format_func=lambda x: date_options[x])
-            
-            if sel_giorno:
-                lbl_fmt = date_options[sel_giorno].replace('🗓️ ', '').split('—')[0].strip()
-                st.markdown(f"#### 🏟️ Allenamento del {lbl_fmt}")
-                st.markdown("<br>", unsafe_allow_html=True)
-                
-                df_day = df_r_opt[df_r_opt['Data_date'] == sel_giorno].copy()
-                if not df_day.empty:
-                    # ── ORDINE DI INSERIMENTO ───────────────────────────────────────────
-                    # Usa l'id Supabase (auto-increment) per preservare l'ordine originale
-                    # di inserimento da parte degli atleti (es. 20-30-40-20-30-40)
-                    if 'id' in df_day.columns:
-                        df_day = df_day.sort_values(by='id', ascending=True)
-                    # else: mantieni l'ordine in cui arrivano dal DataFrame (già data desc, ma
-                    # all'interno della stessa data l'ordine del DB sarà quello di inserimento)
-                    df_day = df_day.reset_index(drop=True)
-                    
-                    # Numero progressivo ripetizione per ogni (Atleta, Distanza)
-                    df_day['Ripetizione'] = df_day.groupby(['Atleta', 'Distanza']).cumcount() + 1
-                    
-                    # ── DIVISIONE IN GRUPPI PER SET DI DISTANZE ────────────────────────
-                    # Raggruppa gli atleti che fanno distanze simili nella stessa tabella.
-                    # Algoritmo: Jaccard similarity tra i set di distanze di ogni atleta.
-                    atleti_distanze = df_day.groupby('Atleta')['Distanza'].apply(set).to_dict()
-                    
-                    def jaccard_sim(s1, s2):
-                        if not s1 or not s2:
-                            return 0.0
-                        return len(s1 & s2) / len(s1 | s2)
-                    
-                    # Greedy grouping: ogni atleta finisce nel primo gruppo compatibile (≥40% overlap)
-                    groups = []
-                    assigned = set()
-                    for atleta_a, dists_a in atleti_distanze.items():
-                        if atleta_a in assigned:
-                            continue
-                        group = [atleta_a]
-                        group_dists = set(dists_a)
-                        assigned.add(atleta_a)
-                        for atleta_b, dists_b in atleti_distanze.items():
-                            if atleta_b in assigned:
-                                continue
-                            if jaccard_sim(group_dists, dists_b) >= 0.4:
-                                group.append(atleta_b)
-                                group_dists = group_dists | dists_b
-                                assigned.add(atleta_b)
-                        groups.append(group)
-                    
-                    # ── VISUALIZZAZIONE: una tabella per gruppo ─────────────────────────
-                    show_group_labels = len(groups) > 1
-                    for g_idx, group_atleti in enumerate(groups):
-                        df_group = df_day[df_day['Atleta'].isin(group_atleti)].copy()
-                        distanze_gruppo = sorted(df_group['Distanza'].unique())
-                        dist_label = " · ".join(f"{int(d)}m" for d in distanze_gruppo)
-                        
-                        if show_group_labels:
-                            st.markdown(
-                                f"<div style='margin: 16px 0 6px 0; padding: 6px 14px; "
-                                f"background: rgba(232,255,58,0.05); border-left: 3px solid #E8FF3A; "
-                                f"border-radius: 4px; font-family: DM Mono, monospace; font-size: 11px; "
-                                f"color: #E8FF3A; letter-spacing: 1px;'>"
-                                f"GRUPPO {g_idx + 1} — {dist_label}</div>",
-                                unsafe_allow_html=True
-                            )
-                        
-                        # Costruisci le colonne nell'ordine in cui compaiono nel dataset
-                        # (ordine di inserimento, non per distanza crescente)
-                        cols_seen = []
-                        for _, row_p in df_group.iterrows():
-                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
-                            if col_name not in cols_seen:
-                                cols_seen.append(col_name)
-                        
-                        # Costruisci manualmente il pivot rispettando l'ordine
-                        pivot_rows = {}
-                        for _, row_p in df_group.iterrows():
-                            atl = row_p['Atleta']
-                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
-                            if atl not in pivot_rows:
-                                pivot_rows[atl] = {}
-                            pivot_rows[atl][col_name] = row_p['Tempo']
-                        
-                        pivot_day = pd.DataFrame(pivot_rows).T
-                        # Riordina le colonne nell'ordine originale di inserimento
-                        pivot_day = pivot_day.reindex(columns=[c for c in cols_seen if c in pivot_day.columns])
-                        pivot_day.index.name = 'Atleta'
-                        
-                        st.dataframe(
-                            pivot_day.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - "),
-                            use_container_width=True
-                        )
-                else:
-                    st.info("Nessuna prova in questa data.")
-        else:
-            st.info("Nessun dato registrato o presente nei filtri.")
-
-
-    st.divider()
-
-    st.markdown("<h3 style='margin-bottom:0;'>🏆 CLASSIFICA PERSONAL BEST (PB) SQUADRA</h3>", unsafe_allow_html=True)
-    if len(df_r) > 0:
-        pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
-        pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
-        pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
-        
-        def bg_min(s):
-            return ['background-color: #90e0ef; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.min())]
-
-        def bg_max(s):
-            return ['background-color: #fde2e4; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.max())]
-
-        styled_pb = pb_pivot.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - ")\
-                                  .apply(bg_min, axis=0)\
-                                  .apply(bg_max, axis=0)
-                                  
-        st.dataframe(styled_pb, use_container_width=True, height=500)
-    else:
-        st.info("Nessuna prova presente.")
-        
-    st.divider()
-
-    st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
-    df_r_vol = df_r.copy()
-    if not df_r_vol.empty:
-        df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
-        vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
-        vol_df = vol_agg.reset_index()
-        vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
-        fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
-        fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
-        fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
-        st.plotly_chart(fig_vol, use_container_width=True)
-    else:
-        st.info("Nessun dato di corsa nel periodo selezionato.")
-        
-    st.divider()
-elif st.session_state.current_page == "Atleti":
-    from supabase_connector import get_atleti
-    df_atleti = get_atleti()
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    st.markdown("<h3 style='margin-bottom:0;'>👥 ELENCO ATLETI</h3>", unsafe_allow_html=True)
-    # Search bar e Arricchimento dati
-    roster_data = []
-    if not df_atleti.empty:
-        for _, row in df_atleti.iterrows():
-            atl = row['nome_completo']
-            f_url = row.get('foto_url', '')
-            
-            mask_r = df_running['Atleta'] == atl
-            mask_v = df_vbt['Atleta'] == atl
-            last_r = df_running[mask_r]['Data'].max() if len(df_running[mask_r]) > 0 else pd.NaT
-            last_v = df_vbt[mask_v]['Data'].max() if len(df_vbt[mask_v]) > 0 else pd.NaT
-            
-            last_d = max(last_r, last_v) if pd.notnull(last_r) and pd.notnull(last_v) else (last_r if pd.notnull(last_r) else last_v)
-            days_ago = (pd.Timestamp.now().tz_localize(None) - last_d).days if pd.notnull(last_d) else 999
-            
-            if days_ago <= 3:
-                stato = "🔥 Picco"
-                color = "#E8FF3A"
-                c_badge = "background: rgba(232,255,58,0.1); color: #E8FF3A;"
-            elif days_ago <= 10:
-                stato = "✓ Buona"
-                color = "#16a34a"
-                c_badge = "background: rgba(22,163,74,0.1); color: #16a34a;"
-            elif days_ago <= 30:
-                stato = "⚠ Monitor"
-                color = "#FFB347"
-                c_badge = "background: rgba(255,179,71,0.1); color: #FFB347;"
-            else:
-                stato = "🔴 Fermo"
-                color = "#FF6B6B"
-                c_badge = "background: rgba(255,107,107,0.1); color: #FF6B6B;"
-                
-            atl_run = df_running[mask_r]
-            highlight_txt = "-"
-            if len(atl_run) > 0:
-                if 100 in atl_run['Distanza'].values:
-                    pb = atl_run[atl_run['Distanza'] == 100]['Tempo'].min()
-                    highlight_txt = f"{pb:.2f}s (100m)"
-                elif 60 in atl_run['Distanza'].values:
-                    pb = atl_run[atl_run['Distanza'] == 60]['Tempo'].min()
-                    highlight_txt = f"{pb:.2f}s (60m)"
-            
-            if highlight_txt == "-" and len(df_vbt[mask_v]) > 0:
-                 highlight_txt = f"{len(df_vbt[mask_v])} sess. VBT"
-
-            roster_data.append({
-                'nome': atl,
-                'foto': f_url,
-                'stato': stato,
-                'color': color,
-                'c_badge': c_badge,
-                'highlight': highlight_txt,
-                'days_ago': days_ago
-            })
-            
-        roster_df = pd.DataFrame(roster_data)
-        if not roster_df.empty:
-            roster_df = roster_df.sort_values(by=['days_ago', 'nome']).reset_index(drop=True).drop(columns=['days_ago'])
-
-        # Barra di ricerca se > 10
-        if len(roster_df) > 10:
-            search_q = st.text_input("🔍 Cerca Atleta", placeholder="Cerca nome...", label_visibility="collapsed")
-            if search_q:
-                roster_df = roster_df[roster_df['nome'].str.contains(search_q, case=False, na=False)]
-        
-        # Grid System
-        def _hex_to_rgb(h):
-            h = h.lstrip('#')
-            if len(h) != 6:
-                return "255,255,255"
-            return f"{int(h[0:2],16)},{int(h[2:4],16)},{int(h[4:6],16)}"
-
-        for i in range(0, len(roster_df), 3):
-            cols = st.columns(3)
-            for j in range(3):
-                if i + j < len(roster_df):
-                    row = roster_df.iloc[i + j]
-                    card_key = f"rostercard_{i + j}"
-                    row_rgb = _hex_to_rgb(row["color"])
-                    st.markdown(f"""
-                    <style>
-                    .st-key-{card_key} {{
-                        background: radial-gradient(circle at 85% 0%, rgba({row_rgb},0.12) 0%, rgba({row_rgb},0.03) 45%, rgba(255,255,255,0.015) 100%);
-                        border: 1px solid rgba({row_rgb},0.35) !important;
-                        border-radius: 14px !important;
-                        transition: border-color 0.15s, box-shadow 0.15s;
-                    }}
-                    .st-key-{card_key}:hover {{
-                        border-color: rgba({row_rgb},0.8) !important;
-                        box-shadow: 0 0 24px rgba({row_rgb},0.15);
-                    }}
-                    </style>
-                    """, unsafe_allow_html=True)
-                    with cols[j].container(border=True, key=card_key):
-                        # Avatar con border color-coded e senza foto con gradient
-                        if pd.notna(row['foto']) and str(row['foto']).strip() != "":
-                            av_html = f'''<div style="width:70px; height:70px; border-radius:50%; border:4px solid {row["color"]}; overflow:hidden; margin-bottom:12px; box-shadow: 0 0 20px {row["color"]}40;">
-                                            <img src="{row["foto"]}" style="width:100%; height:100%; object-fit:cover; display:block;">
-                                          </div>'''
-                        else:
-                            inz = "".join([n[0] for n in row['nome'].split()[:2]]).upper()
-                            av_html = f'''<div style="width:70px; height:70px; border-radius:50%; border:4px solid {row["color"]}; background: radial-gradient(circle at 30% 30%, {row["color"]}30, {row["color"]}10); color:#FFF; font-family:'Bebas Neue', sans-serif; font-size:28px; font-weight:bold; display:flex; align-items:center; justify-content:center; margin-bottom:12px; box-shadow: 0 0 20px {row["color"]}40; letter-spacing:2px;">
-                                            {inz}
-                                          </div>'''
-
-                        st.markdown(f'''
-                        <div style="position: relative; padding: 6px;">
-                            <div style="position: absolute; right: 8px; top: 8px; font-size: 80px; opacity: 0.06; color: {row["color"]}; user-select: none; pointer-events: none;">👤</div>
-                            {av_html}
-                            <div style="font-weight: 700; font-size: 1.1em; line-height: 1.3; margin-bottom: 6px; color: #E8EDF5;">{row["nome"]}</div>
-                            <div style="font-size: 0.7em; color: rgba(255,255,255,0.4); margin-bottom: 12px; font-family: 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; font-weight: 600;">● VELOCITÀ</div>
-                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                                <span style="font-size: 11px; padding: 5px 10px; border-radius: 6px; font-family: 'DM Mono', monospace; font-weight: 700; {row["c_badge"]}">{row["stato"]}</span>
-                                <span style="font-size: 12px; color: {row["color"]}; font-family: 'DM Mono', monospace; font-weight: bold;">{row["highlight"]}</span>
-                            </div>
-                        </div>
-                        ''', unsafe_allow_html=True)
-
-                        if st.button("🔍 Vai al Profilo", key=f"nav_{row['nome']}", use_container_width=True):
-                            st.session_state.app_athlete = row['nome']
-                            st.session_state.current_page = "Dettaglio Atleta"
-                            st.session_state.page_just_changed = True
-                            st.rerun()
-
-        if st.session_state.authenticated:
-            @st.dialog("Registra Nuovo Atleta")
-            def render_new_atleta_modal():
-                with st.form("new_atleta_form", clear_on_submit=True):
-                    st.markdown("**Inserisci il nuovo membro della squadra**")
-                    n1, n2 = st.columns(2)
-                    nome = n1.text_input("Nome")
-                    cognome = n2.text_input("Cognome")
-                    spec = st.text_input("Specialità (es. Velocità, Salti)", value="Velocità")
-                    if st.form_submit_button("✅ Registra Atleta", type="primary", use_container_width=True):
-                        if nome.strip() and cognome.strip():
-                            from supabase_connector import upsert_atleta
-                            upsert_atleta(nome.strip(), cognome.strip(), spec.strip())
-                            st.success("✅ Completato! (Ricaricamento...)")
-                            st.cache_data.clear()
-                            st.rerun()
-                        else:
-                            st.error("⚠️ Inserisci Nome e Cognome.")
-                            
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("➕ Aggiungi Nuovo Atleta", use_container_width=True):
-                render_new_atleta_modal()
-
-# ──────────────────────────────────────────────────────────────────────
-# DETTAGLIO ATLETA (TABS PRINCIPALI)
-# ──────────────────────────────────────────────────────────────────────
-
-if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
+@st.fragment
+def _render_dettaglio_tabs():
 
     # ── MOSTRA TITOLO ATLETA SOLO se NON sei in profilo personale ──
     # (Se in profilo personale, il benvenuto è già mostrato sopra)
@@ -2488,8 +1688,8 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
                                             ok = update_sessione_corsa(sel_id, nuovo_t, nuova_nota.strip())
                                             if ok:
                                                 st.success("✅ Tempo corretto con successo!")
-                                                st.cache_data.clear()
-                                                st.rerun()
+                                                get_data_cloud.clear()
+                                                st.rerun(scope="app")
                                             else:
                                                 st.error("❌ Errore nel salvataggio.")
                                         except Exception as e:
@@ -2507,8 +1707,8 @@ if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "
                                         st.session_state.pop('_confirm_delete_id', None)
                                         st.session_state.pop('_confirm_delete_label', None)
                                         st.success("🗑️ Prova eliminata.")
-                                        st.cache_data.clear()
-                                        st.rerun()
+                                        get_data_cloud.clear()
+                                        st.rerun(scope="app")
                     elif 'id' not in df_corr.columns:
                         st.info("La correzione tempi è disponibile solo con i dati dal cloud (Supabase).")
                     else:
@@ -3558,8 +2758,7 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
                                 ok = insert_gara_ufficiale(selected_athlete, g_spec.strip(), g_tempo.strip(), g_vento.strip(), g_luogo.strip(), g_data.strftime("%Y-%m-%d"))
                                 if ok:
                                     st.success("✅ Risultato di gara registrato!")
-                                    st.cache_data.clear()
-                                    st.rerun()
+                                    st.rerun(scope="app")
                                 else:
                                     st.error("Errore nel salvataggio del PB.")
                             else:
@@ -3609,3 +2808,814 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
 
 
 
+
+if st.session_state.current_page == "Inserimento":
+    st.markdown("## ➕ Inserisci Nuovo Allenamento")
+    
+    # Mostra messaggio di conferma se c'è (persiste attraverso il rerun)
+    if st.session_state.get('upload_success_msg'):
+        msg = st.session_state.pop('upload_success_msg')
+        st.success(msg)
+        st.balloons()
+    
+    if DATA_SOURCE != "cloud":
+        st.warning("⚠️ La dashboard sta usando i dati locali (Excel). L'inserimento richiede la connessione al cloud.")
+    else:
+        st.markdown("I dati vengono salvati direttamente nel cloud e saranno visibili a tutta la squadra.")
+        
+        tipo_form = st.radio("Seleziona attività:", ["🏃 Pista (corsa)", "🏋️ Palestra (VBT)"], horizontal=True, key="tipo_allenamento")
+        st.divider()
+        
+        atleti_list = all_athletes
+        default_atleta_idx = 0
+        if selected_athlete != "Tutta la squadra" and selected_athlete in atleti_list:
+            default_atleta_idx = atleti_list.index(selected_athlete)
+            
+        if tipo_form == "🏃 Pista (corsa)":
+            from supabase_connector import insert_sessione_corsa
+            with st.form("form_corsa", clear_on_submit=True):
+                st.markdown("**Sessione in Pista**")
+                col_a, col_b = st.columns(2)
+                if st.session_state.is_athlete_session:
+                    atleta_sel = st.session_state.logged_athlete_name
+                    col_a.markdown(f"**Atleta:** {atleta_sel}")
+                else:
+                    atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_corsa")
+                data_sel = col_b.date_input("Data", key="data_corsa")
+
+                st.markdown("---")
+                st.markdown("**Prove effettuate**")
+                distanze_opts = [30, 40, 50, 60, 80, 100, 120, 150, 180, 200, 250, 300, 400]
+                prove = []
+                for i in range(1, 13):
+                    if i > 1:
+                        st.markdown("<hr class='mobile-divider'>", unsafe_allow_html=True)
+                    c1, c2, c3 = st.columns([1, 1, 2])
+
+                    dist_i = c1.selectbox(f"🎯 PROVA {i} (Distanza)", ["-"] + [f"{d}m" for d in distanze_opts], key=f"dist_{i}")
+                    tempo_i = c2.text_input(f"⏱️ TEMPO {i}", key=f"tempo_{i}", placeholder="es. 7.12")
+                    nota_i = c3.text_input(f"📝 NOTE {i}", key=f"nota_{i}", placeholder="es. vento, elettrico...")
+
+                    if dist_i != "-" and tempo_i.strip():
+                        prove.append((int(dist_i.replace("m", "")), tempo_i.strip(), nota_i.strip()))
+
+                submitted = st.form_submit_button("✅ Salva Sessione in Pista", type="primary", use_container_width=True)
+
+                if submitted:
+                    if not prove:
+                        st.error("Inserisci almeno una prova.")
+                    else:
+                        successi, errori = 0, 0
+                        for dist, tempo_raw, nota in prove:
+                            try:
+                                from data_loader import parse_time
+                                parsed = parse_time(tempo_raw)
+                                if parsed is None:
+                                    errori += 1; continue
+                                ok = insert_sessione_corsa(atleta_sel, data_sel.strftime("%Y-%m-%d"), dist, parsed['tempo'], nota)
+                                if ok: successi += 1
+                                else: errori += 1
+                            except Exception:
+                                errori += 1
+                        if successi > 0:
+                            data_label = data_sel.strftime('%d/%m/%Y')
+                            st.session_state['upload_success_msg'] = (
+                                f"✅ Allenamento caricato! **{successi} {'prove' if successi > 1 else 'prova'}** "
+                                f"salvate per **{atleta_sel}** in data {data_label}. "
+                                f"I dati sono visibili a tutta la squadra. 🏋️"
+                            )
+                            get_data_cloud.clear()
+                            st.rerun()
+                        if errori > 0:
+                            st.warning(f"⚠️ {errori} prove non salvate (controlla il formato tempo).")
+
+        elif tipo_form == "🏋️ Palestra (VBT)":
+            from supabase_connector import insert_sessione_vbt
+            esercizi_noti = sorted(set(df_vbt['Esercizio'].dropna().unique()) - {'General'})
+            with st.form("form_vbt", clear_on_submit=True):
+                st.markdown("**Sessione in Palestra (VBT)**")
+                col_a, col_b = st.columns(2)
+                if st.session_state.is_athlete_session:
+                    atleta_sel = st.session_state.logged_athlete_name
+                    col_a.markdown(f"**Atleta:** {atleta_sel}")
+                else:
+                    atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_vbt")
+                data_sel = col_b.date_input("Data", key="data_vbt")
+                st.markdown("---")
+                esercizio_sel = st.selectbox("Esercizio", options=esercizi_noti, key="esercizio_sel")
+                c1, c2, c3 = st.columns(3)
+                carico = c1.number_input("Carico (kg)", min_value=0.0, step=2.5, key="carico")
+                vel_media = c2.number_input("Velocità Media (m/s)", min_value=0.0, step=0.01, format="%.3f", key="vel_media")
+                vel_max = c3.number_input("Velocità Max (m/s)", min_value=0.0, step=0.01, format="%.3f", key="vel_max")
+                c4, c5, c6 = st.columns(3)
+                pot_media = c4.number_input("Potenza Media (W)", min_value=0.0, step=10.0, key="pot_media")
+                pot_max = c5.number_input("Potenza Max (W)", min_value=0.0, step=10.0, key="pot_max")
+                forza_max = c6.number_input("Forza Max (N)", min_value=0.0, step=10.0, key="forza_max")
+                c7, c8 = st.columns(2)
+                serie = c7.number_input("Serie", min_value=1, value=3, step=1, key="serie")
+                rip = c8.number_input("Ripetizioni", min_value=1, value=5, step=1, key="ripetizioni")
+                submitted_vbt = st.form_submit_button("✅ Salva Sessione Palestra", type="primary", use_container_width=True)
+                if submitted_vbt:
+                    if carico == 0:
+                        st.error("Inserisci il carico utilizzato.")
+                    else:
+                        ok = insert_sessione_vbt(atleta_sel, data_sel.strftime("%Y-%m-%d"), esercizio_sel, carico, vel_media or None, vel_max or None, pot_media or None, pot_max or None, forza_max or None, int(serie), int(rip))
+                        if ok:
+                            data_label = data_sel.strftime('%d/%m/%Y')
+                            st.session_state['upload_success_msg'] = (
+                                f"✅ Sessione palestra caricata! Allenamento VBT di **{atleta_sel}** "
+                                f"del {data_label} salvato con successo nel cloud. 💪"
+                            )
+                            get_data_cloud.clear()
+                            st.rerun()
+                        else:
+                            st.error("❌ Errore nel salvataggio.")
+
+elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
+    _render_dettaglio_tonnellaggio()
+elif st.session_state.current_page == "Home":
+    # ────────────────────────────────────────────────────────────────
+    # CALCOLO KPI DI SQUADRA (HOME)
+    # ────────────────────────────────────────────────────────────────
+    start_d = pd.to_datetime(start_date)
+    end_d = pd.to_datetime(end_date)
+    duration_days = max(1, (end_d - start_d).days)
+    prev_start_d = start_d - pd.Timedelta(days=duration_days)
+    prev_end_d = start_d - pd.Timedelta(days=1)
+    
+    # Maschere e subset pre-periodo
+    mask_prev_r = (df_running['Data'].dt.date >= prev_start_d.date()) & (df_running['Data'].dt.date <= prev_end_d.date())
+    df_r_prev = df_running[mask_prev_r]
+    
+    mask_prev_v = (df_vbt['Data'].dt.date >= prev_start_d.date()) & (df_vbt['Data'].dt.date <= prev_end_d.date())
+    df_v_prev = df_vbt[mask_prev_v]
+
+    # KPI 1. Sessioni (Presenze Atleti, calcolato come combinazioni Atleta-Giorno)
+    sess_curr = df_r.groupby(['Atleta', df_r['Data'].dt.date]).ngroups if len(df_r) > 0 else 0
+    sess_prev = df_r_prev.groupby(['Atleta', df_r_prev['Data'].dt.date]).ngroups if len(df_r_prev) > 0 else 0
+    delta_sess = sess_curr - sess_prev
+
+    # KPI 2. Prove
+    prove_curr = len(df_r)
+    prove_totali = len(df_running)
+    
+    # KPI 3. Record VBT
+    storico_vbt = df_vbt[df_vbt['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Esercizio'])['Potenza_max'].max().to_dict()
+    nuovi_vbt = 0
+    df_v_ex = df_v[df_v['Esercizio'] != 'General']
+    for idx, row in df_v_ex.iterrows():
+        k = (row['Atleta'], row['Esercizio'])
+        if k in storico_vbt:
+            if row['Potenza_max'] > storico_vbt[k]:
+                nuovi_vbt += 1
+                storico_vbt[k] = row['Potenza_max']
+        else:
+            storico_vbt[k] = row['Potenza_max']
+            nuovi_vbt += 1
+
+    # KPI Row 2 calcoli
+    # 1. Atleti con PB nel periodo (SOLO se attivi negli ultimi 30 giorni)
+    storico_pb = df_running[df_running['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Distanza'])['Tempo'].min().to_dict()
+
+    # Calcola atleti attivi negli ultimi 30 giorni per filtrare falsi positivi
+    ultimi_30gg = pd.Timestamp.now().tz_localize(None) - pd.Timedelta(days=30)
+    df_r_30gg = df_r[df_r['Data'] >= ultimi_30gg].copy()
+    atleti_attivi_30gg = set(df_r_30gg['Atleta'].unique()) if not df_r_30gg.empty else set()
+
+    atleti_pb = set()
+    for idx, row in df_r.iterrows():
+        # Verifica che l'atleta sia attivo negli ultimi 30 giorni
+        if row['Atleta'] not in atleti_attivi_30gg:
+            continue
+
+        k = (row['Atleta'], row['Distanza'])
+        if k in storico_pb:
+            if row['Tempo'] < storico_pb[k]:
+                atleti_pb.add(row['Atleta'])
+                storico_pb[k] = row['Tempo']
+        else:
+            # Distanza nuova: conta come PB solo se registrata negli ultimi 30 giorni
+            atleti_pb.add(row['Atleta'])
+            storico_pb[k] = row['Tempo']
+            
+    # 2. Atleti inattivi
+    ultime_date = pd.concat([df_running[['Atleta', 'Data']], df_vbt[['Atleta', 'Data']]]).groupby('Atleta')['Data'].max()
+    inattivi = []
+    for atl, ud in ultime_date.items():
+        if pd.notnull(ud) and (pd.Timestamp.now().tz_localize(None) - ud).days > 7:
+            inattivi.append(atl)
+            
+    # 3. Media sessioni/settimana
+    settimane = max(1, duration_days / 7)
+    tot_sess_atl = df_r.groupby('Atleta')['Data'].nunique()
+    media_sess = tot_sess_atl.mean() / settimane if len(tot_sess_atl) > 0 else 0
+    
+    # 4. Km squadra
+    km_curr = df_r['Distanza'].sum() / 1000
+    km_prev = df_r_prev['Distanza'].sum() / 1000
+    delta_km = km_curr - km_prev
+    p_km = (delta_km / km_prev * 100) if km_prev > 0 else 0
+
+    c1 = make_kpi_card("Sessioni Pista", sess_curr, f"↑ {delta_sess} vs prec." if delta_sess > 0 else (f"↓ {abs(delta_sess)}" if delta_sess < 0 else "Invariato"), "pos" if delta_sess > 0 else ("neg" if delta_sess<0 else "neu"), "🏟️", "kpi-glow")
+    c2 = make_kpi_card("Prove Registrate", prove_curr, f"{prove_totali} totali tracciate", "neu", "🏃")
+    c3 = make_kpi_card("Record (VBT)", len(df_v), f"↑ {nuovi_vbt} freschi" if nuovi_vbt > 0 else "Nessun nuovo PB", "pos" if nuovi_vbt > 0 else "neu", "🏋️")
+    c4 = make_kpi_card("Atleti a Sistema", df_r['Atleta'].nunique() if len(df_r) > 0 else 0, "Attivi nel periodo", "neu", "👥")
+    
+    c5 = make_kpi_card("Atleti in PB", len(atleti_pb), f"🌟 Formidabile" if len(atleti_pb) > 0 else "Costanza", "pos" if len(atleti_pb) > 0 else "neu", "🏅", "kpi-glow" if len(atleti_pb) > 0 else "")
+    c6 = make_kpi_card("Inattivi (>7 gg)", len(inattivi), "Da richiamare!" if len(inattivi) > 0 else "Ottimi, nessuno fermo", "neg" if len(inattivi) > 0 else "pos", "⚠️", "kpi-alert" if len(inattivi) > 0 else "")
+    c7 = make_kpi_card("Media (Sett.)", f"{media_sess:.1f}", "Sess / Atleta", "neu", "📉")
+    c8 = make_kpi_card("Volume Squadra", f"{km_curr:.1f} km", f"↑ {delta_km:+.1f}km ({p_km:+.0f}%)" if delta_km > 0 else (f"↓ {delta_km:+.1f}km ({p_km:+.0f}%)" if delta_km < 0 else "Invariato"), "pos" if delta_km > 0 else ("neg" if delta_km < 0 else "neu"), "🛣️")
+
+    st.markdown(f'<div class="kpi-grid">{c1}{c2}{c3}{c4}{c5}{c6}{c7}{c8}</div>', unsafe_allow_html=True)
+    
+    # ══════════════════════════════════════════════════════════════════════
+    # NOTIFICHE AUTOMATICHE, COMPLEANNI E ALERT STRUTTURATO
+    # ══════════════════════════════════════════════════════════════════════
+    st.markdown("<hr class='gold'>", unsafe_allow_html=True)
+    st.markdown("#### 🔔 Alert & Notifiche Group")
+
+    # ── LOGICA COMPLEANNI ──
+    from supabase_connector import get_atleti
+    df_atleti_full = get_atleti(with_foto=False)  # homepage: solo anagrafica, niente foto base64
+    oggi_tz = pd.Timestamp.now().tz_localize(None)
+    compleanni = []
+    if not df_atleti_full.empty:
+        for _, row in df_atleti_full.iterrows():
+            if pd.notna(row.get('data_nascita')):
+                try:
+                    dn = pd.to_datetime(row['data_nascita'])
+                    if dn.month == oggi_tz.month and dn.day == oggi_tz.day:
+                        compleanni.append(row['nome_completo'])
+                except Exception:
+                    pass
+    # ── COMPLEANNI IN ARRIVO (prossimi 7 giorni, escluso oggi) ──
+    compleanni_arrivo = []  # (nome, giorni_rimanenti)
+    if not df_atleti_full.empty:
+        for _, row in df_atleti_full.iterrows():
+            if pd.notna(row.get('data_nascita')):
+                try:
+                    dn = pd.to_datetime(row['data_nascita'])
+                    prossimo = dn.replace(year=oggi_tz.year)
+                    if prossimo.date() < oggi_tz.date():
+                        prossimo = prossimo.replace(year=oggi_tz.year + 1)
+                    giorni = (prossimo.date() - oggi_tz.date()).days
+                    if 0 < giorni <= 7:
+                        compleanni_arrivo.append((row['nome_completo'], giorni))
+                except Exception:
+                    pass
+    compleanni_arrivo.sort(key=lambda x: x[1])
+
+    # ── TIMELINE EVENTI: unisce compleanni di oggi (giorni=0) e in arrivo (1-7gg).
+    #    Se non ci sono compleanni, la timeline resta comunque visibile con il solo
+    #    marcatore "OGGI" a indicare il giorno corrente. ──
+    eventi_compleanno = [(nome, 0) for nome in compleanni] + list(compleanni_arrivo)
+    eventi_compleanno.sort(key=lambda x: x[1])
+
+    nodi_html = ""
+    ha_oggi = any(g == 0 for _, g in eventi_compleanno)
+    if not ha_oggi:
+        data_oggi = oggi_tz.strftime('%d %b').upper()
+        nodi_html += f"""
+        <div class="evt-node evt-today">
+            <div class="evt-node-date">{data_oggi}</div>
+            <div class="evt-node-dot">📍</div>
+            <div class="evt-node-name">Oggi</div>
+            <div class="evt-node-tag">Nessun compleanno</div>
+        </div>
+        """
+    for nome, giorni in eventi_compleanno:
+        data_evt = (oggi_tz + pd.Timedelta(days=giorni)).strftime('%d %b').upper()
+        is_today = giorni == 0
+        nodo_cls = "evt-node evt-today" if is_today else "evt-node"
+        tag = "OGGI 🎉" if is_today else f"in {giorni} gg"
+        nodi_html += f"""
+        <div class="{nodo_cls}">
+            <div class="evt-node-date">{data_evt}</div>
+            <div class="evt-node-dot">🎂</div>
+            <div class="evt-node-name">{nome}</div>
+            <div class="evt-node-tag">{tag}</div>
+        </div>
+        """
+    html_timeline = f"""
+    <div class="evt-timeline-wrap" style="height: 100%; margin: 0;">
+        <div class="evt-timeline-track">{nodi_html}</div>
+    </div>
+    """
+
+    # ── STOP VBT: atleti attivi in pista ma fermi sul monitoraggio forza (>14 gg) ──
+    running_last = df_running.groupby('Atleta')['Data'].max() if not df_running.empty else pd.Series(dtype='datetime64[ns]')
+    vbt_last = df_vbt.groupby('Atleta')['Data'].max() if not df_vbt.empty else pd.Series(dtype='datetime64[ns]')
+    stop_vbt = []
+    for atl, rdate in running_last.items():
+        if pd.notnull(rdate) and (oggi_tz - rdate).days <= 14:
+            vdate = vbt_last.get(atl)
+            if pd.isnull(vdate) or (oggi_tz - vdate).days > 14:
+                stop_vbt.append(atl)
+
+    # ── TREND NEGATIVO: peggioramento sulle ultime sessioni di una distanza ──
+    trend_negativo = []  # (atleta, distanza, var_pct)
+    if not df_running.empty:
+        for (atl, dist), g in df_running.groupby(['Atleta', 'Distanza']):
+            g2 = g.dropna(subset=['Tempo']).sort_values('Data')
+            if len(g2) >= 4:
+                last4 = g2['Tempo'].tail(4).to_numpy()
+                prev2_avg, last2_avg = last4[:2].mean(), last4[2:].mean()
+                if prev2_avg > 0:
+                    var_pct = (last2_avg - prev2_avg) / prev2_avg * 100
+                    if var_pct > 2:
+                        trend_negativo.append((atl, dist, var_pct))
+    trend_negativo.sort(key=lambda x: -x[2])
+
+    # ── TOP ADERENZA SETTIMANALE ──
+    ultimi_7gg = oggi_tz - pd.Timedelta(days=7)
+    sess_7 = pd.concat([df_running[['Atleta', 'Data']], df_vbt[['Atleta', 'Data']]]) if (not df_running.empty or not df_vbt.empty) else pd.DataFrame(columns=['Atleta', 'Data'])
+    sess_7 = sess_7[sess_7['Data'] >= ultimi_7gg]
+    top_aderenza, top_aderenza_count = None, 0
+    if not sess_7.empty:
+        giorni_count = sess_7.groupby('Atleta')['Data'].apply(lambda s: s.dt.date.nunique())
+        if not giorni_count.empty and giorni_count.max() >= 3:
+            top_aderenza = giorni_count.idxmax()
+            top_aderenza_count = int(giorni_count.max())
+
+    # ── ANAGRAFICA INCOMPLETA ──
+    anagrafica_incompleta = []
+    if not df_atleti_full.empty:
+        df_atleti_attivi = df_atleti_full
+        if 'attivo' in df_atleti_full.columns:
+            df_atleti_attivi = df_atleti_full[df_atleti_full['attivo'].fillna(True) != False]
+        for _, row in df_atleti_attivi.iterrows():
+            if pd.isna(row.get('data_nascita')) or pd.isna(row.get('peso')):
+                anagrafica_incompleta.append(row['nome_completo'])
+
+    # ── ALERT PERFORMANCE E MONITORAGGIO: card pre-costruite e poi accoppiate
+    #    in righe (timeline+periodo, pb+inattivi, trend+stopvbt, ...) così non
+    #    si creano più "buchi" quando una colonna ha più card dell'altra. ──
+    html_periodo = f"""
+    <div style="background: rgba(255,255,255,0.02); border-left: 4px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px; height: 100%;">
+        <div style="display: flex; gap: 10px; align-items: flex-start;">
+            <span style="font-size: 24px;">📊</span>
+            <div style="flex: 1;">
+                <div style="color: rgba(255,255,255,0.5); font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">PERIODO ANALIZZATO</div>
+                <div style="color: rgba(255,255,255,0.7); font-size: 0.9em;">
+                    Dal {start_d.strftime('%d/%m/%Y')} al {end_date.strftime('%d/%m/%Y')} ({duration_days} giorni)
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+
+    if atleti_pb:
+        txt = " e altri" if len(atleti_pb) > 3 else ""
+        pb_list = ', '.join(list(atleti_pb)[:3]) + txt
+        html_pb = f"""
+        <div style="background: rgba(184,255,138,0.1); border-left: 4px solid #B8FF8A; border-radius: 8px; padding: 14px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 24px; margin-top: 2px;">🏆</span>
+                <div style="flex: 1;">
+                    <div style="color: #B8FF8A; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">RECORD INFRANTI</div>
+                    <div style="color: #fff; font-size: 0.9em;">
+                        <strong>{pb_list}</strong> hanno battuto il PB in questo periodo! 🔥
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+    else:
+        html_pb = f"""
+        <div style="background: rgba(255,255,255,0.02); border-left: 4px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 24px;">💪</span>
+                <div style="flex: 1;">
+                    <div style="color: rgba(255,255,255,0.5); font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">NESSUN NUOVO PB</div>
+                    <div style="color: rgba(255,255,255,0.7); font-size: 0.9em;">
+                        Continuate a spingere! Il prossimo record è vicino.
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+
+    if inattivi:
+        txt2 = " e altri" if len(inattivi) > 3 else ""
+        inattivi_list = ', '.join(inattivi[:3]) + txt2
+        html_inattivi = f"""
+        <div style="background: rgba(255,75,75,0.15); border-left: 4px solid #FF6B6B; border-radius: 8px; padding: 14px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 24px;">⚠️</span>
+                <div style="flex: 1;">
+                    <div style="color: #FF6B6B; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">ATLETI INATTIVI (>7 GG)</div>
+                    <div style="color: #fff; font-size: 0.9em;">
+                        <strong>{inattivi_list}</strong> non si allenano da più di una settimana. Richiedere contatti! 📞
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+    else:
+        html_inattivi = f"""
+        <div style="background: rgba(22,163,74,0.1); border-left: 4px solid #16a34a; border-radius: 8px; padding: 14px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 24px;">✅</span>
+                <div style="flex: 1;">
+                    <div style="color: #16a34a; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">SQUADRA ATTIVA</div>
+                    <div style="color: #fff; font-size: 0.9em;">
+                        Tutti gli atleti si allenano regolarmente. Ottimo lavoro! 🎉
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+
+    html_trend = None
+    if trend_negativo:
+        righe_t = [f"{atl} sui {int(dist)}m ({var:+.1f}%)" for atl, dist, var in trend_negativo[:3]]
+        html_trend = make_alert_card(
+            "TREND IN CALO",
+            f"Tempi in peggioramento nelle ultime sessioni: <strong>{', '.join(righe_t)}</strong>. Da monitorare.",
+            "📉", ("#FF6B6B", "255,107,107")
+        )
+
+    html_stopvbt = None
+    if stop_vbt:
+        txt3 = " e altri" if len(stop_vbt) > 3 else ""
+        stop_vbt_list = ', '.join(stop_vbt[:3]) + txt3
+        html_stopvbt = make_alert_card(
+            "STOP VBT (>14 GG)",
+            f"<strong>{stop_vbt_list}</strong> si allenano in pista ma non registrano sessioni VBT da oltre 14 giorni. Monitoraggio forza fermo.",
+            "🏋️", ("#FF9A3A", "255,154,58")
+        )
+
+    html_volume = None
+    if p_km > 0:
+        html_volume = f"""
+        <div style="background: rgba(100,200,255,0.1); border-left: 4px solid #64C8FF; border-radius: 8px; padding: 14px;">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 24px;">📈</span>
+                <div style="flex: 1;">
+                    <div style="color: #64C8FF; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">VOLUME IN CRESCITA</div>
+                    <div style="color: #fff; font-size: 0.9em;">
+                        La squadra ha aumentato i km di <strong>{p_km:+.1f}%</strong> vs il periodo precedente.
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+
+    html_aderenza = None
+    if top_aderenza:
+        html_aderenza = make_alert_card(
+            "TOP ADERENZA (7 GG)",
+            f"<strong>{top_aderenza}</strong> è l'atleta più costante della settimana con {top_aderenza_count} giorni di allenamento. 💪",
+            "🔥", ("#E8FF3A", "232,255,58")
+        )
+
+    html_anagrafica = None
+    if anagrafica_incompleta:
+        txt4 = " e altri" if len(anagrafica_incompleta) > 3 else ""
+        anagrafica_list = ', '.join(anagrafica_incompleta[:3]) + txt4
+        html_anagrafica = make_alert_card(
+            "ANAGRAFICA INCOMPLETA",
+            f"<strong>{anagrafica_list}</strong> non hanno data di nascita o peso salvati nel profilo.",
+            "📋", ("rgba(255,255,255,0.5)", "255,255,255")
+        )
+
+    def render_row(left_html, right_html=None):
+        """Riga a due colonne se entrambe le card sono presenti, altrimenti
+        la singola card occupa tutta la larghezza: niente più "buchi"."""
+        if left_html and right_html:
+            rc1, rc2 = st.columns(2)
+            with rc1:
+                st.markdown(left_html, unsafe_allow_html=True)
+            with rc2:
+                st.markdown(right_html, unsafe_allow_html=True)
+        elif left_html:
+            st.markdown(left_html, unsafe_allow_html=True)
+        elif right_html:
+            st.markdown(right_html, unsafe_allow_html=True)
+        if left_html or right_html:
+            st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
+
+    render_row(html_timeline, html_periodo)
+    render_row(html_pb, html_inattivi)
+    render_row(html_trend, html_stopvbt)
+    render_row(html_volume, html_aderenza)
+    render_row(html_anagrafica, None)
+
+st.divider()
+
+if st.session_state.current_page == "Home":
+    with st.expander("📅 Riepilogo Dettagliato Allenamenti (Vista Excel)", expanded=False):
+        st.markdown("Spulcia le tabelle inserite giorno per giorno. Le colonne si espandono in base a quante prove sono state svolte sulla singola distanza nell'arco della seduta.")
+        if not df_r.empty:
+            giorni_sett = {0: 'Lunedì', 1: 'Martedì', 2: 'Mercoledì', 3: 'Giovedì', 4: 'Venerdì', 5: 'Sabato', 6: 'Domenica'}
+            mesi = {1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile', 5: 'Maggio', 6: 'Giugno', 7: 'Luglio', 8: 'Agosto', 9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'}
+            
+            df_r_opt = df_r.copy()
+            df_r_opt['Data_date'] = df_r_opt['Data'].dt.date
+            date_uniche = sorted(df_r_opt['Data_date'].unique(), reverse=True)
+            
+            date_options = {}
+            for d in date_uniche:
+                g_str = giorni_sett[d.weekday()]
+                m_str = mesi[d.month]
+                num_prove = len(df_r_opt[df_r_opt['Data_date'] == d])
+                lbl = f"🗓️ {g_str} {d.day} {m_str} {d.year} — ({num_prove} prove)"
+                date_options[d] = lbl
+                
+            sel_giorno = st.selectbox("Seleziona la data dell'allenamento:", date_uniche, format_func=lambda x: date_options[x])
+            
+            if sel_giorno:
+                lbl_fmt = date_options[sel_giorno].replace('🗓️ ', '').split('—')[0].strip()
+                st.markdown(f"#### 🏟️ Allenamento del {lbl_fmt}")
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                df_day = df_r_opt[df_r_opt['Data_date'] == sel_giorno].copy()
+                if not df_day.empty:
+                    # ── ORDINE DI INSERIMENTO ───────────────────────────────────────────
+                    # Usa l'id Supabase (auto-increment) per preservare l'ordine originale
+                    # di inserimento da parte degli atleti (es. 20-30-40-20-30-40)
+                    if 'id' in df_day.columns:
+                        df_day = df_day.sort_values(by='id', ascending=True)
+                    # else: mantieni l'ordine in cui arrivano dal DataFrame (già data desc, ma
+                    # all'interno della stessa data l'ordine del DB sarà quello di inserimento)
+                    df_day = df_day.reset_index(drop=True)
+                    
+                    # Numero progressivo ripetizione per ogni (Atleta, Distanza)
+                    df_day['Ripetizione'] = df_day.groupby(['Atleta', 'Distanza']).cumcount() + 1
+                    
+                    # ── DIVISIONE IN GRUPPI PER SET DI DISTANZE ────────────────────────
+                    # Raggruppa gli atleti che fanno distanze simili nella stessa tabella.
+                    # Algoritmo: Jaccard similarity tra i set di distanze di ogni atleta.
+                    atleti_distanze = df_day.groupby('Atleta')['Distanza'].apply(set).to_dict()
+                    
+                    def jaccard_sim(s1, s2):
+                        if not s1 or not s2:
+                            return 0.0
+                        return len(s1 & s2) / len(s1 | s2)
+                    
+                    # Greedy grouping: ogni atleta finisce nel primo gruppo compatibile (≥40% overlap)
+                    groups = []
+                    assigned = set()
+                    for atleta_a, dists_a in atleti_distanze.items():
+                        if atleta_a in assigned:
+                            continue
+                        group = [atleta_a]
+                        group_dists = set(dists_a)
+                        assigned.add(atleta_a)
+                        for atleta_b, dists_b in atleti_distanze.items():
+                            if atleta_b in assigned:
+                                continue
+                            if jaccard_sim(group_dists, dists_b) >= 0.4:
+                                group.append(atleta_b)
+                                group_dists = group_dists | dists_b
+                                assigned.add(atleta_b)
+                        groups.append(group)
+                    
+                    # ── VISUALIZZAZIONE: una tabella per gruppo ─────────────────────────
+                    show_group_labels = len(groups) > 1
+                    for g_idx, group_atleti in enumerate(groups):
+                        df_group = df_day[df_day['Atleta'].isin(group_atleti)].copy()
+                        distanze_gruppo = sorted(df_group['Distanza'].unique())
+                        dist_label = " · ".join(f"{int(d)}m" for d in distanze_gruppo)
+                        
+                        if show_group_labels:
+                            st.markdown(
+                                f"<div style='margin: 16px 0 6px 0; padding: 6px 14px; "
+                                f"background: rgba(232,255,58,0.05); border-left: 3px solid #E8FF3A; "
+                                f"border-radius: 4px; font-family: DM Mono, monospace; font-size: 11px; "
+                                f"color: #E8FF3A; letter-spacing: 1px;'>"
+                                f"GRUPPO {g_idx + 1} — {dist_label}</div>",
+                                unsafe_allow_html=True
+                            )
+                        
+                        # Costruisci le colonne nell'ordine in cui compaiono nel dataset
+                        # (ordine di inserimento, non per distanza crescente)
+                        cols_seen = []
+                        for _, row_p in df_group.iterrows():
+                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
+                            if col_name not in cols_seen:
+                                cols_seen.append(col_name)
+                        
+                        # Costruisci manualmente il pivot rispettando l'ordine
+                        pivot_rows = {}
+                        for _, row_p in df_group.iterrows():
+                            atl = row_p['Atleta']
+                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
+                            if atl not in pivot_rows:
+                                pivot_rows[atl] = {}
+                            pivot_rows[atl][col_name] = row_p['Tempo']
+                        
+                        pivot_day = pd.DataFrame(pivot_rows).T
+                        # Riordina le colonne nell'ordine originale di inserimento
+                        pivot_day = pivot_day.reindex(columns=[c for c in cols_seen if c in pivot_day.columns])
+                        pivot_day.index.name = 'Atleta'
+                        
+                        st.dataframe(
+                            pivot_day.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - "),
+                            use_container_width=True
+                        )
+                else:
+                    st.info("Nessuna prova in questa data.")
+        else:
+            st.info("Nessun dato registrato o presente nei filtri.")
+
+
+    st.divider()
+
+    st.markdown("<h3 style='margin-bottom:0;'>🏆 CLASSIFICA PERSONAL BEST (PB) SQUADRA</h3>", unsafe_allow_html=True)
+    if len(df_r) > 0:
+        pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
+        pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
+        pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
+        
+        def bg_min(s):
+            return ['background-color: #90e0ef; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.min())]
+
+        def bg_max(s):
+            return ['background-color: #fde2e4; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.max())]
+
+        styled_pb = pb_pivot.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - ")\
+                                  .apply(bg_min, axis=0)\
+                                  .apply(bg_max, axis=0)
+                                  
+        st.dataframe(styled_pb, use_container_width=True, height=500)
+    else:
+        st.info("Nessuna prova presente.")
+        
+    st.divider()
+
+    st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
+    df_r_vol = df_r.copy()
+    if not df_r_vol.empty:
+        df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
+        vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
+        vol_df = vol_agg.reset_index()
+        vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
+        fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
+        fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
+        fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
+        st.plotly_chart(fig_vol, use_container_width=True)
+    else:
+        st.info("Nessun dato di corsa nel periodo selezionato.")
+        
+    st.divider()
+elif st.session_state.current_page == "Atleti":
+    from supabase_connector import get_atleti
+    df_atleti = get_atleti()
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    st.markdown("<h3 style='margin-bottom:0;'>👥 ELENCO ATLETI</h3>", unsafe_allow_html=True)
+    # Search bar e Arricchimento dati
+    roster_data = []
+    if not df_atleti.empty:
+        for _, row in df_atleti.iterrows():
+            atl = row['nome_completo']
+            f_url = row.get('foto_url', '')
+            
+            mask_r = df_running['Atleta'] == atl
+            mask_v = df_vbt['Atleta'] == atl
+            last_r = df_running[mask_r]['Data'].max() if len(df_running[mask_r]) > 0 else pd.NaT
+            last_v = df_vbt[mask_v]['Data'].max() if len(df_vbt[mask_v]) > 0 else pd.NaT
+            
+            last_d = max(last_r, last_v) if pd.notnull(last_r) and pd.notnull(last_v) else (last_r if pd.notnull(last_r) else last_v)
+            days_ago = (pd.Timestamp.now().tz_localize(None) - last_d).days if pd.notnull(last_d) else 999
+            
+            if days_ago <= 3:
+                stato = "🔥 Picco"
+                color = "#E8FF3A"
+                c_badge = "background: rgba(232,255,58,0.1); color: #E8FF3A;"
+            elif days_ago <= 10:
+                stato = "✓ Buona"
+                color = "#16a34a"
+                c_badge = "background: rgba(22,163,74,0.1); color: #16a34a;"
+            elif days_ago <= 30:
+                stato = "⚠ Monitor"
+                color = "#FFB347"
+                c_badge = "background: rgba(255,179,71,0.1); color: #FFB347;"
+            else:
+                stato = "🔴 Fermo"
+                color = "#FF6B6B"
+                c_badge = "background: rgba(255,107,107,0.1); color: #FF6B6B;"
+                
+            atl_run = df_running[mask_r]
+            highlight_txt = "-"
+            if len(atl_run) > 0:
+                if 100 in atl_run['Distanza'].values:
+                    pb = atl_run[atl_run['Distanza'] == 100]['Tempo'].min()
+                    highlight_txt = f"{pb:.2f}s (100m)"
+                elif 60 in atl_run['Distanza'].values:
+                    pb = atl_run[atl_run['Distanza'] == 60]['Tempo'].min()
+                    highlight_txt = f"{pb:.2f}s (60m)"
+            
+            if highlight_txt == "-" and len(df_vbt[mask_v]) > 0:
+                 highlight_txt = f"{len(df_vbt[mask_v])} sess. VBT"
+
+            roster_data.append({
+                'nome': atl,
+                'foto': f_url,
+                'stato': stato,
+                'color': color,
+                'c_badge': c_badge,
+                'highlight': highlight_txt,
+                'days_ago': days_ago
+            })
+            
+        roster_df = pd.DataFrame(roster_data)
+        if not roster_df.empty:
+            roster_df = roster_df.sort_values(by=['days_ago', 'nome']).reset_index(drop=True).drop(columns=['days_ago'])
+
+        # Barra di ricerca se > 10
+        if len(roster_df) > 10:
+            search_q = st.text_input("🔍 Cerca Atleta", placeholder="Cerca nome...", label_visibility="collapsed")
+            if search_q:
+                roster_df = roster_df[roster_df['nome'].str.contains(search_q, case=False, na=False)]
+        
+        # Grid System
+        def _hex_to_rgb(h):
+            h = h.lstrip('#')
+            if len(h) != 6:
+                return "255,255,255"
+            return f"{int(h[0:2],16)},{int(h[2:4],16)},{int(h[4:6],16)}"
+
+        for i in range(0, len(roster_df), 3):
+            cols = st.columns(3)
+            for j in range(3):
+                if i + j < len(roster_df):
+                    row = roster_df.iloc[i + j]
+                    card_key = f"rostercard_{i + j}"
+                    row_rgb = _hex_to_rgb(row["color"])
+                    st.markdown(f"""
+                    <style>
+                    .st-key-{card_key} {{
+                        background: radial-gradient(circle at 85% 0%, rgba({row_rgb},0.12) 0%, rgba({row_rgb},0.03) 45%, rgba(255,255,255,0.015) 100%);
+                        border: 1px solid rgba({row_rgb},0.35) !important;
+                        border-radius: 14px !important;
+                        transition: border-color 0.15s, box-shadow 0.15s;
+                    }}
+                    .st-key-{card_key}:hover {{
+                        border-color: rgba({row_rgb},0.8) !important;
+                        box-shadow: 0 0 24px rgba({row_rgb},0.15);
+                    }}
+                    </style>
+                    """, unsafe_allow_html=True)
+                    with cols[j].container(border=True, key=card_key):
+                        # Avatar con border color-coded e senza foto con gradient
+                        if pd.notna(row['foto']) and str(row['foto']).strip() != "":
+                            av_html = f'''<div style="width:70px; height:70px; border-radius:50%; border:4px solid {row["color"]}; overflow:hidden; margin-bottom:12px; box-shadow: 0 0 20px {row["color"]}40;">
+                                            <img src="{row["foto"]}" style="width:100%; height:100%; object-fit:cover; display:block;">
+                                          </div>'''
+                        else:
+                            inz = "".join([n[0] for n in row['nome'].split()[:2]]).upper()
+                            av_html = f'''<div style="width:70px; height:70px; border-radius:50%; border:4px solid {row["color"]}; background: radial-gradient(circle at 30% 30%, {row["color"]}30, {row["color"]}10); color:#FFF; font-family:'Bebas Neue', sans-serif; font-size:28px; font-weight:bold; display:flex; align-items:center; justify-content:center; margin-bottom:12px; box-shadow: 0 0 20px {row["color"]}40; letter-spacing:2px;">
+                                            {inz}
+                                          </div>'''
+
+                        st.markdown(f'''
+                        <div style="position: relative; padding: 6px;">
+                            <div style="position: absolute; right: 8px; top: 8px; font-size: 80px; opacity: 0.06; color: {row["color"]}; user-select: none; pointer-events: none;">👤</div>
+                            {av_html}
+                            <div style="font-weight: 700; font-size: 1.1em; line-height: 1.3; margin-bottom: 6px; color: #E8EDF5;">{row["nome"]}</div>
+                            <div style="font-size: 0.7em; color: rgba(255,255,255,0.4); margin-bottom: 12px; font-family: 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; font-weight: 600;">● VELOCITÀ</div>
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                                <span style="font-size: 11px; padding: 5px 10px; border-radius: 6px; font-family: 'DM Mono', monospace; font-weight: 700; {row["c_badge"]}">{row["stato"]}</span>
+                                <span style="font-size: 12px; color: {row["color"]}; font-family: 'DM Mono', monospace; font-weight: bold;">{row["highlight"]}</span>
+                            </div>
+                        </div>
+                        ''', unsafe_allow_html=True)
+
+                        if st.button("🔍 Vai al Profilo", key=f"nav_{row['nome']}", use_container_width=True):
+                            st.session_state.app_athlete = row['nome']
+                            st.session_state.current_page = "Dettaglio Atleta"
+                            st.session_state.page_just_changed = True
+                            st.rerun()
+
+        if st.session_state.authenticated:
+            @st.dialog("Registra Nuovo Atleta")
+            def render_new_atleta_modal():
+                with st.form("new_atleta_form", clear_on_submit=True):
+                    st.markdown("**Inserisci il nuovo membro della squadra**")
+                    n1, n2 = st.columns(2)
+                    nome = n1.text_input("Nome")
+                    cognome = n2.text_input("Cognome")
+                    spec = st.text_input("Specialità (es. Velocità, Salti)", value="Velocità")
+                    if st.form_submit_button("✅ Registra Atleta", type="primary", use_container_width=True):
+                        if nome.strip() and cognome.strip():
+                            from supabase_connector import upsert_atleta
+                            upsert_atleta(nome.strip(), cognome.strip(), spec.strip())
+                            st.success("✅ Completato! (Ricaricamento...)")
+                            get_atleti.clear()
+                            st.rerun()
+                        else:
+                            st.error("⚠️ Inserisci Nome e Cognome.")
+                            
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("➕ Aggiungi Nuovo Atleta", use_container_width=True):
+                render_new_atleta_modal()
+
+# ──────────────────────────────────────────────────────────────────────
+# DETTAGLIO ATLETA (TABS PRINCIPALI)
+# ──────────────────────────────────────────────────────────────────────
+
+if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
+    _render_dettaglio_tabs()
