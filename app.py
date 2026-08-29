@@ -302,6 +302,12 @@ with st.sidebar:
         st.session_state.page_just_changed = True
         st.rerun()
 
+    if st.session_state.is_admin:
+        if st.button("🛠️ Programma", use_container_width=True, type="primary" if st.session_state.current_page == "Programma" else "secondary"):
+            st.session_state.current_page = "Programma"
+            st.session_state.page_just_changed = True
+            st.rerun()
+
     # ── PULSANTE PROFILO ATLETA ──────────────────────────────────────
     if st.session_state.is_athlete_session:
         if st.session_state.current_page == "Dettaglio Atleta":
@@ -341,18 +347,29 @@ with st.sidebar:
     if st.session_state.is_admin and DATA_SOURCE == "cloud":
         st.divider()
         with st.expander("🔑 Gestione PIN Atleti", expanded=False):
-            from supabase_connector import get_all_pins, set_atleta_pin
+            from supabase_connector import get_all_pins, set_atleta_pin, set_atleta_attivo
             df_pins = get_all_pins()
             if not df_pins.empty:
                 for _, pr in df_pins.iterrows():
                     pin_val = pr.get('pin_personale') or ''
-                    c1, c2, c3 = st.columns([3, 2, 1])
-                    c1.markdown(f"<div style='padding-top:6px; font-size:0.9em;'>{pr['nome_completo']}</div>", unsafe_allow_html=True)
+                    is_attivo = pr.get('attivo')
+                    is_attivo = True if is_attivo is None or (isinstance(is_attivo, float) and pd.isna(is_attivo)) else bool(is_attivo)
+                    c1, c2, c3, c4 = st.columns([3, 2, 1, 1])
+                    nome_label = pr['nome_completo'] if is_attivo else f"{pr['nome_completo']} ❄️"
+                    c1.markdown(f"<div style='padding-top:6px; font-size:0.9em;'>{nome_label}</div>", unsafe_allow_html=True)
                     nuovo_pin = c2.text_input("", value=pin_val, placeholder="nessun PIN",
                                               label_visibility="collapsed", key=f"pin_inp_{pr['id']}")
                     if c3.button("💾", key=f"pin_save_{pr['id']}", help="Salva PIN"):
                         set_atleta_pin(pr['id'], nuovo_pin if nuovo_pin.strip() else None)
                         st.success(f"✅ PIN di {pr['nome_completo'].split()[0]} aggiornato")
+                        st.rerun()
+                    icona_toggle = "☀️" if not is_attivo else "❄️"
+                    help_toggle = "Riattiva atleta" if not is_attivo else "Congela atleta (nasconde da roster/KPI, storico intatto)"
+                    if c4.button(icona_toggle, key=f"pin_toggle_{pr['id']}", help=help_toggle):
+                        set_atleta_attivo(pr['id'], not is_attivo)
+                        from supabase_connector import get_atleti
+                        get_atleti.clear()
+                        st.success(f"{'❄️ Congelato' if is_attivo else '☀️ Riattivato'}: {pr['nome_completo'].split()[0]}")
                         st.rerun()
             else:
                 st.info("Nessun atleta nel DB.")
@@ -2374,8 +2391,137 @@ def _render_home_riepilogo():
         st.plotly_chart(fig_vol, use_container_width=True)
     else:
         st.info("Nessun dato di corsa nel periodo selezionato.")
-        
+
     st.divider()
+
+
+@st.fragment
+def _render_programma():
+    st.markdown("## 🛠️ Programma Settimanale")
+    st.caption("Costruisci la settimana come un foglio Excel, esporta il PDF per WhatsApp, poi assegna: ogni atleta la vedrà nella propria area.")
+
+    from supabase_connector import (
+        get_specialita_disponibili, get_assegnazioni_settimana,
+        crea_assegnazione_tag, crea_assegnazione_atleti, get_atleti,
+    )
+    from pdf_export import genera_pdf_settimana
+
+    specialita_opts = get_specialita_disponibili()
+    opzioni_assegna = ["Tutta la squadra"] + specialita_opts
+    df_atleti_attivi = get_atleti(with_foto=False, solo_attivi=True)
+
+    if "programma_editor_df" not in st.session_state:
+        st.session_state["programma_editor_df"] = pd.DataFrame([{
+            "Giorno": pd.Timestamp.now().normalize(), "Tipo sessione": "Pista",
+            "Descrizione": "", "Target": "", "Assegna a": "Tutta la squadra",
+        }])
+
+    col_lbl, col_dup = st.columns([3, 1])
+    with col_lbl:
+        settimana_label = st.text_input("Etichetta settimana (opzionale)",
+                                         placeholder="es. Settimana 3/4 - Carico",
+                                         key="programma_settimana_label")
+    with col_dup:
+        st.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
+        if st.button("📋 Duplica settimana precedente", use_container_width=True):
+            oggi = pd.Timestamp.now().normalize()
+            df_prec = get_assegnazioni_settimana(
+                (oggi - pd.Timedelta(days=14)).strftime("%Y-%m-%d"),
+                (oggi - pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
+            )
+            if not df_prec.empty:
+                df_prec = df_prec[df_prec["target_tag"].notna()]
+            if not df_prec.empty:
+                st.session_state["programma_editor_df"] = pd.DataFrame({
+                    "Giorno": pd.to_datetime(df_prec["data"]) + pd.Timedelta(days=7),
+                    "Tipo sessione": df_prec["tipo_sessione"],
+                    "Descrizione": df_prec["descrizione"],
+                    "Target": df_prec["target"].fillna(""),
+                    "Assegna a": df_prec["target_tag"],
+                }).reset_index(drop=True)
+                st.rerun()
+            else:
+                st.warning("Nessuna assegnazione a tag trovata nelle ultime 2 settimane da duplicare.")
+
+    st.markdown("#### Blocchi ricorrenti (per tag)")
+    edited_df = st.data_editor(
+        st.session_state["programma_editor_df"],
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "Giorno": st.column_config.DateColumn("Giorno", format="DD/MM/YYYY"),
+            "Tipo sessione": st.column_config.SelectboxColumn("Tipo sessione", options=["Pista", "Palestra", "Campo"]),
+            "Assegna a": st.column_config.SelectboxColumn("Assegna a", options=opzioni_assegna),
+        },
+        key="programma_data_editor",
+    )
+    st.session_state["programma_editor_df"] = edited_df
+
+    st.markdown("#### Assegnazione mirata (eccezioni o sottogruppi ad-hoc)")
+    st.caption("Es. 'Davide fa un 300 invece del 150', oppure 'chi non ha gareggiato' — una selezione libera di atleti, non un tag fisso.")
+    nomi_atleti = df_atleti_attivi["nome_completo"].tolist() if not df_atleti_attivi.empty else []
+    with st.form("form_assegnazione_mirata", clear_on_submit=True):
+        m_col1, m_col2 = st.columns(2)
+        m_giorno = m_col1.date_input("Giorno", key="mirata_giorno")
+        m_tipo = m_col2.selectbox("Tipo sessione", ["Pista", "Palestra", "Campo"], key="mirata_tipo")
+        m_atleti = st.multiselect("Assegna a questi atleti", options=nomi_atleti, key="mirata_atleti")
+        m_descrizione = st.text_area("Descrizione", key="mirata_descrizione")
+        m_target = st.text_input("Target (opzionale)", key="mirata_target")
+        if st.form_submit_button("➕ Aggiungi eccezione"):
+            if m_atleti and m_descrizione.strip():
+                atleti_ids = df_atleti_attivi[df_atleti_attivi["nome_completo"].isin(m_atleti)]["id"].tolist()
+                ok = crea_assegnazione_atleti(
+                    m_giorno.strftime("%Y-%m-%d"), m_tipo, m_descrizione.strip(),
+                    m_target.strip(), atleti_ids, settimana_label.strip() or None,
+                )
+                if ok:
+                    st.success("✅ Eccezione salvata.")
+                else:
+                    st.error("❌ Errore nel salvataggio.")
+            else:
+                st.warning("Seleziona almeno un atleta e scrivi una descrizione.")
+
+    st.divider()
+    righe_valide = edited_df.dropna(subset=["Giorno"]).copy()
+    if "Descrizione" in righe_valide.columns:
+        righe_valide = righe_valide[righe_valide["Descrizione"].fillna("").str.strip() != ""]
+
+    col_pdf, col_assegna = st.columns(2)
+    with col_pdf:
+        pdf_bytes = genera_pdf_settimana(righe_valide)
+        st.download_button("📄 Esporta PDF", data=pdf_bytes, file_name="programma_settimanale.pdf",
+                            mime="application/pdf", use_container_width=True)
+    with col_assegna:
+        if st.button("✅ Assegna", type="primary", use_container_width=True):
+            if righe_valide.empty:
+                st.warning("Nessun blocco da assegnare (righe vuote o incomplete).")
+            else:
+                successi, errori = 0, 0
+                for _, riga in righe_valide.iterrows():
+                    data_str = pd.Timestamp(riga["Giorno"]).strftime("%Y-%m-%d")
+                    target = str(riga.get("Target") or "").strip()
+                    assegna_a = riga["Assegna a"]
+                    if assegna_a == "Tutta la squadra":
+                        ids_tutti = df_atleti_attivi["id"].tolist()
+                        ok_riga = crea_assegnazione_atleti(
+                            data_str, riga["Tipo sessione"], riga["Descrizione"],
+                            target, ids_tutti, settimana_label.strip() or None,
+                        )
+                    else:
+                        ok_riga = crea_assegnazione_tag(
+                            data_str, riga["Tipo sessione"], riga["Descrizione"],
+                            target, assegna_a, settimana_label.strip() or None,
+                        )
+                    successi += 1 if ok_riga else 0
+                    errori += 0 if ok_riga else 1
+                if successi:
+                    st.success(f"✅ {successi} blocchi assegnati! Da qui l'atleta li vedrà nella propria area (Fase 2).")
+                    st.session_state.pop("programma_editor_df", None)
+                if errori:
+                    st.warning(f"⚠️ {errori} blocchi non salvati (controlla i campi).")
+                if successi:
+                    st.rerun(scope="app")
+
 
 if st.session_state.current_page == "Inserimento":
     st.markdown("## ➕ Inserisci Nuovo Allenamento")
@@ -3026,6 +3172,9 @@ elif st.session_state.current_page == "Atleti":
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("➕ Aggiungi Nuovo Atleta", use_container_width=True):
                 render_new_atleta_modal()
+
+if st.session_state.current_page == "Programma" and st.session_state.is_admin:
+    _render_programma()
 
 # ──────────────────────────────────────────────────────────────────────
 # DETTAGLIO ATLETA (TABS PRINCIPALI)

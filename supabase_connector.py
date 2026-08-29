@@ -47,19 +47,30 @@ def get_supabase() -> Client:
 # ──────────────────────────────────────────────────────────────────────
 
 @st.cache_data(show_spinner=False, ttl=175)
-def get_atleti(with_foto: bool = True) -> pd.DataFrame:
-    """Restituisce tutti gli atleti registrati nel database.
+def get_atleti(with_foto: bool = True, solo_attivi: bool = True) -> pd.DataFrame:
+    """Restituisce gli atleti registrati nel database.
 
-    Cachata (TTL ~3 min, invalidata dalle chiamate st.cache_data.clear()
+    Cachata (TTL ~3 min, invalidata dalle chiamate .clear() mirate
     eseguite dall'app dopo inserimenti/modifiche) per non riscaricare la
     tabella a ogni rerun di Streamlit.
 
     with_foto=False esclude la colonna foto_url (blob base64), alleggerendo
     le query che servono solo per nomi/anagrafica e non mostrano le foto.
+
+    solo_attivi=True (default) esclude gli atleti congelati direttamente
+    a livello di query, cosi' roster/KPI/selettori non li scaricano nè
+    li ricalcolano. Passa solo_attivi=False solo dove serve vedere anche
+    i congelati (es. pannello admin per riattivarli).
     """
     supabase = get_supabase()
     cols = "*" if with_foto else "id, nome, cognome, nome_completo, specialita, attivo, data_nascita, peso, bio"
-    response = supabase.table("atleti").select(cols).order("cognome").execute()
+    query = supabase.table("atleti").select(cols)
+    if solo_attivi:
+        # attivo NULL conta come attivo (atleti storici migrati prima che
+        # esistesse questa colonna) - stessa semantica del fillna(True)
+        # gia' usata altrove nell'app.
+        query = query.or_("attivo.eq.true,attivo.is.null")
+    response = query.order("cognome").execute()
     if response.data:
         return pd.DataFrame(response.data)
     return pd.DataFrame(columns=["id", "nome", "cognome", "nome_completo", "specialita", "foto_url", "attivo"])
@@ -123,6 +134,31 @@ def update_atleta_profile(atleta_id: int, data_nascita: str = None, peso: float 
         return False
 
 
+def set_atleta_attivo(atleta_id: int, attivo: bool) -> bool:
+    """Congela (attivo=False) o riattiva (attivo=True) un atleta.
+
+    Un atleta congelato sparisce da roster/KPI/selettori (vedi get_atleti),
+    ma i suoi dati storici restano intatti e riconsultabili passando
+    solo_attivi=False.
+    """
+    supabase = get_supabase()
+    try:
+        response = supabase.table("atleti").update({"attivo": attivo}).eq("id", atleta_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        print(f"Errore set_atleta_attivo: {e}")
+        return False
+
+
+def get_specialita_disponibili() -> list[str]:
+    """Valori distinti di 'specialita' tra gli atleti attivi (per il selettore tag)."""
+    df = get_atleti(with_foto=False, solo_attivi=True)
+    if df.empty or "specialita" not in df.columns:
+        return []
+    valori = sorted(v for v in df["specialita"].dropna().unique() if str(v).strip())
+    return valori
+
+
 # ──────────────────────────────────────────────────────────────────────
 # PIN PERSONALI ATLETI
 # ──────────────────────────────────────────────────────────────────────
@@ -165,19 +201,20 @@ def set_atleta_pin(atleta_id: int, pin: str) -> bool:
 
 def get_all_pins() -> pd.DataFrame:
     """
-    Restituisce tutti gli atleti con il loro PIN personale (solo per admin).
+    Restituisce tutti gli atleti (compresi i congelati) con il loro PIN
+    personale e lo stato attivo/congelato (solo per admin).
     """
     supabase = get_supabase()
     try:
         response = supabase.table("atleti") \
-            .select("id, nome_completo, pin_personale") \
+            .select("id, nome_completo, pin_personale, attivo") \
             .order("cognome") \
             .execute()
         if response.data:
             return pd.DataFrame(response.data)
     except Exception as e:
         print(f"Errore get_all_pins: {e}")
-    return pd.DataFrame(columns=["id", "nome_completo", "pin_personale"])
+    return pd.DataFrame(columns=["id", "nome_completo", "pin_personale", "attivo"])
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -408,6 +445,87 @@ def bulk_insert_sessioni_vbt(records: list[dict]) -> int:
         return 0
     response = supabase.table("sessioni_vbt").insert(records).execute()
     return len(response.data) if response.data else 0
+
+
+# ──────────────────────────────────────────────────────────────────────
+# PROGRAMMA A TAG (ASSEGNAZIONI)
+# ──────────────────────────────────────────────────────────────────────
+
+def crea_assegnazione_tag(data: str, tipo_sessione: str, descrizione: str,
+                           target: str, specialita: str, settimana_label: str = None) -> bool:
+    """
+    Crea un blocco assegnato a tutti gli atleti attivi con la 'specialita'
+    indicata. Il gruppo viene espanso subito (una riga per atleta in
+    assegnazione_atleti): se la squadra cambia dopo, il blocco gia'
+    creato resta storicamente coerente.
+    """
+    supabase = get_supabase()
+    df_atleti = get_atleti(with_foto=False, solo_attivi=True)
+    if df_atleti.empty or "specialita" not in df_atleti.columns:
+        return False
+    atleti_ids = df_atleti[df_atleti["specialita"] == specialita]["id"].tolist()
+    if not atleti_ids:
+        return False
+    return _crea_assegnazione(data, tipo_sessione, descrizione, target, atleti_ids,
+                               target_tag=specialita, settimana_label=settimana_label)
+
+
+def crea_assegnazione_atleti(data: str, tipo_sessione: str, descrizione: str,
+                              target: str, atleti_ids: list[int], settimana_label: str = None) -> bool:
+    """Crea un blocco assegnato a una selezione esplicita di atleti (1 o piu').
+
+    Copre sia le eccezioni individuali sia i sottogruppi ad-hoc (es. "chi non
+    ha gareggiato") che non corrispondono a un tag fisso.
+    """
+    if not atleti_ids:
+        return False
+    return _crea_assegnazione(data, tipo_sessione, descrizione, target, atleti_ids,
+                               target_tag=None, settimana_label=settimana_label)
+
+
+def _crea_assegnazione(data: str, tipo_sessione: str, descrizione: str, target: str,
+                        atleti_ids: list[int], target_tag: str | None, settimana_label: str | None) -> bool:
+    supabase = get_supabase()
+    try:
+        payload = {
+            "data": data,
+            "tipo_sessione": tipo_sessione,
+            "descrizione": descrizione,
+            "target": target or None,
+            "target_tag": target_tag,
+            "settimana_label": settimana_label or None,
+        }
+        response = supabase.table("assegnazioni").insert(payload).execute()
+        if not response.data:
+            return False
+        assegnazione_id = response.data[0]["id"]
+
+        righe_atleti = [{"assegnazione_id": assegnazione_id, "atleta_id": aid} for aid in atleti_ids]
+        response_atleti = supabase.table("assegnazione_atleti").insert(righe_atleti).execute()
+        return bool(response_atleti.data)
+    except Exception as e:
+        print(f"Errore _crea_assegnazione: {e}")
+        return False
+
+
+def get_assegnazioni_settimana(data_inizio: str, data_fine: str) -> pd.DataFrame:
+    """Restituisce i blocchi assegnati (solo tabella 'assegnazioni', senza
+    espandere gli atleti) in un intervallo date - usata per popolare la
+    griglia con 'Duplica settimana precedente'."""
+    supabase = get_supabase()
+    try:
+        response = supabase.table("assegnazioni") \
+            .select("*") \
+            .gte("data", data_inizio) \
+            .lte("data", data_fine) \
+            .order("data") \
+            .execute()
+        if response.data:
+            return pd.DataFrame(response.data)
+    except Exception as e:
+        print(f"Errore get_assegnazioni_settimana: {e}")
+    return pd.DataFrame(columns=["id", "settimana_label", "data", "tipo_sessione",
+                                  "descrizione", "target", "target_tag", "creato_il"])
 
 
 # ──────────────────────────────────────────────────────────────────────

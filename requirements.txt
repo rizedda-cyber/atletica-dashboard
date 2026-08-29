@@ -9,3 +9,4 @@ streamlit-extras
 supabase
 Pillow
 statsmodels
+fpdf2
