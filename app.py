@@ -44,601 +44,11 @@ except ImportError:
 
 # get_logo_b64: spostata in ui_helpers.py
 
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+@st.cache_data
+def _load_css() -> str:
+    return Path(__file__).parent.joinpath("style.css").read_text(encoding="utf-8")
 
-    html, body, [class*="css"] {
-        font-family: 'DM Sans', sans-serif;
-    }
-    h1, h2, h3, .st-emotion-cache-10trblm {
-        font-family: 'Bebas Neue', sans-serif !important;
-        letter-spacing: 1px !important;
-        color: #E8EDF5 !important;
-    }
-    /* Mono per numerici stringenti */
-    .dataframe {
-        font-family: 'DM Mono', monospace !important;
-        background-color: transparent !important;
-    }
-    
-    /* Cover Amsicora Login Dark Neon */
-    .cover {
-        background: #080A0E; min-height: 500px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-        text-align: center; padding: 60px 40px; position: relative; overflow: hidden; margin: -6rem -4rem 2rem -4rem; border-radius: 0 0 20px 20px;
-    }
-    
-    /* Cover Amsicora Login Dark Neon */
-    .cover {
-        background: #080A0E; display: flex; flex-direction: column; align-items: center; justify-content: center;
-        text-align: center; padding: 40px; border-radius: 20px; margin: 0 auto; max-width: 600px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-    }
-    html, body { overscroll-behavior: none; }
-    
-    /* ── FIX MOBILE LOGIN: tastiera non deve coprire il PIN box ──
-       Su mobile quando si apre la tastiera virtuale il viewport si comprime.
-       Usiamo scroll-padding e un layout che porta il form in cima. */
-    @media (max-width: 768px) {
-        /* Evita che la cover spinga il form troppo in basso */
-        .cover {
-            padding: 20px 16px !important;
-            margin-bottom: 12px !important;
-        }
-        .cover-logo {
-            width: 80px !important;
-            height: 80px !important;
-            margin-bottom: 12px !important;
-        }
-        .cover-title { font-size: 36px !important; }
-        .cover-subtitle { font-size: 13px !important; margin-bottom: 20px !important; }
-        /* Il form di login è posizionato più in alto */
-        [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
-            align-items: flex-start !important;
-        }
-        /* Bottone Accedi: sticky in basso nel form così rimane visibile sopra la tastiera */
-        [data-testid="stFormSubmitButton"] > button {
-            position: sticky !important;
-            bottom: 8px !important;
-            z-index: 9999 !important;
-        }
-    }
-    
-    .cover::before {
-        content: ''; position: absolute; inset: 0;
-        background: radial-gradient(ellipse at 30% 20%, rgba(232,255,58,0.06) 0%, transparent 60%),
-                    radial-gradient(ellipse at 70% 80%, rgba(0,217,255,0.05) 0%, transparent 50%);
-    }
-    .cover-logo {
-        width: 160px; height: 160px; border-radius: 50%; object-fit: cover;
-        border: 2px solid rgba(232,255,58,0.3); box-shadow: 0 0 30px rgba(232,255,58,0.1);
-        margin-bottom: 36px; position: relative; z-index: 1;
-    }
-    .cover-eyebrow {
-        font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 4px; color: rgba(255,255,255,0.4); text-transform: uppercase;
-        margin-bottom: 16px; position: relative; z-index: 1;
-    }
-    .cover-title {
-        font-family: 'Bebas Neue', sans-serif; font-size: clamp(40px, 6vw, 68px); color: #FFFFFF;
-        line-height: 1.1; margin-bottom: 12px; position: relative; z-index: 1; letter-spacing: 2px;
-    }
-    .cover-title span { color: #E8FF3A; }
-    .cover-subtitle {
-        font-size: 16px; color: rgba(255,255,255,0.4); max-width: 480px; margin: 0 auto 40px;
-        position: relative; z-index: 1;
-    }
-
-    /* Expander card-style (usato ancora in tab2, tab3, ecc.) */
-    .streamlit-expanderHeader {
-        font-weight: 700 !important;
-        font-size: 1.05em !important;
-        font-family: 'DM Sans', sans-serif !important;
-        color: #E8EDF5 !important;
-        padding: 14px 18px !important;
-        background: rgba(255,255,255,0.02) !important;
-        border-radius: 8px !important;
-        border-left: 3px solid rgba(232,255,58,0.4) !important;
-    }
-    .streamlit-expanderHeader:hover {
-        background: rgba(232,255,58,0.05) !important;
-        border-left-color: #E8FF3A !important;
-    }
-
-    /* Section cards — griglia Tab Analisi Velocità */
-    .sec-cards-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: 10px;
-        margin: 20px 0 4px 0;
-    }
-    .sec-card-btn {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        padding: 18px 12px 16px;
-        background: rgba(255,255,255,0.03);
-        border: 1.5px solid rgba(255,255,255,0.1);
-        border-radius: 12px;
-        cursor: pointer;
-        transition: border-color 0.15s, background 0.15s;
-        text-align: center;
-        user-select: none;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .sec-card-btn:hover, .sec-card-btn.active {
-        border-color: #E8FF3A;
-        background: rgba(232,255,58,0.06);
-    }
-    .sec-card-btn.active .sec-card-icon,
-    .sec-card-btn.active .sec-card-title {
-        color: #E8FF3A !important;
-    }
-    .sec-card-icon {
-        font-size: 26px;
-        line-height: 1;
-        color: rgba(255,255,255,0.7);
-    }
-    .sec-card-title {
-        font-family: 'DM Sans', sans-serif;
-        font-weight: 700;
-        font-size: 13px;
-        color: #E8EDF5;
-        line-height: 1.25;
-        margin: 0;
-    }
-    .sec-card-sub {
-        font-family: 'DM Mono', monospace;
-        font-size: 10px;
-        color: rgba(255,255,255,0.35);
-        line-height: 1.3;
-        margin: 0;
-        letter-spacing: 0.3px;
-    }
-    .sec-content-block {
-        border-left: 2px solid rgba(232,255,58,0.2);
-        padding-left: 16px;
-        margin: 16px 0 24px 0;
-    }
-    /* Bottoni card griglia sezioni — stesso look delle KPI card (vetro + icona di sfondo) */
-    #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"],
-    #sec-cards-marker + div button[kind="secondary"] {
-        min-height: 150px !important;
-        padding: 20px !important;
-        border-radius: 16px !important;
-        border: 1px solid rgba(255,255,255,0.05) !important;
-        background: rgba(20, 23, 30, 0.6) !important;
-        backdrop-filter: blur(10px) !important;
-        -webkit-backdrop-filter: blur(10px) !important;
-        overflow: hidden !important;
-        position: relative !important;
-        font-size: 0.95em !important;
-        white-space: pre-wrap !important;
-        line-height: 1.4 !important;
-        text-align: left !important;
-        align-items: flex-start !important;
-        justify-content: center !important;
-        flex-direction: column !important;
-        gap: 6px !important;
-        box-shadow: none !important;
-        transition: all 0.3s ease !important;
-    }
-    /* Icona grande, sfocata e ruotata nell'angolo (come .kpi-icon); il glifo è iniettato per card */
-    #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"]::after,
-    #sec-cards-marker + div button[kind="secondary"]::after {
-        content: "";
-        position: absolute; right: -5px; bottom: -15px;
-        font-size: 70px; opacity: 0.08; transform: rotate(-15deg);
-        pointer-events: none; line-height: 1;
-    }
-    /* Testo del label sopra l'icona di sfondo */
-    #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"] [data-testid="stMarkdownContainer"],
-    #sec-cards-marker + div button[kind="secondary"] [data-testid="stMarkdownContainer"] {
-        position: relative !important; z-index: 1 !important;
-    }
-    #sec-cards-marker ~ div [data-testid="stHorizontalBlock"] button[kind="secondary"]:hover,
-    #sec-cards-marker + div button[kind="secondary"]:hover {
-        border-color: rgba(232,255,58,0.4) !important;
-        color: #E8FF3A !important;
-        transform: translateY(-3px) !important;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.5) !important;
-    }
-    /* Card ATTIVA (sezione aperta): bordo/sfondo giallo iniettati dinamicamente
-       in app.py mirando alla classe wrapper .st-key-secbtn_<key> della card. */
-
-    /* Regole separatori guide */
-    hr.gold { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 32px 0; }
-    
-    /* Componente Metriche Amsicora Sporty */
-    div[data-testid="metric-container"] {
-        color: white !important;
-        background: rgba(255,255,255,0.03) !important;
-        border-radius: 12px !important;
-        border: 1px solid rgba(255,255,255,0.05) !important;
-        min-height: 110px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-    }
-    div[data-testid="metric-container"] label {
-        color: rgba(255,255,255,0.4) !important;
-        font-family: 'DM Mono', monospace !important;
-        letter-spacing: 1.5px;
-        text-transform: uppercase;
-        font-size: 11px !important;
-    }
-    div[data-testid="metric-container"] [data-testid="stMetricValue"] {
-        color: #fff !important;
-        font-family: 'Bebas Neue', sans-serif !important;
-        letter-spacing: 1px;
-    }
-
-    /* Tabs "pillole" a tutta larghezza — markup Streamlit recente:
-       [data-testid="stTab"] / [role="tablist"] (data-baseweb non esiste piu').
-       Stile validato dal vivo sull'app pubblicata l'8/07/2026. */
-    .stTabs [role="tablist"] {
-        width: 100% !important;
-        gap: 10px !important;
-        border-bottom: none !important;
-        padding-bottom: 10px !important;
-    }
-    .stTabs [data-testid="stTab"] {
-        flex: 1 1 0 !important;
-        min-width: 0 !important;
-        justify-content: center !important;
-        background-color: #14171E !important;
-        border: 2px solid rgba(255,255,255,0.12) !important;
-        border-radius: 10px !important;
-        padding: 14px 10px !important;
-        transition: all 0.18s ease !important;
-        cursor: pointer;
-    }
-    .stTabs [data-testid="stTab"] p {
-        font-size: 1.05rem !important;
-        font-weight: 700 !important;
-        color: rgba(255,255,255,0.85) !important;
-        letter-spacing: 0.3px;
-        transition: color 0.18s ease;
-    }
-    .stTabs [data-testid="stTab"][aria-selected="true"] {
-        background-color: #E8FF3A !important;
-        border-color: #E8FF3A !important;
-        box-shadow: 0 4px 18px rgba(232,255,58,0.35) !important;
-        transform: translateY(-2px);
-    }
-    .stTabs [data-testid="stTab"][aria-selected="true"] p { color: #0A0D14 !important; }
-    .stTabs [data-testid="stTab"]:hover:not([aria-selected="true"]) {
-        background: rgba(232,255,58,0.12) !important;
-        border-color: rgba(232,255,58,0.35) !important;
-    }
-    .stTabs [data-testid="stTab"]:hover:not([aria-selected="true"]) p { color: #E8FF3A !important; }
-    /* Cellulare: schede impilate in verticale, una sotto l'altra */
-    @media (max-width: 640px) {
-        .stTabs [role="tablist"] {
-            flex-direction: column !important;
-            align-items: stretch !important;
-            overflow-x: visible !important;
-        }
-        .stTabs [data-testid="stTab"] { width: 100% !important; }
-    }
-    
-    /* Nascondi solo i menu secondari tecnici (Deploy/Settings) in alto a destra, senza oscurare il contenitore del bottone menu sinistro */
-    .stAppDeployButton,   
-    .stToolbarActions {
-        display: none !important;
-        visibility: hidden !important;
-    }
-
-    /* Pulsante Hamburger (Ripristina funzionalità nativa touch ingrandendolo a dismisura) */
-    [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapsedControl"] {
-        background-color: #E8FF3A !important;
-        border-radius: 50% !important;
-        padding: 5px !important;
-        margin: 5px !important;
-        opacity: 1 !important;
-        box-shadow: 0 4px 15px rgba(232,255,58,0.6) !important;
-        border: 2px solid #0A0D14 !important;
-        transform: scale(1.6) translate(5px, 5px) !important;
-        transition: all 0.2s ease;
-        z-index: 999999 !important;
-        display: block !important;
-    }
-    
-    [data-testid="collapsedControl"] svg,
-    [data-testid="stSidebarCollapsedControl"] svg {
-        color: #0A0D14 !important;
-        fill: #0A0D14 !important;
-        display: block !important;
-    }
-    
-    [data-testid="collapsedControl"]:hover,
-    [data-testid="stSidebarCollapsedControl"]:hover {
-        background-color: #d1e82e !important;
-        transform: scale(1.8) translate(5px, 5px) !important;
-    }
-
-    /* Pulsante COMPRIMI MENU (Dentro la Sidebar) */
-    section[data-testid="stSidebar"] header button {
-        background-color: #FF4B4B !important;
-        border-radius: 50% !important;
-        padding: 5px !important;
-        border: 2px solid #0A0D14 !important;
-        transform: scale(1.3) !important;
-        margin-left: auto;
-    }
-    section[data-testid="stSidebar"] header button svg {
-        color: white !important;
-        fill: white !important;
-        display: block !important;
-    }
-
-    /* Premium Glass KPI Cards */
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px; }
-    .kpi-card { 
-        background: rgba(20, 23, 30, 0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-        border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05); padding: 20px; position: relative; overflow: hidden;
-        display: flex; flex-direction: column; justify-content: space-between; transition: all 0.3s ease;
-        height: 140px; box-sizing: border-box;
-    }
-    .kpi-card:hover { border-color: rgba(232,255,58,0.4); transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-    .kpi-icon { position: absolute; right: -5px; bottom: -15px; font-size: 70px; opacity: 0.08; transform: rotate(-15deg); user-select: none; pointer-events: none; text-shadow: none; }
-    .kpi-title { font-size: 0.85em; color: rgba(255,255,255,0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; z-index: 1; margin-bottom: 5px; }
-    .kpi-value { font-size: 2.2em; color: #fff; font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px; margin: 0; z-index: 1; text-shadow: 0 0 10px rgba(255,255,255,0.1); line-height: 1.1; }
-    .kpi-glow { color: #E8FF3A; text-shadow: 0 0 15px rgba(232,255,58,0.6); }
-    .kpi-alert { color: #FF4B4B; text-shadow: 0 0 15px rgba(255,75,75,0.6); }
-    .kpi-delta { font-size: 0.8em; font-weight: 700; z-index: 1; padding: 4px 8px; border-radius: 6px; display: inline-block; width: max-content; margin-top: auto; }
-    .delta-pos { background: rgba(184,255,138,0.1); color: #B8FF8A; border: 1px solid rgba(184,255,138,0.2); }
-    .delta-neg { background: rgba(255,75,75,0.1); color: #FF4B4B; border: 1px solid rgba(255,75,75,0.2); }
-    .delta-neu { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.1); }
-
-    .cloud-badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.78em; font-weight: 700; }
-    .cloud-ok { background: rgba(184,255,138,0.1); color: #B8FF8A; border: 1px solid rgba(184,255,138,0.2); }
-    /* Nascondi il menu di Streamlit Cloud in alto a destra (Deploy, GitHub, ecc) mantenendo visibile il bottone per riaprire la sidebar */
-    .stAppDeployButton { display: none !important; }
-    .stToolbarActions { display: none !important; }
-    
-    /* Fix visibilità e contrasto Bottoni (Login, Form Submit, Generale) */
-    button[kind="primary"], 
-    button[kind="primaryFormSubmit"],
-    [data-testid="stFormSubmitButton"] button {
-        background-color: #E8FF3A !important;
-        border: none !important;
-        color: #0A0D14 !important;
-    }
-    button[kind="primary"] *, 
-    button[kind="primaryFormSubmit"] *,
-    [data-testid="stFormSubmitButton"] button * {
-        color: #0A0D14 !important;
-        font-weight: 800 !important;
-        font-size: 1.1em !important;
-    }
-
-    /* [data-testid="stSidebar"] rimosso per consentire l'uso della navbar laterale */
-    /* Fix visibilità Input Box Login (evita sfondi chiari con testo bianco) */
-    div[data-baseweb="input"] {
-        background-color: #0A0D14 !important;
-        border: 1px solid rgba(232,255,58,0.5) !important;
-    }
-    div[data-baseweb="input"] input {
-        color: #FFFFFF !important;
-        -webkit-text-fill-color: #FFFFFF !important;
-    }
-
-    /* ── FIX DUPLICATO NOME PROFILO: Evita duplicazione durante scroll ──
-       Questo assicura che il nome dell'atleta non venga renderizzato due volte */
-    main [data-testid="stMainBlockContainer"] h1:nth-of-type(2) {
-        display: none !important;
-    }
-
-    @media (min-width: 768px) {
-        .mobile-divider {
-            display: none !important;
-        }
-    }
-    @media (max-width: 767px) {
-        .mobile-divider {
-            border: none;
-            border-top: 1px dashed rgba(232, 255, 58, 0.4);
-            margin: 24px 0 16px 0;
-            width: 100%;
-        }
-    }
-    
-    /* ── SMOOTH NAV: elimina flash-of-content durante cambio pagina ── */
-    [data-testid="stMainBlockContainer"] {
-        scroll-behavior: smooth;
-    }
-
-    /* ── DEEP DARK RADIAL BACKGROUND (Titanio Profondo) ──
-           Sostituisce il flat #080A0E del tema con un gradiente radiale
-           antracite/bluastro, fisso (non si muove con lo scroll) e leggero
-           (nessun blur/animazione: solo background-image statico). */
-    [data-testid="stAppViewContainer"] {
-        background:
-            radial-gradient(ellipse 90% 60% at 50% -8%, rgba(40, 50, 72, 0.5) 0%, rgba(8,10,14,0) 55%),
-            radial-gradient(ellipse 70% 50% at 100% 105%, rgba(0, 60, 70, 0.18) 0%, rgba(8,10,14,0) 55%),
-            radial-gradient(ellipse 60% 45% at -5% 100%, rgba(60, 50, 10, 0.10) 0%, rgba(8,10,14,0) 50%),
-            #080A0E !important;
-        background-attachment: fixed !important;
-    }
-    [data-testid="stHeader"] {
-        background: transparent !important;
-    }
-
-    /* ── SIDEBAR PREMIUM GLASS & GRADIENT ── */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0d1117 0%, #07090e 100%) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
-    }
-
-    /* ── CUSTOM SLIM & NEON SCROLLBAR ── */
-    ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-        background: #07090e !important;
-    }
-    ::-webkit-scrollbar-thumb {
-        background: rgba(232, 255, 58, 0.2) !important;
-        border-radius: 10px !important;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: #E8FF3A !important;
-    }
-
-    /* ── CORREZIONE HOVER GLOW SULLE KPI CARDS ── */
-    .kpi-card:hover {
-        border-color: #E8FF3A !important;
-        transform: translateY(-4px) !important;
-        box-shadow: 0 10px 30px rgba(232, 255, 58, 0.12) !important;
-    }
-
-    /* ── TIMELINE EVENTI (compleanni & ricorrenze) — scorrimento orizzontale ──
-           Boxed come le altre alert card, e sempre su una riga (niente wrap
-           né "buchi" sfalsati): la track è larga quanto il suo contenuto
-           (width: max-content) e scrolla solo se non ci sta tutta. ── */
-    .evt-timeline-wrap {
-        position: relative; margin: 4px 0 22px 0; padding: 16px 14px 18px 14px;
-        background: rgba(255,255,255,0.025);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 12px;
-        overflow-x: auto; overflow-y: hidden; white-space: nowrap;
-        scrollbar-width: thin;
-    }
-    .evt-timeline-track {
-        position: relative; display: flex; flex-wrap: nowrap; align-items: flex-start;
-        gap: 0; width: max-content; padding: 18px 4px 0 4px;
-    }
-    .evt-timeline-track::before {
-        content: ''; position: absolute; top: 29px; left: 0; right: 0; height: 2px;
-        background: linear-gradient(90deg, rgba(232,255,58,0.35), rgba(255,255,255,0.06));
-    }
-    .evt-node {
-        position: relative; display: flex; flex: 0 0 auto; flex-direction: column; align-items: center;
-        width: 116px; flex-shrink: 0; white-space: normal; text-align: center;
-    }
-    .evt-node-dot {
-        width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-        font-size: 12px; background: #0d1117; border: 2px solid rgba(255,255,255,0.18);
-        margin-bottom: 10px; position: relative; z-index: 1; transition: transform 0.15s, box-shadow 0.15s;
-    }
-    .evt-node:hover .evt-node-dot { transform: scale(1.12); }
-    .evt-node.evt-today .evt-node-dot {
-        border-color: #E8FF3A; background: rgba(232,255,58,0.12);
-        box-shadow: 0 0 14px rgba(232,255,58,0.55);
-        animation: evtPulse 1.8s ease-in-out infinite;
-    }
-    @keyframes evtPulse {
-        0%, 100% { box-shadow: 0 0 10px rgba(232,255,58,0.4); }
-        50% { box-shadow: 0 0 20px rgba(232,255,58,0.8); }
-    }
-    .evt-node-date {
-        font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px;
-        color: rgba(255,255,255,0.45); margin-bottom: 4px;
-    }
-    .evt-node.evt-today .evt-node-date { color: #E8FF3A; font-weight: 700; }
-    .evt-node-name {
-        font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 600;
-        color: #E8EDF5; line-height: 1.25; padding: 0 4px;
-    }
-    .evt-node-tag {
-        font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.5px;
-        color: rgba(255,255,255,0.35); margin-top: 3px;
-    }
-    .evt-node.evt-today .evt-node-tag { color: rgba(232,255,58,0.8); }
-</style>
-""", unsafe_allow_html=True)
-
-# ── RESTYLING 2026: micro-animazioni e rifiniture (solo estetica) ──────
-st.markdown("""
-<style>
-    /* 1. Dissolvenza morbida: i contenuti appaiono con grazia a ogni
-          ridisegno invece di "sbattere" sullo schermo. */
-    @keyframes contentFadeIn {
-        from { opacity: 0.25; transform: translateY(5px); }
-        to   { opacity: 1;    transform: translateY(0); }
-    }
-    .element-container, [data-testid="stElementContainer"] {
-        animation: contentFadeIn 0.30s ease-out;
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .element-container, [data-testid="stElementContainer"] { animation: none !important; }
-    }
-
-    /* 2. Bottoni: sollevamento morbido al passaggio, pressione al click */
-    .stButton > button, [data-testid="stFormSubmitButton"] > button,
-    [data-testid="stDownloadButton"] > button {
-        transition: transform 0.16s ease, box-shadow 0.25s ease,
-                    border-color 0.25s ease, background 0.25s ease !important;
-    }
-    .stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover,
-    [data-testid="stDownloadButton"] > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 18px rgba(0,0,0,0.35), 0 0 14px rgba(232,255,58,0.12) !important;
-    }
-    .stButton > button:active, [data-testid="stFormSubmitButton"] > button:active,
-    [data-testid="stDownloadButton"] > button:active {
-        transform: translateY(0) scale(0.985);
-    }
-
-    /* 3. Menu a tendina e campi: stile card + alone giallo al focus */
-    div[data-baseweb="select"] > div {
-        background-color: #0F1219 !important;
-        border-color: rgba(255,255,255,0.14) !important;
-        border-radius: 10px !important;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
-    }
-    div[data-baseweb="select"] > div:hover { border-color: rgba(232,255,58,0.45) !important; }
-    div[data-baseweb="select"]:focus-within > div {
-        border-color: #E8FF3A !important;
-        box-shadow: 0 0 0 3px rgba(232,255,58,0.10) !important;
-    }
-    div[data-baseweb="input"] {
-        border-radius: 10px !important;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-    div[data-baseweb="input"]:focus-within {
-        border-color: #E8FF3A !important;
-        box-shadow: 0 0 0 3px rgba(232,255,58,0.10) !important;
-    }
-    /* tendina aperta: pannello scuro coerente col tema */
-    div[data-baseweb="popover"] ul[role="listbox"] {
-        background-color: #14171E !important;
-        border: 1px solid rgba(255,255,255,0.10) !important;
-        border-radius: 10px !important;
-    }
-    ul[role="listbox"] li { transition: background 0.12s ease; }
-    ul[role="listbox"] li:hover { background: rgba(232,255,58,0.08) !important; }
-
-    /* 4. Grafici e tabelle incorniciati come card */
-    [data-testid="stPlotlyChart"] {
-        background: rgba(255,255,255,0.02);
-        border: 1px solid rgba(255,255,255,0.06);
-        border-radius: 14px;
-        padding: 10px 6px 2px;
-    }
-    [data-testid="stDataFrame"], [data-testid="stTable"] {
-        border: 1px solid rgba(255,255,255,0.07);
-        border-radius: 12px;
-        overflow: hidden;
-    }
-
-    /* 5. Avvisi ed espansori piu' morbidi */
-    [data-testid="stAlert"] { border-radius: 12px; }
-    [data-testid="stExpander"] details {
-        border-radius: 12px !important;
-        border: 1px solid rgba(255,255,255,0.09) !important;
-        transition: border-color 0.2s ease;
-    }
-    [data-testid="stExpander"] details:hover { border-color: rgba(232,255,58,0.35) !important; }
-
-    /* 6. Spinner di caricamento giallo Amsicora */
-    [data-testid="stSpinner"] i, .stSpinner > div { border-top-color: #E8FF3A !important; }
-
-</style>
-""", unsafe_allow_html=True)
+st.markdown(f"<style>{_load_css()}</style>", unsafe_allow_html=True)
 
 
 style_metric_cards(
@@ -2809,6 +2219,164 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
 
 
 
+@st.fragment
+def _render_home_riepilogo():
+    with st.expander("📅 Riepilogo Dettagliato Allenamenti (Vista Excel)", expanded=False):
+        st.markdown("Spulcia le tabelle inserite giorno per giorno. Le colonne si espandono in base a quante prove sono state svolte sulla singola distanza nell'arco della seduta.")
+        if not df_r.empty:
+            giorni_sett = {0: 'Lunedì', 1: 'Martedì', 2: 'Mercoledì', 3: 'Giovedì', 4: 'Venerdì', 5: 'Sabato', 6: 'Domenica'}
+            mesi = {1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile', 5: 'Maggio', 6: 'Giugno', 7: 'Luglio', 8: 'Agosto', 9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'}
+            
+            df_r_opt = df_r.copy()
+            df_r_opt['Data_date'] = df_r_opt['Data'].dt.date
+            date_uniche = sorted(df_r_opt['Data_date'].unique(), reverse=True)
+            
+            date_options = {}
+            for d in date_uniche:
+                g_str = giorni_sett[d.weekday()]
+                m_str = mesi[d.month]
+                num_prove = len(df_r_opt[df_r_opt['Data_date'] == d])
+                lbl = f"🗓️ {g_str} {d.day} {m_str} {d.year} — ({num_prove} prove)"
+                date_options[d] = lbl
+                
+            sel_giorno = st.selectbox("Seleziona la data dell'allenamento:", date_uniche, format_func=lambda x: date_options[x])
+            
+            if sel_giorno:
+                lbl_fmt = date_options[sel_giorno].replace('🗓️ ', '').split('—')[0].strip()
+                st.markdown(f"#### 🏟️ Allenamento del {lbl_fmt}")
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                df_day = df_r_opt[df_r_opt['Data_date'] == sel_giorno].copy()
+                if not df_day.empty:
+                    # ── ORDINE DI INSERIMENTO ───────────────────────────────────────────
+                    # Usa l'id Supabase (auto-increment) per preservare l'ordine originale
+                    # di inserimento da parte degli atleti (es. 20-30-40-20-30-40)
+                    if 'id' in df_day.columns:
+                        df_day = df_day.sort_values(by='id', ascending=True)
+                    # else: mantieni l'ordine in cui arrivano dal DataFrame (già data desc, ma
+                    # all'interno della stessa data l'ordine del DB sarà quello di inserimento)
+                    df_day = df_day.reset_index(drop=True)
+                    
+                    # Numero progressivo ripetizione per ogni (Atleta, Distanza)
+                    df_day['Ripetizione'] = df_day.groupby(['Atleta', 'Distanza']).cumcount() + 1
+                    
+                    # ── DIVISIONE IN GRUPPI PER SET DI DISTANZE ────────────────────────
+                    # Raggruppa gli atleti che fanno distanze simili nella stessa tabella.
+                    # Algoritmo: Jaccard similarity tra i set di distanze di ogni atleta.
+                    atleti_distanze = df_day.groupby('Atleta')['Distanza'].apply(set).to_dict()
+                    
+                    def jaccard_sim(s1, s2):
+                        if not s1 or not s2:
+                            return 0.0
+                        return len(s1 & s2) / len(s1 | s2)
+                    
+                    # Greedy grouping: ogni atleta finisce nel primo gruppo compatibile (≥40% overlap)
+                    groups = []
+                    assigned = set()
+                    for atleta_a, dists_a in atleti_distanze.items():
+                        if atleta_a in assigned:
+                            continue
+                        group = [atleta_a]
+                        group_dists = set(dists_a)
+                        assigned.add(atleta_a)
+                        for atleta_b, dists_b in atleti_distanze.items():
+                            if atleta_b in assigned:
+                                continue
+                            if jaccard_sim(group_dists, dists_b) >= 0.4:
+                                group.append(atleta_b)
+                                group_dists = group_dists | dists_b
+                                assigned.add(atleta_b)
+                        groups.append(group)
+                    
+                    # ── VISUALIZZAZIONE: una tabella per gruppo ─────────────────────────
+                    show_group_labels = len(groups) > 1
+                    for g_idx, group_atleti in enumerate(groups):
+                        df_group = df_day[df_day['Atleta'].isin(group_atleti)].copy()
+                        distanze_gruppo = sorted(df_group['Distanza'].unique())
+                        dist_label = " · ".join(f"{int(d)}m" for d in distanze_gruppo)
+                        
+                        if show_group_labels:
+                            st.markdown(
+                                f"<div style='margin: 16px 0 6px 0; padding: 6px 14px; "
+                                f"background: rgba(232,255,58,0.05); border-left: 3px solid #E8FF3A; "
+                                f"border-radius: 4px; font-family: DM Mono, monospace; font-size: 11px; "
+                                f"color: #E8FF3A; letter-spacing: 1px;'>"
+                                f"GRUPPO {g_idx + 1} — {dist_label}</div>",
+                                unsafe_allow_html=True
+                            )
+                        
+                        # Costruisci le colonne nell'ordine in cui compaiono nel dataset
+                        # (ordine di inserimento, non per distanza crescente)
+                        cols_seen = []
+                        for _, row_p in df_group.iterrows():
+                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
+                            if col_name not in cols_seen:
+                                cols_seen.append(col_name)
+                        
+                        # Costruisci manualmente il pivot rispettando l'ordine
+                        pivot_rows = {}
+                        for _, row_p in df_group.iterrows():
+                            atl = row_p['Atleta']
+                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
+                            if atl not in pivot_rows:
+                                pivot_rows[atl] = {}
+                            pivot_rows[atl][col_name] = row_p['Tempo']
+                        
+                        pivot_day = pd.DataFrame(pivot_rows).T
+                        # Riordina le colonne nell'ordine originale di inserimento
+                        pivot_day = pivot_day.reindex(columns=[c for c in cols_seen if c in pivot_day.columns])
+                        pivot_day.index.name = 'Atleta'
+                        
+                        st.dataframe(
+                            pivot_day.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - "),
+                            use_container_width=True
+                        )
+                else:
+                    st.info("Nessuna prova in questa data.")
+        else:
+            st.info("Nessun dato registrato o presente nei filtri.")
+
+
+    st.divider()
+
+    st.markdown("<h3 style='margin-bottom:0;'>🏆 CLASSIFICA PERSONAL BEST (PB) SQUADRA</h3>", unsafe_allow_html=True)
+    if len(df_r) > 0:
+        pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
+        pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
+        pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
+        
+        def bg_min(s):
+            return ['background-color: #90e0ef; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.min())]
+
+        def bg_max(s):
+            return ['background-color: #fde2e4; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.max())]
+
+        styled_pb = pb_pivot.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - ")\
+                                  .apply(bg_min, axis=0)\
+                                  .apply(bg_max, axis=0)
+                                  
+        st.dataframe(styled_pb, use_container_width=True, height=500)
+    else:
+        st.info("Nessuna prova presente.")
+        
+    st.divider()
+
+    st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
+    df_r_vol = df_r.copy()
+    if not df_r_vol.empty:
+        df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
+        vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
+        vol_df = vol_agg.reset_index()
+        vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
+        fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
+        fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
+        fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
+        st.plotly_chart(fig_vol, use_container_width=True)
+    else:
+        st.info("Nessun dato di corsa nel periodo selezionato.")
+        
+    st.divider()
+
 if st.session_state.current_page == "Inserimento":
     st.markdown("## ➕ Inserisci Nuovo Allenamento")
     
@@ -3304,161 +2872,7 @@ elif st.session_state.current_page == "Home":
 st.divider()
 
 if st.session_state.current_page == "Home":
-    with st.expander("📅 Riepilogo Dettagliato Allenamenti (Vista Excel)", expanded=False):
-        st.markdown("Spulcia le tabelle inserite giorno per giorno. Le colonne si espandono in base a quante prove sono state svolte sulla singola distanza nell'arco della seduta.")
-        if not df_r.empty:
-            giorni_sett = {0: 'Lunedì', 1: 'Martedì', 2: 'Mercoledì', 3: 'Giovedì', 4: 'Venerdì', 5: 'Sabato', 6: 'Domenica'}
-            mesi = {1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile', 5: 'Maggio', 6: 'Giugno', 7: 'Luglio', 8: 'Agosto', 9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'}
-            
-            df_r_opt = df_r.copy()
-            df_r_opt['Data_date'] = df_r_opt['Data'].dt.date
-            date_uniche = sorted(df_r_opt['Data_date'].unique(), reverse=True)
-            
-            date_options = {}
-            for d in date_uniche:
-                g_str = giorni_sett[d.weekday()]
-                m_str = mesi[d.month]
-                num_prove = len(df_r_opt[df_r_opt['Data_date'] == d])
-                lbl = f"🗓️ {g_str} {d.day} {m_str} {d.year} — ({num_prove} prove)"
-                date_options[d] = lbl
-                
-            sel_giorno = st.selectbox("Seleziona la data dell'allenamento:", date_uniche, format_func=lambda x: date_options[x])
-            
-            if sel_giorno:
-                lbl_fmt = date_options[sel_giorno].replace('🗓️ ', '').split('—')[0].strip()
-                st.markdown(f"#### 🏟️ Allenamento del {lbl_fmt}")
-                st.markdown("<br>", unsafe_allow_html=True)
-                
-                df_day = df_r_opt[df_r_opt['Data_date'] == sel_giorno].copy()
-                if not df_day.empty:
-                    # ── ORDINE DI INSERIMENTO ───────────────────────────────────────────
-                    # Usa l'id Supabase (auto-increment) per preservare l'ordine originale
-                    # di inserimento da parte degli atleti (es. 20-30-40-20-30-40)
-                    if 'id' in df_day.columns:
-                        df_day = df_day.sort_values(by='id', ascending=True)
-                    # else: mantieni l'ordine in cui arrivano dal DataFrame (già data desc, ma
-                    # all'interno della stessa data l'ordine del DB sarà quello di inserimento)
-                    df_day = df_day.reset_index(drop=True)
-                    
-                    # Numero progressivo ripetizione per ogni (Atleta, Distanza)
-                    df_day['Ripetizione'] = df_day.groupby(['Atleta', 'Distanza']).cumcount() + 1
-                    
-                    # ── DIVISIONE IN GRUPPI PER SET DI DISTANZE ────────────────────────
-                    # Raggruppa gli atleti che fanno distanze simili nella stessa tabella.
-                    # Algoritmo: Jaccard similarity tra i set di distanze di ogni atleta.
-                    atleti_distanze = df_day.groupby('Atleta')['Distanza'].apply(set).to_dict()
-                    
-                    def jaccard_sim(s1, s2):
-                        if not s1 or not s2:
-                            return 0.0
-                        return len(s1 & s2) / len(s1 | s2)
-                    
-                    # Greedy grouping: ogni atleta finisce nel primo gruppo compatibile (≥40% overlap)
-                    groups = []
-                    assigned = set()
-                    for atleta_a, dists_a in atleti_distanze.items():
-                        if atleta_a in assigned:
-                            continue
-                        group = [atleta_a]
-                        group_dists = set(dists_a)
-                        assigned.add(atleta_a)
-                        for atleta_b, dists_b in atleti_distanze.items():
-                            if atleta_b in assigned:
-                                continue
-                            if jaccard_sim(group_dists, dists_b) >= 0.4:
-                                group.append(atleta_b)
-                                group_dists = group_dists | dists_b
-                                assigned.add(atleta_b)
-                        groups.append(group)
-                    
-                    # ── VISUALIZZAZIONE: una tabella per gruppo ─────────────────────────
-                    show_group_labels = len(groups) > 1
-                    for g_idx, group_atleti in enumerate(groups):
-                        df_group = df_day[df_day['Atleta'].isin(group_atleti)].copy()
-                        distanze_gruppo = sorted(df_group['Distanza'].unique())
-                        dist_label = " · ".join(f"{int(d)}m" for d in distanze_gruppo)
-                        
-                        if show_group_labels:
-                            st.markdown(
-                                f"<div style='margin: 16px 0 6px 0; padding: 6px 14px; "
-                                f"background: rgba(232,255,58,0.05); border-left: 3px solid #E8FF3A; "
-                                f"border-radius: 4px; font-family: DM Mono, monospace; font-size: 11px; "
-                                f"color: #E8FF3A; letter-spacing: 1px;'>"
-                                f"GRUPPO {g_idx + 1} — {dist_label}</div>",
-                                unsafe_allow_html=True
-                            )
-                        
-                        # Costruisci le colonne nell'ordine in cui compaiono nel dataset
-                        # (ordine di inserimento, non per distanza crescente)
-                        cols_seen = []
-                        for _, row_p in df_group.iterrows():
-                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
-                            if col_name not in cols_seen:
-                                cols_seen.append(col_name)
-                        
-                        # Costruisci manualmente il pivot rispettando l'ordine
-                        pivot_rows = {}
-                        for _, row_p in df_group.iterrows():
-                            atl = row_p['Atleta']
-                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
-                            if atl not in pivot_rows:
-                                pivot_rows[atl] = {}
-                            pivot_rows[atl][col_name] = row_p['Tempo']
-                        
-                        pivot_day = pd.DataFrame(pivot_rows).T
-                        # Riordina le colonne nell'ordine originale di inserimento
-                        pivot_day = pivot_day.reindex(columns=[c for c in cols_seen if c in pivot_day.columns])
-                        pivot_day.index.name = 'Atleta'
-                        
-                        st.dataframe(
-                            pivot_day.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - "),
-                            use_container_width=True
-                        )
-                else:
-                    st.info("Nessuna prova in questa data.")
-        else:
-            st.info("Nessun dato registrato o presente nei filtri.")
-
-
-    st.divider()
-
-    st.markdown("<h3 style='margin-bottom:0;'>🏆 CLASSIFICA PERSONAL BEST (PB) SQUADRA</h3>", unsafe_allow_html=True)
-    if len(df_r) > 0:
-        pb_df = df_r.loc[df_r.groupby(['Atleta', 'Distanza'])['Tempo'].idxmin()]
-        pb_pivot = pb_df.pivot_table(index='Atleta', columns='Distanza', values='Tempo', aggfunc='min')
-        pb_pivot.columns = [f"{int(c)}m" for c in pb_pivot.columns]
-        
-        def bg_min(s):
-            return ['background-color: #90e0ef; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.min())]
-
-        def bg_max(s):
-            return ['background-color: #fde2e4; color: #0A0D14; font-weight: bold;' if v else '' for v in (s == s.max())]
-
-        styled_pb = pb_pivot.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - ")\
-                                  .apply(bg_min, axis=0)\
-                                  .apply(bg_max, axis=0)
-                                  
-        st.dataframe(styled_pb, use_container_width=True, height=500)
-    else:
-        st.info("Nessuna prova presente.")
-        
-    st.divider()
-
-    st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
-    df_r_vol = df_r.copy()
-    if not df_r_vol.empty:
-        df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
-        vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
-        vol_df = vol_agg.reset_index()
-        vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
-        fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
-        fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
-        fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
-        st.plotly_chart(fig_vol, use_container_width=True)
-    else:
-        st.info("Nessun dato di corsa nel periodo selezionato.")
-        
-    st.divider()
+    _render_home_riepilogo()
 elif st.session_state.current_page == "Atleti":
     from supabase_connector import get_atleti
     df_atleti = get_atleti()
