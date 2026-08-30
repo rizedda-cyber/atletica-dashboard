@@ -204,7 +204,9 @@ if not st.session_state.authenticated:
                         st.session_state.is_athlete_session = True
                         st.session_state.logged_athlete_name = atleta_trovato["nome_completo"]
                         st.session_state.app_athlete = atleta_trovato["nome_completo"]
-                        st.session_state.current_page = "Oggi"
+                        # ROLLBACK TEMPORANEO: rimesso su "Dettaglio Atleta" (era "Oggi")
+                        # dopo un ImportError su Streamlit Cloud da diagnosticare - vedi log.
+                        st.session_state.current_page = "Dettaglio Atleta"
                         st.session_state.page_just_changed = True
                         st.rerun()
                     else:
