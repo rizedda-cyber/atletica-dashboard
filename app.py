@@ -2625,7 +2625,9 @@ def _render_oggi():
                 with st.form(f"form_pista_{aa_id}", clear_on_submit=True):
                     distanze_opts = [30, 40, 50, 60, 80, 100, 120, 150, 180, 200, 250, 300, 400]
                     prove = []
-                    for i in range(1, 5):
+                    for i in range(1, 13):  # stesso limite del form manuale di Inserimento
+                        if i > 1:
+                            st.markdown("<hr class='mobile-divider'>", unsafe_allow_html=True)
                         c1, c2, c3 = st.columns([1, 1, 2])
                         dist_i = c1.selectbox(f"Distanza {i}", ["-"] + [f"{d}m" for d in distanze_opts], key=f"dist_{aa_id}_{i}")
                         tempo_i = c2.text_input(f"Tempo {i}", key=f"tempo_{aa_id}_{i}", placeholder="es. 7.12")
