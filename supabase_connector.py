@@ -528,6 +528,54 @@ def get_assegnazioni_settimana(data_inizio: str, data_fine: str) -> pd.DataFrame
                                   "descrizione", "target", "target_tag", "creato_il"])
 
 
+def get_assegnazioni_atleta(atleta_id: int, data_da: str, data_a: str) -> pd.DataFrame:
+    """Assegnazioni di UN atleta (via assegnazione_atleti) in un intervallo di
+    date, con i dati del blocco appiattiti (stesso pattern di get_sessioni_corsa
+    per il join annidato). Usata dalla pagina 'Oggi' lato atleta."""
+    supabase = get_supabase()
+    try:
+        response = supabase.table("assegnazione_atleti") \
+            .select("*, assegnazioni(data, tipo_sessione, descrizione, target, settimana_label)") \
+            .eq("atleta_id", atleta_id) \
+            .execute()
+    except Exception as e:
+        print(f"Errore get_assegnazioni_atleta: {e}")
+        response = None
+
+    cols = ["id", "assegnazione_id", "atleta_id", "stato", "completato_il",
+            "data", "tipo_sessione", "descrizione", "target", "settimana_label"]
+    if not response or not response.data:
+        return pd.DataFrame(columns=cols)
+
+    df = pd.DataFrame(response.data)
+    if "assegnazioni" in df.columns:
+        for campo in ["data", "tipo_sessione", "descrizione", "target", "settimana_label"]:
+            df[campo] = df["assegnazioni"].apply(
+                lambda x, c=campo: x.get(c) if isinstance(x, dict) else None
+            )
+        df = df.drop(columns=["assegnazioni"])
+
+    df["data"] = pd.to_datetime(df["data"])
+    mask = (df["data"] >= pd.Timestamp(data_da)) & (df["data"] <= pd.Timestamp(data_a))
+    return df[mask].sort_values("data").reset_index(drop=True)
+
+
+def completa_assegnazione(assegnazione_atleti_id: int) -> bool:
+    """Marca come completato un blocco assegnato a un singolo atleto (riga di
+    assegnazione_atleti). Non collega nessuna riga specifica di sessioni_corsa/
+    sessioni_vbt: lo stato dice solo 'fatto o no', i dati veri restano dove
+    sono sempre stati."""
+    from datetime import datetime, timezone
+    supabase = get_supabase()
+    try:
+        payload = {"stato": "completato", "completato_il": datetime.now(timezone.utc).isoformat()}
+        response = supabase.table("assegnazione_atleti").update(payload).eq("id", assegnazione_atleti_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        print(f"Errore completa_assegnazione: {e}")
+        return False
+
+
 # ──────────────────────────────────────────────────────────────────────
 # FOTO PROFILO (Storage)
 # ──────────────────────────────────────────────────────────────────────

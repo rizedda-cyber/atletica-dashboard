@@ -204,7 +204,7 @@ if not st.session_state.authenticated:
                         st.session_state.is_athlete_session = True
                         st.session_state.logged_athlete_name = atleta_trovato["nome_completo"]
                         st.session_state.app_athlete = atleta_trovato["nome_completo"]
-                        st.session_state.current_page = "Dettaglio Atleta"
+                        st.session_state.current_page = "Oggi"
                         st.session_state.page_just_changed = True
                         st.rerun()
                     else:
@@ -290,6 +290,13 @@ with st.sidebar:
         st.session_state.app_athlete = "Tutta la squadra"
         st.session_state.page_just_changed = True
         st.rerun()
+
+    if st.session_state.is_athlete_session:
+        if st.button("📋 Oggi", use_container_width=True, type="primary" if st.session_state.current_page == "Oggi" else "secondary"):
+            st.session_state.current_page = "Oggi"
+            st.session_state.app_athlete = st.session_state.logged_athlete_name
+            st.session_state.page_just_changed = True
+            st.rerun()
 
     if st.button("👥 Tutti gli Atleti", use_container_width=True, type="primary" if st.session_state.current_page == "Atleti" else "secondary"):
         st.session_state.current_page = "Atleti"
@@ -2522,6 +2529,171 @@ def _render_programma():
                 if successi:
                     st.rerun(scope="app")
 
+
+@st.fragment
+def _render_oggi():
+    from supabase_connector import (
+        get_atleta_by_nome, get_assegnazioni_atleta, completa_assegnazione,
+        insert_sessione_corsa, insert_sessione_vbt,
+    )
+    from data_loader import parse_time
+
+    nome = st.session_state.logged_athlete_name
+    atleta_info = get_atleta_by_nome(nome)
+    if not atleta_info:
+        st.error("Impossibile trovare il tuo profilo atleta.")
+        return
+    atleta_id = atleta_info["id"]
+
+    st.markdown(f"## 📋 Ciao, {nome.split()[0]}!")
+
+    oggi = pd.Timestamp.now().normalize()
+
+    def _target_valido(target) -> bool:
+        # pd.notna scarta sia None sia NaN (una colonna con un solo valore
+        # nullo puo' arrivare come float NaN invece che None puro).
+        return pd.notna(target) and str(target).strip() != ""
+
+    def _delta_riga(riga):
+        target = riga.get("target")
+        if not _target_valido(target):
+            return ""
+        parsed_target = parse_time(str(target))
+        if not parsed_target:
+            return ""
+        tempi_giorno = df_running[(df_running['Atleta'] == nome) & (df_running['Data'] == riga['data'])]['Tempo']
+        if tempi_giorno.empty:
+            return ""
+        miglior = tempi_giorno.min()
+        delta = miglior - parsed_target['tempo']
+        segno = "+" if delta >= 0 else ""
+        return f" — {miglior:.2f}s ({segno}{delta:.2f}s vs riferimento {parsed_target['tempo']:.2f}s)"
+
+    def _render_blocco(riga, azionabile: bool):
+        tipo = riga.get("tipo_sessione") or ""
+        descrizione = riga.get("descrizione") or ""
+        target = riga.get("target")
+        completato = riga.get("stato") == "completato"
+        aa_id = riga["id"]
+
+        with st.container(border=True):
+            icona = "✅" if completato else "⬜"
+            st.markdown(f"**{icona} {tipo} — {descrizione}**")
+            if _target_valido(target):
+                st.caption(f"Riferimento: {target}")
+
+            if completato:
+                st.success("Completato" + _delta_riga(riga))
+                return
+            if not azionabile:
+                st.info("Assegnato — non ancora completato")
+                return
+
+            modo = st.radio("Come vuoi completarlo?",
+                             ["Registra tempi/carichi", "Segna come fatto (nessun dato)"],
+                             key=f"modo_{aa_id}", horizontal=True, label_visibility="collapsed")
+
+            if modo == "Segna come fatto (nessun dato)":
+                if st.button("✅ Segna come fatto", key=f"fatto_{aa_id}"):
+                    if completa_assegnazione(aa_id):
+                        st.success("Fatto!")
+                        st.rerun(scope="app")
+                    else:
+                        st.error("Errore nel salvataggio.")
+            elif tipo == "Palestra":
+                esercizi_noti = sorted(set(df_vbt['Esercizio'].dropna().unique()) - {'General'})
+                with st.form(f"form_vbt_{aa_id}", clear_on_submit=True):
+                    esercizio_sel = st.selectbox("Esercizio", options=esercizi_noti, key=f"ex_{aa_id}")
+                    c1, c2 = st.columns(2)
+                    carico = c1.number_input("Carico (kg)", min_value=0.0, step=2.5, key=f"carico_{aa_id}")
+                    serie = c2.number_input("Serie", min_value=1, value=3, step=1, key=f"serie_{aa_id}")
+                    if st.form_submit_button("✅ Salva e completa"):
+                        if carico == 0:
+                            st.error("Inserisci il carico.")
+                        else:
+                            data_str = pd.Timestamp(riga['data']).strftime("%Y-%m-%d")
+                            ok = insert_sessione_vbt(nome, data_str, esercizio_sel, carico,
+                                                      None, None, None, None, None, int(serie), None)
+                            if ok:
+                                completa_assegnazione(aa_id)
+                                get_data_cloud.clear()
+                                st.success("✅ Salvato!")
+                                st.rerun(scope="app")
+                            else:
+                                st.error("Errore nel salvataggio.")
+            else:  # Pista o Campo
+                with st.form(f"form_pista_{aa_id}", clear_on_submit=True):
+                    distanze_opts = [30, 40, 50, 60, 80, 100, 120, 150, 180, 200, 250, 300, 400]
+                    prove = []
+                    for i in range(1, 5):
+                        c1, c2, c3 = st.columns([1, 1, 2])
+                        dist_i = c1.selectbox(f"Distanza {i}", ["-"] + [f"{d}m" for d in distanze_opts], key=f"dist_{aa_id}_{i}")
+                        tempo_i = c2.text_input(f"Tempo {i}", key=f"tempo_{aa_id}_{i}", placeholder="es. 7.12")
+                        nota_i = c3.text_input(f"Note {i}", key=f"nota_{aa_id}_{i}", placeholder="opzionale")
+                        if dist_i != "-" and tempo_i.strip():
+                            prove.append((int(dist_i.replace("m", "")), tempo_i.strip(), nota_i.strip()))
+                    if st.form_submit_button("✅ Salva e completa"):
+                        if not prove:
+                            st.warning("Inserisci almeno una prova, oppure usa 'Segna come fatto'.")
+                        else:
+                            data_str = pd.Timestamp(riga['data']).strftime("%Y-%m-%d")
+                            successi = 0
+                            for dist, tempo_raw, nota in prove:
+                                parsed = parse_time(tempo_raw)
+                                if parsed is None:
+                                    continue
+                                if insert_sessione_corsa(nome, data_str, dist, parsed['tempo'], nota):
+                                    successi += 1
+                            if successi > 0:
+                                completa_assegnazione(aa_id)
+                                get_data_cloud.clear()
+                                st.success(f"✅ {successi} prove salvate!")
+                                st.rerun(scope="app")
+                            else:
+                                st.warning("Nessuna prova valida da salvare (controlla il formato tempo).")
+
+    data_da = (oggi - pd.Timedelta(days=14)).strftime("%Y-%m-%d")
+    df_mie = get_assegnazioni_atleta(atleta_id, data_da, oggi.strftime("%Y-%m-%d"))
+
+    df_oggi = df_mie[df_mie["data"] == oggi] if not df_mie.empty else df_mie
+    df_arretrati = df_mie[(df_mie["data"] < oggi) & (df_mie["stato"] == "assegnato")] if not df_mie.empty else df_mie
+
+    st.markdown("### Oggi")
+    if df_oggi.empty:
+        st.info("Nessun allenamento assegnato per oggi. Puoi comunque registrarne uno da '➕ Inserisci Allenamento' nel menu.")
+    else:
+        for _, riga in df_oggi.iterrows():
+            _render_blocco(riga, azionabile=True)
+
+    if not df_arretrati.empty:
+        st.markdown("### Arretrati")
+        st.caption("Assegnati nei giorni scorsi e non ancora completati.")
+        for _, riga in df_arretrati.iterrows():
+            _render_blocco(riga, azionabile=True)
+
+    st.divider()
+    if st.toggle("📅 Vedi tutta la settimana", key="oggi_vedi_settimana"):
+        lunedi = oggi - pd.Timedelta(days=int(oggi.weekday()))
+        domenica = lunedi + pd.Timedelta(days=6)
+        df_sett = get_assegnazioni_atleta(atleta_id, lunedi.strftime("%Y-%m-%d"), domenica.strftime("%Y-%m-%d"))
+        if df_sett.empty:
+            st.info("Nessuna assegnazione questa settimana.")
+        else:
+            etichetta = next((e for e in df_sett["settimana_label"].dropna().unique() if str(e).strip()), None)
+            if etichetta:
+                st.markdown(f"**{etichetta}**")
+            _giorni_it = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+            for giorno, gruppo in df_sett.groupby("data", sort=True):
+                ts_giorno = pd.Timestamp(giorno)
+                st.markdown(f"**{_giorni_it[ts_giorno.weekday()]} {ts_giorno.strftime('%d/%m')}**")
+                for _, riga in gruppo.iterrows():
+                    stato_txt = "✅ completato" if riga.get("stato") == "completato" else "⬜ da fare"
+                    target_txt = f" (rif: {riga['target']})" if _target_valido(riga.get("target")) else ""
+                    st.markdown(f"- {riga.get('tipo_sessione')} — {riga.get('descrizione')}{target_txt} · {stato_txt}")
+
+
+if st.session_state.current_page == "Oggi" and st.session_state.is_athlete_session:
+    _render_oggi()
 
 if st.session_state.current_page == "Inserimento":
     st.markdown("## ➕ Inserisci Nuovo Allenamento")
