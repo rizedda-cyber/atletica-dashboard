@@ -287,18 +287,18 @@ with st.sidebar:
                     f"<div style='font-weight:700; color:#E8FF3A;'>{nome_corto}</div></div>", unsafe_allow_html=True)
 
     # Pulsanti di navigazione - Sempre visibili
-    if st.button("🏠 Home Squadra", use_container_width=True, type="primary" if st.session_state.current_page == "Home" else "secondary"):
-        st.session_state.current_page = "Home"
-        st.session_state.app_athlete = "Tutta la squadra"
-        st.session_state.page_just_changed = True
-        st.rerun()
-
     if st.session_state.is_athlete_session:
         if st.button("📋 Oggi", use_container_width=True, type="primary" if st.session_state.current_page == "Oggi" else "secondary"):
             st.session_state.current_page = "Oggi"
             st.session_state.app_athlete = st.session_state.logged_athlete_name
             st.session_state.page_just_changed = True
             st.rerun()
+
+    if st.button("🏠 Home Squadra", use_container_width=True, type="primary" if st.session_state.current_page == "Home" else "secondary"):
+        st.session_state.current_page = "Home"
+        st.session_state.app_athlete = "Tutta la squadra"
+        st.session_state.page_just_changed = True
+        st.rerun()
 
     if st.button("👥 Tutti gli Atleti", use_container_width=True, type="primary" if st.session_state.current_page == "Atleti" else "secondary"):
         st.session_state.current_page = "Atleti"
@@ -2247,123 +2247,124 @@ Misura la perdita di velocità accumulata nella curva e nella seconda metà gara
 
 @st.fragment
 def _render_home_riepilogo():
-    with st.expander("📅 Riepilogo Dettagliato Allenamenti (Vista Excel)", expanded=False):
-        st.markdown("Spulcia le tabelle inserite giorno per giorno. Le colonne si espandono in base a quante prove sono state svolte sulla singola distanza nell'arco della seduta.")
-        if not df_r.empty:
-            giorni_sett = {0: 'Lunedì', 1: 'Martedì', 2: 'Mercoledì', 3: 'Giovedì', 4: 'Venerdì', 5: 'Sabato', 6: 'Domenica'}
-            mesi = {1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile', 5: 'Maggio', 6: 'Giugno', 7: 'Luglio', 8: 'Agosto', 9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'}
+    if st.session_state.is_admin:
+        with st.expander("📅 Riepilogo Dettagliato Allenamenti (Vista Excel)", expanded=False):
+            st.markdown("Spulcia le tabelle inserite giorno per giorno. Le colonne si espandono in base a quante prove sono state svolte sulla singola distanza nell'arco della seduta.")
+            if not df_r.empty:
+                giorni_sett = {0: 'Lunedì', 1: 'Martedì', 2: 'Mercoledì', 3: 'Giovedì', 4: 'Venerdì', 5: 'Sabato', 6: 'Domenica'}
+                mesi = {1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile', 5: 'Maggio', 6: 'Giugno', 7: 'Luglio', 8: 'Agosto', 9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'}
             
-            df_r_opt = df_r.copy()
-            df_r_opt['Data_date'] = df_r_opt['Data'].dt.date
-            date_uniche = sorted(df_r_opt['Data_date'].unique(), reverse=True)
+                df_r_opt = df_r.copy()
+                df_r_opt['Data_date'] = df_r_opt['Data'].dt.date
+                date_uniche = sorted(df_r_opt['Data_date'].unique(), reverse=True)
             
-            date_options = {}
-            for d in date_uniche:
-                g_str = giorni_sett[d.weekday()]
-                m_str = mesi[d.month]
-                num_prove = len(df_r_opt[df_r_opt['Data_date'] == d])
-                lbl = f"🗓️ {g_str} {d.day} {m_str} {d.year} — ({num_prove} prove)"
-                date_options[d] = lbl
+                date_options = {}
+                for d in date_uniche:
+                    g_str = giorni_sett[d.weekday()]
+                    m_str = mesi[d.month]
+                    num_prove = len(df_r_opt[df_r_opt['Data_date'] == d])
+                    lbl = f"🗓️ {g_str} {d.day} {m_str} {d.year} — ({num_prove} prove)"
+                    date_options[d] = lbl
                 
-            sel_giorno = st.selectbox("Seleziona la data dell'allenamento:", date_uniche, format_func=lambda x: date_options[x])
+                sel_giorno = st.selectbox("Seleziona la data dell'allenamento:", date_uniche, format_func=lambda x: date_options[x])
             
-            if sel_giorno:
-                lbl_fmt = date_options[sel_giorno].replace('🗓️ ', '').split('—')[0].strip()
-                st.markdown(f"#### 🏟️ Allenamento del {lbl_fmt}")
-                st.markdown("<br>", unsafe_allow_html=True)
+                if sel_giorno:
+                    lbl_fmt = date_options[sel_giorno].replace('🗓️ ', '').split('—')[0].strip()
+                    st.markdown(f"#### 🏟️ Allenamento del {lbl_fmt}")
+                    st.markdown("<br>", unsafe_allow_html=True)
                 
-                df_day = df_r_opt[df_r_opt['Data_date'] == sel_giorno].copy()
-                if not df_day.empty:
-                    # ── ORDINE DI INSERIMENTO ───────────────────────────────────────────
-                    # Usa l'id Supabase (auto-increment) per preservare l'ordine originale
-                    # di inserimento da parte degli atleti (es. 20-30-40-20-30-40)
-                    if 'id' in df_day.columns:
-                        df_day = df_day.sort_values(by='id', ascending=True)
-                    # else: mantieni l'ordine in cui arrivano dal DataFrame (già data desc, ma
-                    # all'interno della stessa data l'ordine del DB sarà quello di inserimento)
-                    df_day = df_day.reset_index(drop=True)
+                    df_day = df_r_opt[df_r_opt['Data_date'] == sel_giorno].copy()
+                    if not df_day.empty:
+                        # ── ORDINE DI INSERIMENTO ───────────────────────────────────────────
+                        # Usa l'id Supabase (auto-increment) per preservare l'ordine originale
+                        # di inserimento da parte degli atleti (es. 20-30-40-20-30-40)
+                        if 'id' in df_day.columns:
+                            df_day = df_day.sort_values(by='id', ascending=True)
+                        # else: mantieni l'ordine in cui arrivano dal DataFrame (già data desc, ma
+                        # all'interno della stessa data l'ordine del DB sarà quello di inserimento)
+                        df_day = df_day.reset_index(drop=True)
                     
-                    # Numero progressivo ripetizione per ogni (Atleta, Distanza)
-                    df_day['Ripetizione'] = df_day.groupby(['Atleta', 'Distanza']).cumcount() + 1
+                        # Numero progressivo ripetizione per ogni (Atleta, Distanza)
+                        df_day['Ripetizione'] = df_day.groupby(['Atleta', 'Distanza']).cumcount() + 1
                     
-                    # ── DIVISIONE IN GRUPPI PER SET DI DISTANZE ────────────────────────
-                    # Raggruppa gli atleti che fanno distanze simili nella stessa tabella.
-                    # Algoritmo: Jaccard similarity tra i set di distanze di ogni atleta.
-                    atleti_distanze = df_day.groupby('Atleta')['Distanza'].apply(set).to_dict()
+                        # ── DIVISIONE IN GRUPPI PER SET DI DISTANZE ────────────────────────
+                        # Raggruppa gli atleti che fanno distanze simili nella stessa tabella.
+                        # Algoritmo: Jaccard similarity tra i set di distanze di ogni atleta.
+                        atleti_distanze = df_day.groupby('Atleta')['Distanza'].apply(set).to_dict()
                     
-                    def jaccard_sim(s1, s2):
-                        if not s1 or not s2:
-                            return 0.0
-                        return len(s1 & s2) / len(s1 | s2)
+                        def jaccard_sim(s1, s2):
+                            if not s1 or not s2:
+                                return 0.0
+                            return len(s1 & s2) / len(s1 | s2)
                     
-                    # Greedy grouping: ogni atleta finisce nel primo gruppo compatibile (≥40% overlap)
-                    groups = []
-                    assigned = set()
-                    for atleta_a, dists_a in atleti_distanze.items():
-                        if atleta_a in assigned:
-                            continue
-                        group = [atleta_a]
-                        group_dists = set(dists_a)
-                        assigned.add(atleta_a)
-                        for atleta_b, dists_b in atleti_distanze.items():
-                            if atleta_b in assigned:
+                        # Greedy grouping: ogni atleta finisce nel primo gruppo compatibile (≥40% overlap)
+                        groups = []
+                        assigned = set()
+                        for atleta_a, dists_a in atleti_distanze.items():
+                            if atleta_a in assigned:
                                 continue
-                            if jaccard_sim(group_dists, dists_b) >= 0.4:
-                                group.append(atleta_b)
-                                group_dists = group_dists | dists_b
-                                assigned.add(atleta_b)
-                        groups.append(group)
+                            group = [atleta_a]
+                            group_dists = set(dists_a)
+                            assigned.add(atleta_a)
+                            for atleta_b, dists_b in atleti_distanze.items():
+                                if atleta_b in assigned:
+                                    continue
+                                if jaccard_sim(group_dists, dists_b) >= 0.4:
+                                    group.append(atleta_b)
+                                    group_dists = group_dists | dists_b
+                                    assigned.add(atleta_b)
+                            groups.append(group)
                     
-                    # ── VISUALIZZAZIONE: una tabella per gruppo ─────────────────────────
-                    show_group_labels = len(groups) > 1
-                    for g_idx, group_atleti in enumerate(groups):
-                        df_group = df_day[df_day['Atleta'].isin(group_atleti)].copy()
-                        distanze_gruppo = sorted(df_group['Distanza'].unique())
-                        dist_label = " · ".join(f"{int(d)}m" for d in distanze_gruppo)
+                        # ── VISUALIZZAZIONE: una tabella per gruppo ─────────────────────────
+                        show_group_labels = len(groups) > 1
+                        for g_idx, group_atleti in enumerate(groups):
+                            df_group = df_day[df_day['Atleta'].isin(group_atleti)].copy()
+                            distanze_gruppo = sorted(df_group['Distanza'].unique())
+                            dist_label = " · ".join(f"{int(d)}m" for d in distanze_gruppo)
                         
-                        if show_group_labels:
-                            st.markdown(
-                                f"<div style='margin: 16px 0 6px 0; padding: 6px 14px; "
-                                f"background: rgba(232,255,58,0.05); border-left: 3px solid #E8FF3A; "
-                                f"border-radius: 4px; font-family: DM Mono, monospace; font-size: 11px; "
-                                f"color: #E8FF3A; letter-spacing: 1px;'>"
-                                f"GRUPPO {g_idx + 1} — {dist_label}</div>",
-                                unsafe_allow_html=True
+                            if show_group_labels:
+                                st.markdown(
+                                    f"<div style='margin: 16px 0 6px 0; padding: 6px 14px; "
+                                    f"background: rgba(232,255,58,0.05); border-left: 3px solid #E8FF3A; "
+                                    f"border-radius: 4px; font-family: DM Mono, monospace; font-size: 11px; "
+                                    f"color: #E8FF3A; letter-spacing: 1px;'>"
+                                    f"GRUPPO {g_idx + 1} — {dist_label}</div>",
+                                    unsafe_allow_html=True
+                                )
+                        
+                            # Costruisci le colonne nell'ordine in cui compaiono nel dataset
+                            # (ordine di inserimento, non per distanza crescente)
+                            cols_seen = []
+                            for _, row_p in df_group.iterrows():
+                                col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
+                                if col_name not in cols_seen:
+                                    cols_seen.append(col_name)
+                        
+                            # Costruisci manualmente il pivot rispettando l'ordine
+                            pivot_rows = {}
+                            for _, row_p in df_group.iterrows():
+                                atl = row_p['Atleta']
+                                col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
+                                if atl not in pivot_rows:
+                                    pivot_rows[atl] = {}
+                                pivot_rows[atl][col_name] = row_p['Tempo']
+                        
+                            pivot_day = pd.DataFrame(pivot_rows).T
+                            # Riordina le colonne nell'ordine originale di inserimento
+                            pivot_day = pivot_day.reindex(columns=[c for c in cols_seen if c in pivot_day.columns])
+                            pivot_day.index.name = 'Atleta'
+                        
+                            st.dataframe(
+                                pivot_day.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - "),
+                                use_container_width=True
                             )
-                        
-                        # Costruisci le colonne nell'ordine in cui compaiono nel dataset
-                        # (ordine di inserimento, non per distanza crescente)
-                        cols_seen = []
-                        for _, row_p in df_group.iterrows():
-                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
-                            if col_name not in cols_seen:
-                                cols_seen.append(col_name)
-                        
-                        # Costruisci manualmente il pivot rispettando l'ordine
-                        pivot_rows = {}
-                        for _, row_p in df_group.iterrows():
-                            atl = row_p['Atleta']
-                            col_name = f"{int(row_p['Distanza'])}m - Pr. {int(row_p['Ripetizione'])}"
-                            if atl not in pivot_rows:
-                                pivot_rows[atl] = {}
-                            pivot_rows[atl][col_name] = row_p['Tempo']
-                        
-                        pivot_day = pd.DataFrame(pivot_rows).T
-                        # Riordina le colonne nell'ordine originale di inserimento
-                        pivot_day = pivot_day.reindex(columns=[c for c in cols_seen if c in pivot_day.columns])
-                        pivot_day.index.name = 'Atleta'
-                        
-                        st.dataframe(
-                            pivot_day.style.format(lambda x: f"{x:.2f}s" if pd.notnull(x) else " - "),
-                            use_container_width=True
-                        )
-                else:
-                    st.info("Nessuna prova in questa data.")
-        else:
-            st.info("Nessun dato registrato o presente nei filtri.")
+                    else:
+                        st.info("Nessuna prova in questa data.")
+            else:
+                st.info("Nessun dato registrato o presente nei filtri.")
 
 
-    st.divider()
+        st.divider()
 
     st.markdown("<h3 style='margin-bottom:0;'>🏆 CLASSIFICA PERSONAL BEST (PB) SQUADRA</h3>", unsafe_allow_html=True)
     if len(df_r) > 0:
@@ -2385,23 +2386,24 @@ def _render_home_riepilogo():
     else:
         st.info("Nessuna prova presente.")
         
-    st.divider()
+    if st.session_state.is_admin:
+        st.divider()
 
-    st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
-    df_r_vol = df_r.copy()
-    if not df_r_vol.empty:
-        df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
-        vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
-        vol_df = vol_agg.reset_index()
-        vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
-        fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
-        fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
-        fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
-        st.plotly_chart(fig_vol, use_container_width=True)
-    else:
-        st.info("Nessun dato di corsa nel periodo selezionato.")
+        st.markdown("<h3 style='margin-bottom:0;'>VOLUME SETTIMANALE (KM)</h3>", unsafe_allow_html=True)
+        df_r_vol = df_r.copy()
+        if not df_r_vol.empty:
+            df_r_vol['Settimana'] = df_r_vol['Data'].dt.isocalendar().week
+            vol_agg = df_r_vol.groupby('Settimana')['Distanza'].sum() / 1000
+            vol_df = vol_agg.reset_index()
+            vol_df['Settimana'] = "S" + vol_df['Settimana'].astype(str)
+            fig_vol = px.bar(vol_df, x='Settimana', y='Distanza', template=THEME_TEMPLATE)
+            fig_vol.update_traces(marker_color='#E8FF3A', marker_line_color='#E8FF3A', marker_line_width=1.5, opacity=0.8)
+            fig_vol.update_layout(height=400, margin=dict(t=20, b=20, l=0, r=0), yaxis_title="Chilometri", xaxis_title="")
+            st.plotly_chart(fig_vol, use_container_width=True)
+        else:
+            st.info("Nessun dato di corsa nel periodo selezionato.")
 
-    st.divider()
+        st.divider()
 
 
 @st.fragment
@@ -2916,8 +2918,12 @@ elif st.session_state.current_page == "Home":
     c7 = make_kpi_card("Media (Sett.)", f"{media_sess:.1f}", "Sess / Atleta", "neu", "📉")
     c8 = make_kpi_card("Volume Squadra", f"{km_curr:.1f} km", f"↑ {delta_km:+.1f}km ({p_km:+.0f}%)" if delta_km > 0 else (f"↓ {delta_km:+.1f}km ({p_km:+.0f}%)" if delta_km < 0 else "Invariato"), "pos" if delta_km > 0 else ("neg" if delta_km < 0 else "neu"), "🛣️")
 
-    st.markdown(f'<div class="kpi-grid">{c1}{c2}{c3}{c4}{c5}{c6}{c7}{c8}</div>', unsafe_allow_html=True)
-    
+    # Solo 2 card "di squadra" per tutti (celebrative, non operative); il resto
+    # sono metriche da coach (cosa controllare) e restano solo per l'admin.
+    st.markdown(f'<div class="kpi-grid">{c5}{c8}</div>', unsafe_allow_html=True)
+    if st.session_state.is_admin:
+        st.markdown(f'<div class="kpi-grid">{c1}{c2}{c3}{c4}{c6}{c7}</div>', unsafe_allow_html=True)
+
     # ══════════════════════════════════════════════════════════════════════
     # NOTIFICHE AUTOMATICHE, COMPLEANNI E ALERT STRUTTURATO
     # ══════════════════════════════════════════════════════════════════════
@@ -3185,11 +3191,14 @@ elif st.session_state.current_page == "Home":
         if left_html or right_html:
             st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
 
-    render_row(html_timeline, html_periodo)
-    render_row(html_pb, html_inattivi)
-    render_row(html_trend, html_stopvbt)
+    # Sociale/motivazionale per tutti: compleanni, PB, crescita volume, costanza.
+    render_row(html_timeline, html_pb)
     render_row(html_volume, html_aderenza)
-    render_row(html_anagrafica, None)
+    # Operativo (nomina compagni in difficolta' o e' un promemoria da coach): solo admin.
+    if st.session_state.is_admin:
+        render_row(html_periodo, html_inattivi)
+        render_row(html_trend, html_stopvbt)
+        render_row(html_anagrafica, None)
 
 st.divider()
 
