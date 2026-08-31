@@ -332,7 +332,7 @@ with st.sidebar:
         else:
             # Su altre pagine - offri bottone per tornare al profilo
             nome_atleta = st.session_state.logged_athlete_name
-            if st.button(f"👤 Torna al Mio Profilo", use_container_width=True, type="primary"):
+            if st.button("👤 Il Mio Profilo", use_container_width=True, type="primary"):
                 st.session_state.current_page = "Dettaglio Atleta"
                 st.session_state.app_athlete = nome_atleta
                 st.session_state.page_just_changed = True
