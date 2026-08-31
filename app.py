@@ -103,6 +103,7 @@ if "page_just_changed" not in st.session_state:
     st.session_state.page_just_changed = False
 
 # ── HACK: Scroll-to-top puro HTML e Autochiusura ──
+_had_page_change = st.session_state.page_just_changed  # catturato prima che il blocco sotto lo consumi per l'hack di scroll
 if st.session_state.page_just_changed:
     # 1. Autofocus Input (Scroll to top garantito dai browser su form elements muti)
     # 2. CSS Animation per nascondere visivamente l'overlay sidebar su terminali mobile per far vedere il contenuto aggiornato
@@ -287,31 +288,6 @@ with st.sidebar:
                     f"<div style='font-size:0.75em; color:rgba(255,255,255,0.4); font-family:DM Mono; letter-spacing:1px;'>ACCESSO PERSONALE</div>"
                     f"<div style='font-weight:700; color:#E8FF3A;'>{nome_corto}</div></div>", unsafe_allow_html=True)
 
-    # Pulsanti di navigazione - Sempre visibili
-    if st.session_state.is_athlete_session:
-        if st.button("📋 Oggi", use_container_width=True, type="primary" if st.session_state.current_page == "Oggi" else "secondary"):
-            st.session_state.current_page = "Oggi"
-            st.session_state.app_athlete = st.session_state.logged_athlete_name
-            st.session_state.page_just_changed = True
-            st.rerun()
-
-    if st.button("🏠 Home Squadra", use_container_width=True, type="primary" if st.session_state.current_page == "Home" else "secondary"):
-        st.session_state.current_page = "Home"
-        st.session_state.app_athlete = "Tutta la squadra"
-        st.session_state.page_just_changed = True
-        st.rerun()
-
-    if st.button("➕ Inserisci Allenamento", use_container_width=True, type="primary" if st.session_state.current_page == "Inserimento" else "secondary"):
-        st.session_state.current_page = "Inserimento"
-        st.session_state.page_just_changed = True
-        st.rerun()
-
-    if st.session_state.is_admin:
-        if st.button("🛠️ Programma", use_container_width=True, type="primary" if st.session_state.current_page == "Programma" else "secondary"):
-            st.session_state.current_page = "Programma"
-            st.session_state.page_just_changed = True
-            st.rerun()
-
     # ── PULSANTE PROFILO ATLETA ──────────────────────────────────────
     if st.session_state.is_athlete_session:
         if st.session_state.current_page == "Dettaglio Atleta":
@@ -346,37 +322,6 @@ with st.sidebar:
         st.markdown('<div style="text-align:center;"><span class="cloud-badge cloud-ok">☁️ Supabase Connesso</span></div>', unsafe_allow_html=True)
     else:
         st.markdown('<div style="text-align:center;"><span class="cloud-badge cloud-local">📂 Dati Locali (Excel)</span></div>', unsafe_allow_html=True)
-
-    # ── PANNELLO ADMIN: GESTIONE PIN ──────────────────────────────────
-    if st.session_state.is_admin and DATA_SOURCE == "cloud":
-        st.divider()
-        with st.expander("🔑 Gestione PIN Atleti", expanded=False):
-            from supabase_connector import get_all_pins, set_atleta_pin, set_atleta_attivo
-            df_pins = get_all_pins()
-            if not df_pins.empty:
-                for _, pr in df_pins.iterrows():
-                    pin_val = pr.get('pin_personale') or ''
-                    is_attivo = pr.get('attivo')
-                    is_attivo = True if is_attivo is None or (isinstance(is_attivo, float) and pd.isna(is_attivo)) else bool(is_attivo)
-                    c1, c2, c3, c4 = st.columns([3, 2, 1, 1])
-                    nome_label = pr['nome_completo'] if is_attivo else f"{pr['nome_completo']} ❄️"
-                    c1.markdown(f"<div style='padding-top:6px; font-size:0.9em;'>{nome_label}</div>", unsafe_allow_html=True)
-                    nuovo_pin = c2.text_input("", value=pin_val, placeholder="nessun PIN",
-                                              label_visibility="collapsed", key=f"pin_inp_{pr['id']}")
-                    if c3.button("💾", key=f"pin_save_{pr['id']}", help="Salva PIN"):
-                        set_atleta_pin(pr['id'], nuovo_pin if nuovo_pin.strip() else None)
-                        st.success(f"✅ PIN di {pr['nome_completo'].split()[0]} aggiornato")
-                        st.rerun()
-                    icona_toggle = "☀️" if not is_attivo else "❄️"
-                    help_toggle = "Riattiva atleta" if not is_attivo else "Congela atleta (nasconde da roster/KPI, storico intatto)"
-                    if c4.button(icona_toggle, key=f"pin_toggle_{pr['id']}", help=help_toggle):
-                        set_atleta_attivo(pr['id'], not is_attivo)
-                        from supabase_connector import get_atleti
-                        get_atleti.clear()
-                        st.success(f"{'❄️ Congelato' if is_attivo else '☀️ Riattivato'}: {pr['nome_completo'].split()[0]}")
-                        st.rerun()
-            else:
-                st.info("Nessun atleta nel DB.")
 
     st.markdown("<br>", unsafe_allow_html=True)
     if st.session_state.is_athlete_session:
@@ -2754,10 +2699,7 @@ def _render_oggi():
                     st.markdown(f"- {riga.get('tipo_sessione')} — {riga.get('descrizione')}{target_txt} · {stato_txt}")
 
 
-if st.session_state.current_page == "Oggi" and st.session_state.is_athlete_session:
-    _render_oggi()
-
-if st.session_state.current_page == "Inserimento":
+def _render_inserimento():
     st.markdown("## ➕ Inserisci Nuovo Allenamento")
     
     # Mostra messaggio di conferma se c'è (persiste attraverso il rerun)
@@ -2879,9 +2821,22 @@ if st.session_state.current_page == "Inserimento":
                         else:
                             st.error("❌ Errore nel salvataggio.")
 
-elif st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
+
+
+def _render_dettaglio_atleta():
     _render_dettaglio_tonnellaggio()
-elif st.session_state.current_page == "Home":
+    _render_dettaglio_tabs()
+
+
+def _render_home():
+    # Home mostra sempre i dati di tutta la squadra: senza questo reset locale,
+    # arrivare qui via il menu di navigazione nativo (che salta i vecchi bottoni
+    # custom, gia' rimossi) lascerebbe le KPI filtrate su un singolo atleta se
+    # 'app_athlete' era rimasto impostato da una precedente visita a un profilo.
+    st.session_state.app_athlete = "Tutta la squadra"
+    df_r = filter_running(df_running, start_date, end_date, "Tutta la squadra")
+    df_v = filter_vbt(df_vbt, start_date, end_date, "Tutta la squadra")
+
     # ────────────────────────────────────────────────────────────────
     # CALCOLO KPI DI SQUADRA (HOME)
     # ────────────────────────────────────────────────────────────────
@@ -3267,10 +3222,8 @@ elif st.session_state.current_page == "Home":
         render_row(html_periodo, html_inattivi)
         render_row(html_trend, html_stopvbt)
         render_row(html_anagrafica, None)
+    st.divider()
 
-st.divider()
-
-if st.session_state.current_page == "Home":
     _render_home_riepilogo()
     # Griglia atleti (ex pagina "Atleti", ora fusa in Home): visibile sempre
     # quando si e' su Home, non e' piu' una destinazione separata.
@@ -3432,12 +3385,83 @@ if st.session_state.current_page == "Home":
             if st.button("➕ Aggiungi Nuovo Atleta", use_container_width=True):
                 render_new_atleta_modal()
 
-if st.session_state.current_page == "Programma" and st.session_state.is_admin:
-    _render_programma()
 
-# ──────────────────────────────────────────────────────────────────────
-# DETTAGLIO ATLETA (TABS PRINCIPALI)
-# ──────────────────────────────────────────────────────────────────────
+def _render_admin():
+    st.markdown("## ⚙️ Admin")
+    st.markdown("### 🔑 Gestione PIN Atleti")
+    from supabase_connector import get_all_pins, set_atleta_pin, set_atleta_attivo
+    df_pins = get_all_pins()
+    if not df_pins.empty:
+        for _, pr in df_pins.iterrows():
+            pin_val = pr.get('pin_personale') or ''
+            is_attivo = pr.get('attivo')
+            is_attivo = True if is_attivo is None or (isinstance(is_attivo, float) and pd.isna(is_attivo)) else bool(is_attivo)
+            c1, c2, c3, c4 = st.columns([3, 2, 1, 1])
+            nome_label = pr['nome_completo'] if is_attivo else f"{pr['nome_completo']} ❄️"
+            c1.markdown(f"<div style='padding-top:6px; font-size:0.9em;'>{nome_label}</div>", unsafe_allow_html=True)
+            nuovo_pin = c2.text_input("", value=pin_val, placeholder="nessun PIN",
+                                      label_visibility="collapsed", key=f"pin_inp_{pr['id']}")
+            if c3.button("💾", key=f"pin_save_{pr['id']}", help="Salva PIN"):
+                set_atleta_pin(pr['id'], nuovo_pin if nuovo_pin.strip() else None)
+                st.success(f"✅ PIN di {pr['nome_completo'].split()[0]} aggiornato")
+                st.rerun()
+            icona_toggle = "☀️" if not is_attivo else "❄️"
+            help_toggle = "Riattiva atleta" if not is_attivo else "Congela atleta (nasconde da roster/KPI, storico intatto)"
+            if c4.button(icona_toggle, key=f"pin_toggle_{pr['id']}", help=help_toggle):
+                set_atleta_attivo(pr['id'], not is_attivo)
+                from supabase_connector import get_atleti
+                get_atleti.clear()
+                st.success(f"{'❄️ Congelato' if is_attivo else '☀️ Riattivato'}: {pr['nome_completo'].split()[0]}")
+                st.rerun()
+    else:
+        st.info("Nessun atleta nel DB.")
 
-if st.session_state.current_page == "Dettaglio Atleta" and selected_athlete != "Tutta la squadra":
-    _render_dettaglio_tabs()
+
+PAGE_HOME = st.Page(_render_home, title="Home Squadra", icon="🏠", url_path="", default=True)
+PAGE_INSERIMENTO = st.Page(_render_inserimento, title="Inserisci Allenamento", icon="➕", url_path="inserimento")
+PAGE_DETTAGLIO = st.Page(_render_dettaglio_atleta, title="Dettaglio Atleta", icon="👤", url_path="dettaglio-atleta", visibility="hidden")
+
+_PAGE_BY_LABEL = {"Home": PAGE_HOME, "Inserimento": PAGE_INSERIMENTO, "Dettaglio Atleta": PAGE_DETTAGLIO}
+pagine = [PAGE_HOME]
+
+if st.session_state.is_athlete_session:
+    PAGE_OGGI = st.Page(_render_oggi, title="Oggi", icon="📋", url_path="oggi")
+    pagine.append(PAGE_OGGI)
+    _PAGE_BY_LABEL["Oggi"] = PAGE_OGGI
+
+pagine.append(PAGE_INSERIMENTO)
+
+if st.session_state.is_admin:
+    PAGE_PROGRAMMA = st.Page(_render_programma, title="Programma", icon="🛠️", url_path="programma")
+    pagine.append(PAGE_PROGRAMMA)
+    _PAGE_BY_LABEL["Programma"] = PAGE_PROGRAMMA
+    if DATA_SOURCE == "cloud":
+        PAGE_ADMIN = st.Page(_render_admin, title="Admin", icon="⚙️", url_path="admin")
+        pagine.append(PAGE_ADMIN)
+        _PAGE_BY_LABEL["Admin"] = PAGE_ADMIN
+
+pagine.append(PAGE_DETTAGLIO)
+
+pg = st.navigation(pagine)
+
+# Dettaglio Atleta e' sempre registrata (anche se nascosta dal menu), quindi
+# un URL rimasto agganciato a quella pagina (es. logout + nuovo login nella
+# stessa scheda, senza reload) risolverebbe comunque su di lei anche senza un
+# atleta selezionato: e' l'unica pagina non auto-gestita dal fallback nativo
+# di st.navigation (le altre, condizionali per ruolo, tornano gia' da sole
+# alla pagina di default se il loro hash non e' piu' tra quelle registrate).
+if pg is PAGE_DETTAGLIO and selected_athlete == "Tutta la squadra":
+    st.switch_page(PAGE_HOME)
+
+# Cambio pagina richiesto esplicitamente (login PIN personale, "Vai al Profilo",
+# "Torna al Mio Profilo", breadcrumb "Torna all'elenco atleti"): questi punti
+# impostano session_state.current_page + page_just_changed=True e fanno rerun,
+# esattamente come prima. _had_page_change (catturato piu' in alto, prima che il
+# hack di scroll lo consumi) distingue "rerun causato da un nostro bottone" da
+# un semplice rerun/interazione qualsiasi o da un click diretto sul menu nativo,
+# cosi' non sovrascriviamo mai una navigazione nativa dell'utente.
+_target_page = _PAGE_BY_LABEL.get(st.session_state.current_page)
+if _had_page_change and _target_page is not None and pg is not _target_page:
+    st.switch_page(_target_page)
+
+pg.run()
