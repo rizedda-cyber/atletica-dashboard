@@ -560,6 +560,45 @@ def get_assegnazioni_atleta(atleta_id: int, data_da: str, data_a: str) -> pd.Dat
     return df[mask].sort_values("data").reset_index(drop=True)
 
 
+def get_assegnazioni_con_stato(data_da: str, data_a: str) -> pd.DataFrame:
+    """Tutte le assegnazioni (di tutti gli atleti) in un intervallo di date,
+    con nome atleta e stato appiattiti - usata dal coach per vedere chi ha
+    completato cosa. Stesso pattern di get_assegnazioni_atleta, con in piu'
+    il join sul nome dell'atleta."""
+    supabase = get_supabase()
+    try:
+        response = supabase.table("assegnazione_atleti") \
+            .select("*, assegnazioni(data, tipo_sessione, descrizione, target, target_tag, settimana_label), "
+                    "atleti(nome_completo)") \
+            .execute()
+    except Exception as e:
+        print(f"Errore get_assegnazioni_con_stato: {e}")
+        response = None
+
+    cols = ["id", "assegnazione_id", "atleta_id", "stato", "completato_il",
+            "data", "tipo_sessione", "descrizione", "target", "target_tag",
+            "settimana_label", "nome_atleta"]
+    if not response or not response.data:
+        return pd.DataFrame(columns=cols)
+
+    df = pd.DataFrame(response.data)
+    if "assegnazioni" in df.columns:
+        for campo in ["data", "tipo_sessione", "descrizione", "target", "target_tag", "settimana_label"]:
+            df[campo] = df["assegnazioni"].apply(
+                lambda x, c=campo: x.get(c) if isinstance(x, dict) else None
+            )
+        df = df.drop(columns=["assegnazioni"])
+    if "atleti" in df.columns:
+        df["nome_atleta"] = df["atleti"].apply(
+            lambda x: x.get("nome_completo") if isinstance(x, dict) else None
+        )
+        df = df.drop(columns=["atleti"])
+
+    df["data"] = pd.to_datetime(df["data"])
+    mask = (df["data"] >= pd.Timestamp(data_da)) & (df["data"] <= pd.Timestamp(data_a))
+    return df[mask].sort_values(["data", "assegnazione_id"]).reset_index(drop=True)
+
+
 def completa_assegnazione(assegnazione_atleti_id: int) -> bool:
     """Marca come completato un blocco assegnato a un singolo atleto (riga di
     assegnazione_atleti). Non collega nessuna riga specifica di sessioni_corsa/

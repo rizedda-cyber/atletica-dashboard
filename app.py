@@ -2409,127 +2409,169 @@ def _render_programma():
     st.markdown("## 🛠️ Programma Settimanale")
     st.caption("Costruisci la settimana come un foglio Excel, esporta il PDF per WhatsApp, poi assegna: ogni atleta la vedrà nella propria area.")
 
-    from supabase_connector import (
-        get_specialita_disponibili, get_assegnazioni_settimana,
-        crea_assegnazione_tag, crea_assegnazione_atleti, get_atleti,
-    )
-    from pdf_export import genera_pdf_settimana
+    tab_costruisci, tab_stato = st.tabs(["🛠️ Costruisci", "📊 Stato Completamento"])
 
-    specialita_opts = get_specialita_disponibili()
-    opzioni_assegna = ["Tutta la squadra"] + specialita_opts
-    df_atleti_attivi = get_atleti(with_foto=False, solo_attivi=True)
+    with tab_costruisci:
+        from supabase_connector import (
+            get_specialita_disponibili, get_assegnazioni_settimana,
+            crea_assegnazione_tag, crea_assegnazione_atleti, get_atleti,
+        )
+        from pdf_export import genera_pdf_settimana
 
-    if "programma_editor_df" not in st.session_state:
-        st.session_state["programma_editor_df"] = pd.DataFrame([{
-            "Giorno": pd.Timestamp.now().normalize(), "Tipo sessione": "Pista",
-            "Descrizione": "", "Target": "", "Assegna a": "Tutta la squadra",
-        }])
+        specialita_opts = get_specialita_disponibili()
+        opzioni_assegna = ["Tutta la squadra"] + specialita_opts
+        df_atleti_attivi = get_atleti(with_foto=False, solo_attivi=True)
 
-    col_lbl, col_dup = st.columns([3, 1])
-    with col_lbl:
-        settimana_label = st.text_input("Etichetta settimana (opzionale)",
-                                         placeholder="es. Settimana 3/4 - Carico",
-                                         key="programma_settimana_label")
-    with col_dup:
-        st.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
-        if st.button("📋 Duplica settimana precedente", use_container_width=True):
-            oggi = pd.Timestamp.now().normalize()
-            df_prec = get_assegnazioni_settimana(
-                (oggi - pd.Timedelta(days=14)).strftime("%Y-%m-%d"),
-                (oggi - pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
-            )
-            if not df_prec.empty:
-                df_prec = df_prec[df_prec["target_tag"].notna()]
-            if not df_prec.empty:
-                st.session_state["programma_editor_df"] = pd.DataFrame({
-                    "Giorno": pd.to_datetime(df_prec["data"]) + pd.Timedelta(days=7),
-                    "Tipo sessione": df_prec["tipo_sessione"],
-                    "Descrizione": df_prec["descrizione"],
-                    "Target": df_prec["target"].fillna(""),
-                    "Assegna a": df_prec["target_tag"],
-                }).reset_index(drop=True)
-                st.rerun()
-            else:
-                st.warning("Nessuna assegnazione a tag trovata nelle ultime 2 settimane da duplicare.")
+        if "programma_editor_df" not in st.session_state:
+            st.session_state["programma_editor_df"] = pd.DataFrame([{
+                "Giorno": pd.Timestamp.now().normalize(), "Tipo sessione": "Pista",
+                "Descrizione": "", "Target": "", "Assegna a": "Tutta la squadra",
+            }])
 
-    st.markdown("#### Blocchi ricorrenti (per tag)")
-    edited_df = st.data_editor(
-        st.session_state["programma_editor_df"],
-        num_rows="dynamic",
-        use_container_width=True,
-        column_config={
-            "Giorno": st.column_config.DateColumn("Giorno", format="DD/MM/YYYY"),
-            "Tipo sessione": st.column_config.SelectboxColumn("Tipo sessione", options=["Pista", "Palestra", "Campo"]),
-            "Assegna a": st.column_config.SelectboxColumn("Assegna a", options=opzioni_assegna),
-        },
-        key="programma_data_editor",
-    )
-    st.session_state["programma_editor_df"] = edited_df
-
-    st.markdown("#### Assegnazione mirata (eccezioni o sottogruppi ad-hoc)")
-    st.caption("Es. 'Davide fa un 300 invece del 150', oppure 'chi non ha gareggiato' — una selezione libera di atleti, non un tag fisso.")
-    nomi_atleti = df_atleti_attivi["nome_completo"].tolist() if not df_atleti_attivi.empty else []
-    with st.form("form_assegnazione_mirata", clear_on_submit=True):
-        m_col1, m_col2 = st.columns(2)
-        m_giorno = m_col1.date_input("Giorno", key="mirata_giorno")
-        m_tipo = m_col2.selectbox("Tipo sessione", ["Pista", "Palestra", "Campo"], key="mirata_tipo")
-        m_atleti = st.multiselect("Assegna a questi atleti", options=nomi_atleti, key="mirata_atleti")
-        m_descrizione = st.text_area("Descrizione", key="mirata_descrizione")
-        m_target = st.text_input("Target (opzionale)", key="mirata_target")
-        if st.form_submit_button("➕ Aggiungi eccezione"):
-            if m_atleti and m_descrizione.strip():
-                atleti_ids = df_atleti_attivi[df_atleti_attivi["nome_completo"].isin(m_atleti)]["id"].tolist()
-                ok = crea_assegnazione_atleti(
-                    m_giorno.strftime("%Y-%m-%d"), m_tipo, m_descrizione.strip(),
-                    m_target.strip(), atleti_ids, settimana_label.strip() or None,
+        col_lbl, col_dup = st.columns([3, 1])
+        with col_lbl:
+            settimana_label = st.text_input("Etichetta settimana (opzionale)",
+                                             placeholder="es. Settimana 3/4 - Carico",
+                                             key="programma_settimana_label")
+        with col_dup:
+            st.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
+            if st.button("📋 Duplica settimana precedente", use_container_width=True):
+                oggi = pd.Timestamp.now().normalize()
+                df_prec = get_assegnazioni_settimana(
+                    (oggi - pd.Timedelta(days=14)).strftime("%Y-%m-%d"),
+                    (oggi - pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
                 )
-                if ok:
-                    st.success("✅ Eccezione salvata.")
+                if not df_prec.empty:
+                    df_prec = df_prec[df_prec["target_tag"].notna()]
+                if not df_prec.empty:
+                    st.session_state["programma_editor_df"] = pd.DataFrame({
+                        "Giorno": pd.to_datetime(df_prec["data"]) + pd.Timedelta(days=7),
+                        "Tipo sessione": df_prec["tipo_sessione"],
+                        "Descrizione": df_prec["descrizione"],
+                        "Target": df_prec["target"].fillna(""),
+                        "Assegna a": df_prec["target_tag"],
+                    }).reset_index(drop=True)
+                    st.rerun()
                 else:
-                    st.error("❌ Errore nel salvataggio.")
-            else:
-                st.warning("Seleziona almeno un atleta e scrivi una descrizione.")
+                    st.warning("Nessuna assegnazione a tag trovata nelle ultime 2 settimane da duplicare.")
 
-    st.divider()
-    righe_valide = edited_df.dropna(subset=["Giorno"]).copy()
-    if "Descrizione" in righe_valide.columns:
-        righe_valide = righe_valide[righe_valide["Descrizione"].fillna("").str.strip() != ""]
+        st.markdown("#### Blocchi ricorrenti (per tag)")
+        edited_df = st.data_editor(
+            st.session_state["programma_editor_df"],
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "Giorno": st.column_config.DateColumn("Giorno", format="DD/MM/YYYY"),
+                "Tipo sessione": st.column_config.SelectboxColumn("Tipo sessione", options=["Pista", "Palestra", "Campo"]),
+                "Assegna a": st.column_config.SelectboxColumn("Assegna a", options=opzioni_assegna),
+            },
+            key="programma_data_editor",
+        )
+        st.session_state["programma_editor_df"] = edited_df
 
-    col_pdf, col_assegna = st.columns(2)
-    with col_pdf:
-        pdf_bytes = genera_pdf_settimana(righe_valide)
-        st.download_button("📄 Esporta PDF", data=pdf_bytes, file_name="programma_settimanale.pdf",
-                            mime="application/pdf", use_container_width=True)
-    with col_assegna:
-        if st.button("✅ Assegna", type="primary", use_container_width=True):
-            if righe_valide.empty:
-                st.warning("Nessun blocco da assegnare (righe vuote o incomplete).")
-            else:
-                successi, errori = 0, 0
-                for _, riga in righe_valide.iterrows():
-                    data_str = pd.Timestamp(riga["Giorno"]).strftime("%Y-%m-%d")
-                    target = str(riga.get("Target") or "").strip()
-                    assegna_a = riga["Assegna a"]
-                    if assegna_a == "Tutta la squadra":
-                        ids_tutti = df_atleti_attivi["id"].tolist()
-                        ok_riga = crea_assegnazione_atleti(
-                            data_str, riga["Tipo sessione"], riga["Descrizione"],
-                            target, ids_tutti, settimana_label.strip() or None,
-                        )
+        st.markdown("#### Assegnazione mirata (eccezioni o sottogruppi ad-hoc)")
+        st.caption("Es. 'Davide fa un 300 invece del 150', oppure 'chi non ha gareggiato' — una selezione libera di atleti, non un tag fisso.")
+        nomi_atleti = df_atleti_attivi["nome_completo"].tolist() if not df_atleti_attivi.empty else []
+        with st.form("form_assegnazione_mirata", clear_on_submit=True):
+            m_col1, m_col2 = st.columns(2)
+            m_giorno = m_col1.date_input("Giorno", key="mirata_giorno")
+            m_tipo = m_col2.selectbox("Tipo sessione", ["Pista", "Palestra", "Campo"], key="mirata_tipo")
+            m_atleti = st.multiselect("Assegna a questi atleti", options=nomi_atleti, key="mirata_atleti")
+            m_descrizione = st.text_area("Descrizione", key="mirata_descrizione")
+            m_target = st.text_input("Target (opzionale)", key="mirata_target")
+            if st.form_submit_button("➕ Aggiungi eccezione"):
+                if m_atleti and m_descrizione.strip():
+                    atleti_ids = df_atleti_attivi[df_atleti_attivi["nome_completo"].isin(m_atleti)]["id"].tolist()
+                    ok = crea_assegnazione_atleti(
+                        m_giorno.strftime("%Y-%m-%d"), m_tipo, m_descrizione.strip(),
+                        m_target.strip(), atleti_ids, settimana_label.strip() or None,
+                    )
+                    if ok:
+                        st.success("✅ Eccezione salvata.")
                     else:
-                        ok_riga = crea_assegnazione_tag(
-                            data_str, riga["Tipo sessione"], riga["Descrizione"],
-                            target, assegna_a, settimana_label.strip() or None,
-                        )
-                    successi += 1 if ok_riga else 0
-                    errori += 0 if ok_riga else 1
-                if successi:
-                    st.success(f"✅ {successi} blocchi assegnati! Da qui l'atleta li vedrà nella propria area (Fase 2).")
-                    st.session_state.pop("programma_editor_df", None)
-                if errori:
-                    st.warning(f"⚠️ {errori} blocchi non salvati (controlla i campi).")
-                if successi:
-                    st.rerun(scope="app")
+                        st.error("❌ Errore nel salvataggio.")
+                else:
+                    st.warning("Seleziona almeno un atleta e scrivi una descrizione.")
+
+        st.divider()
+        righe_valide = edited_df.dropna(subset=["Giorno"]).copy()
+        if "Descrizione" in righe_valide.columns:
+            righe_valide = righe_valide[righe_valide["Descrizione"].fillna("").str.strip() != ""]
+
+        col_pdf, col_assegna = st.columns(2)
+        with col_pdf:
+            pdf_bytes = genera_pdf_settimana(righe_valide)
+            st.download_button("📄 Esporta PDF", data=pdf_bytes, file_name="programma_settimanale.pdf",
+                                mime="application/pdf", use_container_width=True)
+        with col_assegna:
+            if st.button("✅ Assegna", type="primary", use_container_width=True):
+                if righe_valide.empty:
+                    st.warning("Nessun blocco da assegnare (righe vuote o incomplete).")
+                else:
+                    successi, errori = 0, 0
+                    for _, riga in righe_valide.iterrows():
+                        data_str = pd.Timestamp(riga["Giorno"]).strftime("%Y-%m-%d")
+                        target = str(riga.get("Target") or "").strip()
+                        assegna_a = riga["Assegna a"]
+                        if assegna_a == "Tutta la squadra":
+                            ids_tutti = df_atleti_attivi["id"].tolist()
+                            ok_riga = crea_assegnazione_atleti(
+                                data_str, riga["Tipo sessione"], riga["Descrizione"],
+                                target, ids_tutti, settimana_label.strip() or None,
+                            )
+                        else:
+                            ok_riga = crea_assegnazione_tag(
+                                data_str, riga["Tipo sessione"], riga["Descrizione"],
+                                target, assegna_a, settimana_label.strip() or None,
+                            )
+                        successi += 1 if ok_riga else 0
+                        errori += 0 if ok_riga else 1
+                    if successi:
+                        st.success(f"✅ {successi} blocchi assegnati! Da qui l'atleta li vedrà nella propria area (Fase 2).")
+                        st.session_state.pop("programma_editor_df", None)
+                    if errori:
+                        st.warning(f"⚠️ {errori} blocchi non salvati (controlla i campi).")
+                    if successi:
+                        st.rerun(scope="app")
+
+    with tab_stato:
+        from supabase_connector import get_assegnazioni_con_stato
+
+        oggi = pd.Timestamp.now().normalize()
+        lunedi_default = oggi - pd.Timedelta(days=int(oggi.weekday()))
+        domenica_default = lunedi_default + pd.Timedelta(days=6)
+
+        col_da, col_a = st.columns(2)
+        stato_da = col_da.date_input("Dal", value=lunedi_default.date(), key="stato_data_da")
+        stato_a = col_a.date_input("Al", value=domenica_default.date(), key="stato_data_a")
+
+        df_stato = get_assegnazioni_con_stato(
+            pd.Timestamp(stato_da).strftime("%Y-%m-%d"),
+            pd.Timestamp(stato_a).strftime("%Y-%m-%d"),
+        )
+
+        if df_stato.empty:
+            st.info("Nessuna assegnazione nel periodo selezionato.")
+        else:
+            totale = len(df_stato)
+            completati = int((df_stato["stato"] == "completato").sum())
+            st.metric("Blocchi completati", f"{completati}/{totale}")
+            st.divider()
+
+            _giorni_it = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+            for assegnazione_id, gruppo in df_stato.groupby("assegnazione_id", sort=False):
+                prima = gruppo.iloc[0]
+                ts_giorno = pd.Timestamp(prima["data"])
+                giorno_label = f"{_giorni_it[ts_giorno.weekday()]} {ts_giorno.strftime('%d/%m')}"
+                tag_label = prima["target_tag"] if pd.notna(prima.get("target_tag")) else "selezione libera"
+                with st.container(border=True):
+                    st.markdown(f"**{giorno_label} — {prima['tipo_sessione']} — {tag_label}**")
+                    st.caption(prima["descrizione"])
+                    righe_nomi = []
+                    for _, riga in gruppo.sort_values("nome_atleta").iterrows():
+                        icona = "✅" if riga["stato"] == "completato" else "⬜"
+                        righe_nomi.append(f"{icona} {riga['nome_atleta']}")
+                    st.markdown(" &nbsp;&nbsp; ".join(righe_nomi))
 
 
 @st.fragment
