@@ -518,20 +518,60 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
     peso_str = str(atleta_info['peso']) if atleta_info and atleta_info.get('peso') else ""
     peso_txt = f" • {peso_str} kg" if peso_str else ""
 
+    # Tag di specialità (vocabolario fisso, auto-assegnabile dall'atleta o
+    # dall'admin qui sotto): badge visibile a chiunque guardi il profilo,
+    # anche in sola lettura, cosi' la squadra vede a colpo d'occhio i gruppi
+    # che poi Programma usa per assegnare il lavoro.
+    _TAG_SPECIALITA = {"Velocista": "🏃 Velocista", "400ista": "🔁 400ista"}
+    specialita_val = atleta_info.get('specialita') if atleta_info else None
+    if specialita_val in _TAG_SPECIALITA:
+        tag_badge_html = (
+            f'<span style="display:inline-block; margin:2px 0 8px 0; padding:4px 10px; '
+            f'border-radius:6px; background:rgba(232,255,58,0.12); border:1px solid rgba(232,255,58,0.3); '
+            f'color:#E8FF3A; font-family:\'DM Mono\', monospace; font-size:0.8em; font-weight:700;">'
+            f'{_TAG_SPECIALITA[specialita_val]}</span>'
+        )
+    elif can_edit:
+        tag_badge_html = (
+            '<span style="display:block; margin:2px 0 8px 0; color:rgba(255,255,255,0.35); '
+            'font-size:0.85em; font-style:italic;">Nessun tag di specialità impostato</span>'
+        )
+    else:
+        # Mai stringa vuota: una riga vuota in mezzo al blocco HTML sotto farebbe
+        # scattare l'interpretazione CommonMark di "blocco di codice indentato",
+        # rompendo il rendering di tutto quello che segue (bio inclusa).
+        tag_badge_html = '<span style="display:none;"></span>'
 
     st.markdown(f'''
         <div style="display: flex; align-items: flex-start; gap: 24px; margin-bottom: 8px;" data-athlete-profile="{primo_nome}">
             {avatar_html}
             <div style="padding-top: 5px; flex: 1;">
                 <h1 style="margin: 0 0 6px 0; padding: 0; line-height: 1; font-size: 2.5em;">{f'👋 {benvenuto_text}, {primo_nome}!' if is_own_profile else selected_athlete}</h1>
-                <p style="margin: 0 0 10px 0; color: #E8FF3A; font-family: 'DM Mono', monospace; font-size: 0.9em; font-weight: 600; letter-spacing: 0.5px;">PROFILO ATLETA{eta_txt}{peso_txt}</p>
+                <p style="margin: 0 0 6px 0; color: #E8FF3A; font-family: 'DM Mono', monospace; font-size: 0.9em; font-weight: 600; letter-spacing: 0.5px;">PROFILO ATLETA{eta_txt}{peso_txt}</p>
+                {tag_badge_html}
                 <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 1.05em; line-height: 1.35; max-width: 600px;">
                     {bio_text if bio_text else "Nessuna biografia inserita."}
                 </p>
             </div>
         </div>
     ''', unsafe_allow_html=True)
-    
+
+    if can_edit and atleta_info and "id" in atleta_info:
+        st.markdown("<div style='margin-top:4px; margin-bottom:2px; color:rgba(255,255,255,0.4); font-size:0.75em; font-family:DM Mono; letter-spacing:1px;'>SPECIALITÀ (TAG DI GRUPPO)</div>", unsafe_allow_html=True)
+        tag_col1, tag_col2, tag_empty = st.columns([2, 2, 6])
+        if tag_col1.button("🏃 Velocista", key="tag_velocista_btn", use_container_width=True,
+                            type="primary" if specialita_val == "Velocista" else "secondary"):
+            from supabase_connector import set_atleta_specialita, get_atleti
+            set_atleta_specialita(atleta_info["id"], "Velocista")
+            get_atleti.clear()
+            st.rerun()
+        if tag_col2.button("🔁 400ista", key="tag_400ista_btn", use_container_width=True,
+                            type="primary" if specialita_val == "400ista" else "secondary"):
+            from supabase_connector import set_atleta_specialita, get_atleti
+            set_atleta_specialita(atleta_info["id"], "400ista")
+            get_atleti.clear()
+            st.rerun()
+
     if can_edit:
         btn1, btn2, empty_space = st.columns([2, 2, 6])
         if btn1.button("📸 Cambia Foto", key="cambia_foto_btn", use_container_width=True):
@@ -3413,11 +3453,11 @@ def _render_home():
                     n1, n2 = st.columns(2)
                     nome = n1.text_input("Nome")
                     cognome = n2.text_input("Cognome")
-                    spec = st.text_input("Specialità (es. Velocità, Salti)", value="Velocità")
+                    spec = st.selectbox("Specialità", options=["Velocista", "400ista"])
                     if st.form_submit_button("✅ Registra Atleta", type="primary", use_container_width=True):
                         if nome.strip() and cognome.strip():
                             from supabase_connector import upsert_atleta
-                            upsert_atleta(nome.strip(), cognome.strip(), spec.strip())
+                            upsert_atleta(nome.strip(), cognome.strip(), spec)
                             st.success("✅ Completato! (Ricaricamento...)")
                             get_atleti.clear()
                             st.rerun()

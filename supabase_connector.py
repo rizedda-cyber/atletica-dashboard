@@ -150,6 +150,19 @@ def set_atleta_attivo(atleta_id: int, attivo: bool) -> bool:
         return False
 
 
+def set_atleta_specialita(atleta_id: int, specialita: str) -> bool:
+    """Imposta la specialità (tag di gruppo per Programma) di un atleta:
+    'Velocista' o '400ista'. Auto-assegnabile dall'atleta stesso o dall'admin.
+    """
+    supabase = get_supabase()
+    try:
+        response = supabase.table("atleti").update({"specialita": specialita}).eq("id", atleta_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        print(f"Errore set_atleta_specialita: {e}")
+        return False
+
+
 def get_specialita_disponibili() -> list[str]:
     """Valori distinti di 'specialita' tra gli atleti attivi (per il selettore tag)."""
     df = get_atleti(with_foto=False, solo_attivi=True)
