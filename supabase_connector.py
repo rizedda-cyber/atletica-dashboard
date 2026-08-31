@@ -529,6 +529,7 @@ def get_assegnazioni_settimana(data_inizio: str, data_fine: str) -> pd.DataFrame
     try:
         response = supabase.table("assegnazioni") \
             .select("*") \
+            .is_("deleted_at", "null") \
             .gte("data", data_inizio) \
             .lte("data", data_fine) \
             .order("data") \
@@ -548,7 +549,7 @@ def get_assegnazioni_atleta(atleta_id: int, data_da: str, data_a: str) -> pd.Dat
     supabase = get_supabase()
     try:
         response = supabase.table("assegnazione_atleti") \
-            .select("*, assegnazioni(data, tipo_sessione, descrizione, target, settimana_label)") \
+            .select("*, assegnazioni(data, tipo_sessione, descrizione, target, settimana_label, deleted_at)") \
             .eq("atleta_id", atleta_id) \
             .execute()
     except Exception as e:
@@ -562,11 +563,13 @@ def get_assegnazioni_atleta(atleta_id: int, data_da: str, data_a: str) -> pd.Dat
 
     df = pd.DataFrame(response.data)
     if "assegnazioni" in df.columns:
-        for campo in ["data", "tipo_sessione", "descrizione", "target", "settimana_label"]:
+        for campo in ["data", "tipo_sessione", "descrizione", "target", "settimana_label", "deleted_at"]:
             df[campo] = df["assegnazioni"].apply(
                 lambda x, c=campo: x.get(c) if isinstance(x, dict) else None
             )
         df = df.drop(columns=["assegnazioni"])
+    if "deleted_at" in df.columns:
+        df = df[df["deleted_at"].isna()].drop(columns=["deleted_at"])
 
     df["data"] = pd.to_datetime(df["data"])
     mask = (df["data"] >= pd.Timestamp(data_da)) & (df["data"] <= pd.Timestamp(data_a))
@@ -581,7 +584,7 @@ def get_assegnazioni_con_stato(data_da: str, data_a: str) -> pd.DataFrame:
     supabase = get_supabase()
     try:
         response = supabase.table("assegnazione_atleti") \
-            .select("*, assegnazioni(data, tipo_sessione, descrizione, target, target_tag, settimana_label), "
+            .select("*, assegnazioni(data, tipo_sessione, descrizione, target, target_tag, settimana_label, deleted_at), "
                     "atleti(nome_completo)") \
             .execute()
     except Exception as e:
@@ -596,11 +599,13 @@ def get_assegnazioni_con_stato(data_da: str, data_a: str) -> pd.DataFrame:
 
     df = pd.DataFrame(response.data)
     if "assegnazioni" in df.columns:
-        for campo in ["data", "tipo_sessione", "descrizione", "target", "target_tag", "settimana_label"]:
+        for campo in ["data", "tipo_sessione", "descrizione", "target", "target_tag", "settimana_label", "deleted_at"]:
             df[campo] = df["assegnazioni"].apply(
                 lambda x, c=campo: x.get(c) if isinstance(x, dict) else None
             )
         df = df.drop(columns=["assegnazioni"])
+    if "deleted_at" in df.columns:
+        df = df[df["deleted_at"].isna()].drop(columns=["deleted_at"])
     if "atleti" in df.columns:
         df["nome_atleta"] = df["atleti"].apply(
             lambda x: x.get("nome_completo") if isinstance(x, dict) else None
@@ -625,6 +630,52 @@ def completa_assegnazione(assegnazione_atleti_id: int) -> bool:
         return bool(response.data)
     except Exception as e:
         print(f"Errore completa_assegnazione: {e}")
+        return False
+
+
+def completa_blocchi_campo_giorno(atleta_id: int, data: str) -> bool:
+    """Dopo che un atleta completa un blocco misurabile (Pista/Palestra),
+    marca come completati anche i blocchi 'Campo' (non misurabili: riscaldamento,
+    mobilita', ecc.) dello stesso atleta nello stesso giorno - non hanno un modo
+    proprio di essere segnati, si considerano fatti insieme al resto della
+    giornata. Idempotente: richiamarla piu' volte non fa danni."""
+    from datetime import datetime, timezone
+    supabase = get_supabase()
+    try:
+        resp_blocchi = supabase.table("assegnazioni") \
+            .select("id") \
+            .eq("data", data) \
+            .eq("tipo_sessione", "Campo") \
+            .is_("deleted_at", "null") \
+            .execute()
+        blocco_ids = [r["id"] for r in (resp_blocchi.data or [])]
+        if not blocco_ids:
+            return True
+        payload = {"stato": "completato", "completato_il": datetime.now(timezone.utc).isoformat()}
+        supabase.table("assegnazione_atleti").update(payload) \
+            .eq("atleta_id", atleta_id) \
+            .in_("assegnazione_id", blocco_ids) \
+            .neq("stato", "completato") \
+            .execute()
+        return True
+    except Exception as e:
+        print(f"Errore completa_blocchi_campo_giorno: {e}")
+        return False
+
+
+def delete_assegnazione(assegnazione_id: int) -> bool:
+    """Elimina (soft-delete) un blocco assegnato: marca assegnazioni.deleted_at,
+    senza rimuoverlo fisicamente. Le righe assegnazione_atleti collegate restano
+    intatte e vengono nascoste dalle query tramite il join. Stesso pattern di
+    delete_sessione_corsa."""
+    from datetime import datetime, timezone
+    supabase = get_supabase()
+    try:
+        payload = {"deleted_at": datetime.now(timezone.utc).isoformat()}
+        response = supabase.table("assegnazioni").update(payload).eq("id", assegnazione_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        print(f"Errore delete_assegnazione: {e}")
         return False
 
 

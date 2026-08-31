@@ -170,8 +170,53 @@ def parse_time(raw) -> dict | None:
 
     if tempo_float is not None:
         return {'tempo': tempo_float, 'distanza': custom_dist, 'nota': nota}
-    
+
     return None
+
+
+def parse_target_running(target: str) -> list[int] | None:
+    """
+    Prova a interpretare un target di corsa a ripetute (testo libero scritto
+    dal coach in Programma) come una sequenza di distanze, una per ripetizione
+    - usata da "Oggi" per precompilare le righe invece di lasciarle vuote.
+
+    Riconosce due formati (entrambi visti nei piani reali):
+      - segmenti separati da "+", ognuno "NxDDDm" o "DDDm", con eventuale testo
+        di recupero dopo la distanza (es. "1x30m rec 3' + 2x50m+2x60m",
+        "2x80m rec 6' + 2 x120m rec 8'+ 150m")
+      - una scala di distanze separate da trattini, senza "x" ne' "m"
+        (es. "100-200-100-300")
+
+    Ritorna None se il testo non corrisponde con sicurezza a nessuno dei due
+    formati (testo libero, es. "corsa leggera"), o se il risultato supererebbe
+    12 ripetizioni (stesso limite usato altrove nell'app) - meglio lasciare "Oggi" sulla tabella generica che
+    rischiare di proporre una struttura sbagliata.
+    """
+    if not target or not str(target).strip():
+        return None
+    testo = str(target).strip()
+
+    if re.fullmatch(r"\d+(\s*-\s*\d+)+", testo):
+        distanze = [int(n) for n in re.split(r"\s*-\s*", testo)]
+        return distanze if 0 < len(distanze) <= 12 else None
+
+    segmenti = [s.strip() for s in testo.split("+") if s.strip()]
+    if not segmenti:
+        return None
+
+    distanze = []
+    for seg in segmenti:
+        m = re.match(r"(\d+)\s*[xX]\s*(\d+)\s*m\b", seg)
+        if m:
+            count, dist = int(m.group(1)), int(m.group(2))
+        else:
+            m2 = re.match(r"(\d+)\s*m\b", seg)
+            if not m2:
+                return None
+            count, dist = 1, int(m2.group(1))
+        distanze.extend([dist] * count)
+
+    return distanze if 0 < len(distanze) <= 12 else None
 
 
 # ──────────────────────────────────────────────────────────────────────

@@ -2452,11 +2452,8 @@ def _render_programma():
         opzioni_assegna = ["Tutta la squadra"] + specialita_opts
         df_atleti_attivi = get_atleti(with_foto=False, solo_attivi=True)
 
-        if "programma_editor_df" not in st.session_state:
-            st.session_state["programma_editor_df"] = pd.DataFrame([{
-                "Giorno": pd.Timestamp.now().normalize(), "Tipo sessione": "Pista",
-                "Descrizione": "", "Target": "", "Assegna a": "Tutta la squadra",
-            }])
+        if "programma_blocchi" not in st.session_state:
+            st.session_state["programma_blocchi"] = []
 
         col_lbl, col_dup = st.columns([3, 1])
         with col_lbl:
@@ -2474,30 +2471,66 @@ def _render_programma():
                 if not df_prec.empty:
                     df_prec = df_prec[df_prec["target_tag"].notna()]
                 if not df_prec.empty:
-                    st.session_state["programma_editor_df"] = pd.DataFrame({
-                        "Giorno": pd.to_datetime(df_prec["data"]) + pd.Timedelta(days=7),
-                        "Tipo sessione": df_prec["tipo_sessione"],
-                        "Descrizione": df_prec["descrizione"],
-                        "Target": df_prec["target"].fillna(""),
-                        "Assegna a": df_prec["target_tag"],
-                    }).reset_index(drop=True)
+                    st.session_state["programma_blocchi"] = [
+                        {
+                            "Giorno": (pd.to_datetime(r["data"]) + pd.Timedelta(days=7)).date(),
+                            "Tipo sessione": r["tipo_sessione"],
+                            "Descrizione": r["descrizione"],
+                            "Target": r["target"] or "",
+                            "Assegna a": r["target_tag"],
+                        }
+                        for _, r in df_prec.iterrows()
+                    ]
                     st.rerun()
                 else:
                     st.warning("Nessuna assegnazione a tag trovata nelle ultime 2 settimane da duplicare.")
 
         st.markdown("#### Blocchi ricorrenti (per tag)")
-        edited_df = st.data_editor(
-            st.session_state["programma_editor_df"],
-            num_rows="dynamic",
-            use_container_width=True,
-            column_config={
-                "Giorno": st.column_config.DateColumn("Giorno", format="DD/MM/YYYY"),
-                "Tipo sessione": st.column_config.SelectboxColumn("Tipo sessione", options=["Pista", "Palestra", "Campo"]),
-                "Assegna a": st.column_config.SelectboxColumn("Assegna a", options=opzioni_assegna),
-            },
-            key="programma_data_editor",
-        )
-        st.session_state["programma_editor_df"] = edited_df
+        st.caption("Un blocco alla volta — aggiungine quanti vuoi per lo stesso giorno (es. uno per il riscaldamento, uno per la corsa).")
+
+        with st.container(border=True):
+            with st.form("form_aggiungi_blocco", clear_on_submit=True):
+                add_col1, add_col2 = st.columns(2)
+                n_giorno = add_col1.date_input("Giorno", key="add_blocco_giorno")
+                n_tipo = add_col2.selectbox("Tipo sessione", ["Pista", "Palestra", "Campo"], key="add_blocco_tipo")
+                n_descrizione = st.text_area(
+                    "Descrizione", key="add_blocco_descrizione",
+                    placeholder="es. Attivazione + Mobilità Hs · Pliometria: pogo 80 tot + 6 over · Andature: 2 avvii 2 appoggi + 2 con 3 appoggi",
+                )
+                n_target = st.text_input(
+                    "Target (opzionale)", key="add_blocco_target",
+                    placeholder="es. 1x30m + 2x50m + 2x60m — lascia vuoto se non è misurabile",
+                )
+                n_assegna = st.selectbox("Assegna a", options=opzioni_assegna, key="add_blocco_assegna")
+                if st.form_submit_button("➕ Aggiungi blocco", use_container_width=True):
+                    if not n_descrizione.strip():
+                        st.warning("Scrivi una descrizione per il blocco.")
+                    else:
+                        st.session_state["programma_blocchi"].append({
+                            "Giorno": n_giorno,
+                            "Tipo sessione": n_tipo,
+                            "Descrizione": n_descrizione.strip(),
+                            "Target": n_target.strip(),
+                            "Assegna a": n_assegna,
+                        })
+                        st.rerun()
+
+        blocchi = st.session_state["programma_blocchi"]
+        if blocchi:
+            st.markdown(f"**{len(blocchi)} bloc{'co' if len(blocchi) == 1 else 'chi'} pronti per questa settimana**")
+            for i, b in enumerate(blocchi):
+                rc1, rc2 = st.columns([10, 1])
+                with rc1:
+                    giorno_txt = pd.Timestamp(b["Giorno"]).strftime("%d/%m/%Y")
+                    target_txt = f" · rif: {b['Target']}" if b["Target"] else ""
+                    st.markdown(f"**{giorno_txt} · {b['Tipo sessione']} · {b['Assegna a']}**  \n{b['Descrizione']}{target_txt}")
+                with rc2:
+                    if st.button("🗑️", key=f"rm_blocco_{i}", help="Rimuovi"):
+                        st.session_state["programma_blocchi"].pop(i)
+                        st.rerun()
+                st.divider()
+        else:
+            st.caption("Nessun blocco ancora aggiunto per questa settimana.")
 
         st.markdown("#### Assegnazione mirata (eccezioni o sottogruppi ad-hoc)")
         st.caption("Es. 'Davide fa un 300 invece del 150', oppure 'chi non ha gareggiato' — una selezione libera di atleti, non un tag fisso.")
@@ -2524,9 +2557,9 @@ def _render_programma():
                     st.warning("Seleziona almeno un atleta e scrivi una descrizione.")
 
         st.divider()
-        righe_valide = edited_df.dropna(subset=["Giorno"]).copy()
-        if "Descrizione" in righe_valide.columns:
-            righe_valide = righe_valide[righe_valide["Descrizione"].fillna("").str.strip() != ""]
+        righe_valide = pd.DataFrame(blocchi) if blocchi else pd.DataFrame(
+            columns=["Giorno", "Tipo sessione", "Descrizione", "Target", "Assegna a"]
+        )
 
         col_pdf, col_assegna = st.columns(2)
         with col_pdf:
@@ -2558,14 +2591,14 @@ def _render_programma():
                         errori += 0 if ok_riga else 1
                     if successi:
                         st.success(f"✅ {successi} blocchi assegnati! Da qui l'atleta li vedrà nella propria area (Fase 2).")
-                        st.session_state.pop("programma_editor_df", None)
+                        st.session_state["programma_blocchi"] = []
                     if errori:
                         st.warning(f"⚠️ {errori} blocchi non salvati (controlla i campi).")
                     if successi:
                         st.rerun(scope="app")
 
     with tab_stato:
-        from supabase_connector import get_assegnazioni_con_stato
+        from supabase_connector import get_assegnazioni_con_stato, delete_assegnazione
 
         oggi = pd.Timestamp.now().normalize()
         lunedi_default = oggi - pd.Timedelta(days=int(oggi.weekday()))
@@ -2595,22 +2628,41 @@ def _render_programma():
                 giorno_label = f"{_giorni_it[ts_giorno.weekday()]} {ts_giorno.strftime('%d/%m')}"
                 tag_label = prima["target_tag"] if pd.notna(prima.get("target_tag")) else "selezione libera"
                 with st.container(border=True):
-                    st.markdown(f"**{giorno_label} — {prima['tipo_sessione']} — {tag_label}**")
-                    st.caption(prima["descrizione"])
+                    cap_col, del_col = st.columns([6, 1])
+                    with cap_col:
+                        st.markdown(f"**{giorno_label} — {prima['tipo_sessione']} — {tag_label}**")
+                        st.caption(prima["descrizione"])
+                    with del_col:
+                        if st.button("🗑️", key=f"del_assegnazione_{assegnazione_id}", help="Elimina questo blocco"):
+                            st.session_state["_confirm_del_assegnazione_id"] = assegnazione_id
                     righe_nomi = []
                     for _, riga in gruppo.sort_values("nome_atleta").iterrows():
                         icona = "✅" if riga["stato"] == "completato" else "⬜"
                         righe_nomi.append(f"{icona} {riga['nome_atleta']}")
                     st.markdown(" &nbsp;&nbsp; ".join(righe_nomi))
 
+                    if st.session_state.get("_confirm_del_assegnazione_id") == assegnazione_id:
+                        st.warning(f"⚠️ Eliminare **{giorno_label} — {prima['tipo_sessione']} — {tag_label}** per tutti gli atleti assegnati?")
+                        conf_col1, conf_col2 = st.columns(2)
+                        if conf_col1.button("✅ Sì, elimina", key=f"confirm_del_assegnazione_{assegnazione_id}", type="primary", use_container_width=True):
+                            if delete_assegnazione(assegnazione_id):
+                                st.session_state.pop("_confirm_del_assegnazione_id", None)
+                                st.success("🗑️ Blocco eliminato.")
+                                st.rerun(scope="app")
+                            else:
+                                st.error("Errore durante l'eliminazione.")
+                        if conf_col2.button("Annulla", key=f"cancel_del_assegnazione_{assegnazione_id}", use_container_width=True):
+                            st.session_state.pop("_confirm_del_assegnazione_id", None)
+                            st.rerun()
+
 
 @st.fragment
 def _render_oggi():
     from supabase_connector import (
         get_atleta_by_nome, get_assegnazioni_atleta, completa_assegnazione,
-        insert_sessione_corsa, insert_sessione_vbt,
+        completa_blocchi_campo_giorno, insert_sessione_corsa, insert_sessione_vbt,
     )
-    from data_loader import parse_time
+    from data_loader import parse_time, parse_target_running
 
     nome = st.session_state.logged_athlete_name
     atleta_info = get_atleta_by_nome(nome)
@@ -2660,6 +2712,7 @@ def _render_oggi():
         target = riga.get("target")
         completato = riga.get("stato") == "completato"
         aa_id = riga["id"]
+        data_str = pd.Timestamp(riga['data']).strftime("%Y-%m-%d")
 
         with st.container(border=True):
             icona = "✅" if completato else "⬜"
@@ -2673,6 +2726,12 @@ def _render_oggi():
             if not azionabile:
                 st.info("Assegnato — non ancora completato")
                 return
+            if tipo == "Campo":
+                # Non misurabile: nessuna spunta propria, si considera fatto
+                # insieme al resto della giornata (vedi completa_blocchi_campo_giorno,
+                # chiamata dopo ogni completamento di un blocco Pista/Palestra).
+                st.caption("Si segna da solo completo quando registri i tempi/carichi di oggi.")
+                return
 
             modo = st.radio("Come vuoi completarlo?",
                              ["Registra tempi/carichi", "Segna come fatto (nessun dato)"],
@@ -2681,6 +2740,7 @@ def _render_oggi():
             if modo == "Segna come fatto (nessun dato)":
                 if st.button("✅ Segna come fatto", key=f"fatto_{aa_id}"):
                     if completa_assegnazione(aa_id):
+                        completa_blocchi_campo_giorno(atleta_id, data_str)
                         st.success("Fatto!")
                         st.session_state["checkin_prompt_pending"] = True
                         st.rerun(scope="app")
@@ -2697,26 +2757,38 @@ def _render_oggi():
                         if carico == 0:
                             st.error("Inserisci il carico.")
                         else:
-                            data_str = pd.Timestamp(riga['data']).strftime("%Y-%m-%d")
                             ok = insert_sessione_vbt(nome, data_str, esercizio_sel, carico,
                                                       None, None, None, None, None, int(serie), None)
                             if ok:
                                 completa_assegnazione(aa_id)
+                                completa_blocchi_campo_giorno(atleta_id, data_str)
                                 get_data_cloud.clear()
                                 st.success("✅ Salvato!")
                                 st.session_state["checkin_prompt_pending"] = True
                                 st.rerun(scope="app")
                             else:
                                 st.error("Errore nel salvataggio.")
-            else:  # Pista o Campo
+            else:  # Pista
+                distanze_opts = [30, 40, 50, 60, 80, 100, 120, 150, 180, 200, 250, 300, 400]
+                opts_dist = ["-"] + [f"{d}m" for d in distanze_opts]
+                # Se il target si legge come una sequenza di ripetute (es.
+                # "1x30m + 2x50m + 2x60m"), precompila una riga per ripetizione
+                # con la distanza attesa - l'atleta scrive solo il tempo, ma puo'
+                # comunque cambiare la distanza se ha corso qualcosa di diverso.
+                reps_attese = parse_target_running(target) if _target_valido(target) else None
+                n_righe = len(reps_attese) if reps_attese else 12
                 with st.form(f"form_pista_{aa_id}", clear_on_submit=True):
-                    distanze_opts = [30, 40, 50, 60, 80, 100, 120, 150, 180, 200, 250, 300, 400]
                     prove = []
-                    for i in range(1, 13):  # stesso limite del form manuale di Inserimento
+                    for i in range(1, n_righe + 1):
                         if i > 1:
                             st.markdown("<hr class='mobile-divider'>", unsafe_allow_html=True)
                         c1, c2, c3 = st.columns([1, 1, 2])
-                        dist_i = c1.selectbox(f"Distanza {i}", ["-"] + [f"{d}m" for d in distanze_opts], key=f"dist_{aa_id}_{i}")
+                        idx_default = 0
+                        if reps_attese:
+                            dist_label = f"{reps_attese[i - 1]}m"
+                            if dist_label in opts_dist:
+                                idx_default = opts_dist.index(dist_label)
+                        dist_i = c1.selectbox(f"Distanza {i}", opts_dist, index=idx_default, key=f"dist_{aa_id}_{i}")
                         tempo_i = c2.text_input(f"Tempo {i}", key=f"tempo_{aa_id}_{i}", placeholder="es. 7.12")
                         nota_i = c3.text_input(f"Note {i}", key=f"nota_{aa_id}_{i}", placeholder="opzionale")
                         if dist_i != "-" and tempo_i.strip():
@@ -2725,7 +2797,6 @@ def _render_oggi():
                         if not prove:
                             st.warning("Inserisci almeno una prova, oppure usa 'Segna come fatto'.")
                         else:
-                            data_str = pd.Timestamp(riga['data']).strftime("%Y-%m-%d")
                             successi = 0
                             for dist, tempo_raw, nota in prove:
                                 parsed = parse_time(tempo_raw)
@@ -2735,6 +2806,7 @@ def _render_oggi():
                                     successi += 1
                             if successi > 0:
                                 completa_assegnazione(aa_id)
+                                completa_blocchi_campo_giorno(atleta_id, data_str)
                                 get_data_cloud.clear()
                                 st.success(f"✅ {successi} prove salvate!")
                                 st.session_state["checkin_prompt_pending"] = True
