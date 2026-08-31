@@ -3062,16 +3062,18 @@ elif st.session_state.current_page == "Home":
                         trend_negativo.append((atl, dist, var_pct))
     trend_negativo.sort(key=lambda x: -x[2])
 
-    # ── TOP ADERENZA SETTIMANALE ──
+    # ── CLASSIFICA COSTANZA (top 3, non e' una classifica di performance) ──
     ultimi_7gg = oggi_tz - pd.Timedelta(days=7)
     sess_7 = pd.concat([df_running[['Atleta', 'Data']], df_vbt[['Atleta', 'Data']]]) if (not df_running.empty or not df_vbt.empty) else pd.DataFrame(columns=['Atleta', 'Data'])
     sess_7 = sess_7[sess_7['Data'] >= ultimi_7gg]
-    top_aderenza, top_aderenza_count = None, 0
+    classifica_costanza = []  # [(atleta, giorni), ...] fino a 3
+    giorni_squadra_attivi = 0  # su quanti dei 7 giorni la squadra ha fatto almeno una sessione
     if not sess_7.empty:
         giorni_count = sess_7.groupby('Atleta')['Data'].apply(lambda s: s.dt.date.nunique())
-        if not giorni_count.empty and giorni_count.max() >= 3:
-            top_aderenza = giorni_count.idxmax()
-            top_aderenza_count = int(giorni_count.max())
+        if not giorni_count.empty and giorni_count.max() >= 2:
+            top3 = giorni_count[giorni_count >= 2].sort_values(ascending=False).head(3)
+            classifica_costanza = list(top3.items())
+        giorni_squadra_attivi = sess_7['Data'].dt.date.nunique()
 
     # ── ANAGRAFICA INCOMPLETA ──
     anagrafica_incompleta = []
@@ -3198,11 +3200,20 @@ elif st.session_state.current_page == "Home":
         """
 
     html_aderenza = None
-    if top_aderenza:
+    if classifica_costanza:
+        righe_costanza = [f"{i+1}. <strong>{nome}</strong> ({giorni} gg)" for i, (nome, giorni) in enumerate(classifica_costanza)]
         html_aderenza = make_alert_card(
-            "TOP ADERENZA (7 GG)",
-            f"<strong>{top_aderenza}</strong> è l'atleta più costante della settimana con {top_aderenza_count} giorni di allenamento. 💪",
+            "CLASSIFICA COSTANZA (7 GG)",
+            " · ".join(righe_costanza) + " 💪",
             "🔥", ("#E8FF3A", "232,255,58")
+        )
+
+    html_streak = None
+    if giorni_squadra_attivi > 0:
+        html_streak = make_alert_card(
+            "ATTIVITÀ DI SQUADRA (7 GG)",
+            f"La squadra si è allenata in <strong>{giorni_squadra_attivi}/7</strong> giorni questa settimana.",
+            "📆", ("#00D9FF", "0,217,255")
         )
 
     html_anagrafica = None
@@ -3233,7 +3244,8 @@ elif st.session_state.current_page == "Home":
 
     # Sociale/motivazionale per tutti: compleanni, PB, crescita volume, costanza.
     render_row(html_timeline, html_pb)
-    render_row(html_volume, html_aderenza)
+    render_row(html_volume, html_streak)
+    render_row(html_aderenza, None)
     # Operativo (nomina compagni in difficolta' o e' un promemoria da coach): solo admin.
     if st.session_state.is_admin:
         render_row(html_periodo, html_inattivi)
