@@ -616,6 +616,52 @@ def completa_assegnazione(assegnazione_atleti_id: int) -> bool:
 
 
 # ──────────────────────────────────────────────────────────────────────
+# CHECK-IN (stato pubblico a singolo tap)
+# ──────────────────────────────────────────────────────────────────────
+
+def upsert_checkin_stato(atleta_id: int, data: str, stato: str) -> bool:
+    """Salva/aggiorna lo stato del giorno per un atleta (un solo check-in al
+    giorno, il tap successivo sovrascrive - vincolo UNIQUE(atleta_id, data))."""
+    supabase = get_supabase()
+    try:
+        payload = {"atleta_id": atleta_id, "data": data, "stato": stato}
+        response = supabase.table("checkin_atleta").upsert(payload, on_conflict="atleta_id,data").execute()
+        return bool(response.data)
+    except Exception as e:
+        print(f"Errore upsert_checkin_stato: {e}")
+        return False
+
+
+def get_checkin_oggi(atleta_id: int) -> str | None:
+    """Stato del check-in di oggi per un atleta, o None se non ancora fatto."""
+    supabase = get_supabase()
+    oggi = pd.Timestamp.now().strftime("%Y-%m-%d")
+    try:
+        response = supabase.table("checkin_atleta") \
+            .select("stato").eq("atleta_id", atleta_id).eq("data", oggi).limit(1).execute()
+        return response.data[0]["stato"] if response.data else None
+    except Exception as e:
+        print(f"Errore get_checkin_oggi: {e}")
+        return None
+
+
+def get_ultimi_checkin(atleta_ids: list[int]) -> dict[int, str]:
+    """Stato di oggi per una lista di atleti (per i badge sulla griglia).
+    Restituisce solo gli atleti che hanno fatto il check-in oggi."""
+    if not atleta_ids:
+        return {}
+    supabase = get_supabase()
+    oggi = pd.Timestamp.now().strftime("%Y-%m-%d")
+    try:
+        response = supabase.table("checkin_atleta") \
+            .select("atleta_id, stato").in_("atleta_id", atleta_ids).eq("data", oggi).execute()
+        return {r["atleta_id"]: r["stato"] for r in (response.data or [])}
+    except Exception as e:
+        print(f"Errore get_ultimi_checkin: {e}")
+        return {}
+
+
+# ──────────────────────────────────────────────────────────────────────
 # FOTO PROFILO (Storage)
 # ──────────────────────────────────────────────────────────────────────
 
