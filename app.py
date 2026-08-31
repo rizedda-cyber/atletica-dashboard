@@ -288,6 +288,42 @@ with st.sidebar:
                     f"<div style='font-size:0.75em; color:rgba(255,255,255,0.4); font-family:DM Mono; letter-spacing:1px;'>ACCESSO PERSONALE</div>"
                     f"<div style='font-weight:700; color:#E8FF3A;'>{nome_corto}</div></div>", unsafe_allow_html=True)
 
+    # ── PULSANTI DI NAVIGAZIONE ────────────────────────────────────────
+    # Bottoni nostri invece del menu nativo di st.navigation() (che resta
+    # attivo con position="hidden" solo per URL/pagine): il menu nativo,
+    # essendo gestito lato client, lascia contenuto della pagina precedente
+    # a schermo quando si naviga via da Dettaglio Atleta (bug verificato su
+    # mobile). I nostri bottoni passano da un giro sul server (st.rerun()
+    # poi st.switch_page() nello shim piu' sotto), che ripulisce correttamente.
+    if st.session_state.is_athlete_session:
+        if st.button("📋 Oggi", use_container_width=True, type="primary" if st.session_state.current_page == "Oggi" else "secondary"):
+            st.session_state.current_page = "Oggi"
+            st.session_state.app_athlete = st.session_state.logged_athlete_name
+            st.session_state.page_just_changed = True
+            st.rerun()
+
+    if st.button("🏠 Home Squadra", use_container_width=True, type="primary" if st.session_state.current_page == "Home" else "secondary"):
+        st.session_state.current_page = "Home"
+        st.session_state.app_athlete = "Tutta la squadra"
+        st.session_state.page_just_changed = True
+        st.rerun()
+
+    if st.button("➕ Inserisci Allenamento", use_container_width=True, type="primary" if st.session_state.current_page == "Inserimento" else "secondary"):
+        st.session_state.current_page = "Inserimento"
+        st.session_state.page_just_changed = True
+        st.rerun()
+
+    if st.session_state.is_admin:
+        if st.button("🛠️ Programma", use_container_width=True, type="primary" if st.session_state.current_page == "Programma" else "secondary"):
+            st.session_state.current_page = "Programma"
+            st.session_state.page_just_changed = True
+            st.rerun()
+        if DATA_SOURCE == "cloud":
+            if st.button("⚙️ Admin", use_container_width=True, type="primary" if st.session_state.current_page == "Admin" else "secondary"):
+                st.session_state.current_page = "Admin"
+                st.session_state.page_just_changed = True
+                st.rerun()
+
     # ── PULSANTE PROFILO ATLETA ──────────────────────────────────────
     if st.session_state.is_athlete_session:
         if st.session_state.current_page == "Dettaglio Atleta":
@@ -345,6 +381,13 @@ selected_athlete = st.session_state.app_athlete
 # PROPRIO profilo. Guardando il profilo di un compagno resta sempre in sola
 # lettura, anche se si è loggati come atleta.
 can_edit = st.session_state.is_admin or (
+    st.session_state.is_athlete_session and selected_athlete == st.session_state.logged_athlete_name
+)
+
+# is_own_profile: a differenza di can_edit, è True solo se chi guarda è
+# proprio l'atleta del profilo — l'admin non guarda mai "il proprio" profilo.
+# Usato per decidere se mostrare un saluto personale o solo nome e cognome.
+is_own_profile = (
     st.session_state.is_athlete_session and selected_athlete == st.session_state.logged_athlete_name
 )
 
@@ -480,7 +523,7 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
         <div style="display: flex; align-items: flex-start; gap: 24px; margin-bottom: 8px;" data-athlete-profile="{primo_nome}">
             {avatar_html}
             <div style="padding-top: 5px; flex: 1;">
-                <h1 style="margin: 0 0 6px 0; padding: 0; line-height: 1; font-size: 2.5em;">👋 {benvenuto_text}, {primo_nome}!</h1>
+                <h1 style="margin: 0 0 6px 0; padding: 0; line-height: 1; font-size: 2.5em;">{f'👋 {benvenuto_text}, {primo_nome}!' if is_own_profile else selected_athlete}</h1>
                 <p style="margin: 0 0 10px 0; color: #E8FF3A; font-family: 'DM Mono', monospace; font-size: 0.9em; font-weight: 600; letter-spacing: 0.5px;">PROFILO ATLETA{eta_txt}{peso_txt}</p>
                 <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 1.05em; line-height: 1.35; max-width: 600px;">
                     {bio_text if bio_text else "Nessuna biografia inserita."}
@@ -3442,7 +3485,7 @@ if st.session_state.is_admin:
 
 pagine.append(PAGE_DETTAGLIO)
 
-pg = st.navigation(pagine)
+pg = st.navigation(pagine, position="hidden")
 
 # Dettaglio Atleta e' sempre registrata (anche se nascosta dal menu), quindi
 # un URL rimasto agganciato a quella pagina (es. logout + nuovo login nella
@@ -3453,13 +3496,17 @@ pg = st.navigation(pagine)
 if pg is PAGE_DETTAGLIO and selected_athlete == "Tutta la squadra":
     st.switch_page(PAGE_HOME)
 
-# Cambio pagina richiesto esplicitamente (login PIN personale, "Vai al Profilo",
-# "Torna al Mio Profilo", breadcrumb "Torna all'elenco atleti"): questi punti
-# impostano session_state.current_page + page_just_changed=True e fanno rerun,
-# esattamente come prima. _had_page_change (catturato piu' in alto, prima che il
-# hack di scroll lo consumi) distingue "rerun causato da un nostro bottone" da
-# un semplice rerun/interazione qualsiasi o da un click diretto sul menu nativo,
-# cosi' non sovrascriviamo mai una navigazione nativa dell'utente.
+# Cambio pagina richiesto esplicitamente (bottoni sidebar, login PIN personale,
+# "Vai al Profilo", "Torna al Mio Profilo", breadcrumb "Torna all'elenco
+# atleti"): questi punti impostano session_state.current_page +
+# page_just_changed=True e fanno rerun. _had_page_change (catturato piu' in
+# alto, prima che il hack di scroll lo consumi) individua quel rerun e lo
+# traduce in un vero st.switch_page() qui, quando le pagine costruite in
+# questo momento del run lo rendono possibile (i bottoni di login/PIN
+# personale girano prima che PAGE_* esistano, quindi non possono chiamare
+# switch_page direttamente). Il menu nativo di st.navigation() e' nascosto
+# (position="hidden") apposta: un click diretto su di esso e' gestito lato
+# client e non ripulisce correttamente il contenuto della pagina precedente.
 _target_page = _PAGE_BY_LABEL.get(st.session_state.current_page)
 if _had_page_change and _target_page is not None and pg is not _target_page:
     st.switch_page(_target_page)
