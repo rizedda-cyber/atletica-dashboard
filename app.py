@@ -1,5 +1,8 @@
 """
 app.py — Dashboard Atletica Leggera (Settore Velocità) v3
+Rideploy forzato 2026-08-31 per un ImportError bloccato su Streamlit Cloud
+(supabase_connector rimasto in memoria in una versione vecchia dopo il push
+precedente - vedi memoria di progetto).
 
 Avvio:
     C:\\Users\\rized\\anaconda3\\python.exe -m streamlit run app.py
