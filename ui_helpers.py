@@ -99,7 +99,7 @@ def make_kpi_card(title, value, delta_text, trend, icon, val_class=""):
 def make_alert_card(label, text, icon, color, bg_alpha="0.1"):
     """Card alert generica con bordo colorato a sinistra, in stile coerente con quelle esistenti in Home."""
     return f"""
-    <div style="background: rgba({color[1]},{bg_alpha}); border-left: 4px solid {color[0]}; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+    <div style="background: rgba({color[1]},{bg_alpha}); border-left: 4px solid {color[0]}; border-radius: 8px; padding: 14px; margin-bottom: 12px; height: 100%; box-sizing: border-box;">
         <div style="display: flex; gap: 10px; align-items: flex-start;">
             <span style="font-size: 24px; margin-top: 2px;">{icon}</span>
             <div style="flex: 1;">
