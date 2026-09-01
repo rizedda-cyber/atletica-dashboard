@@ -2434,6 +2434,20 @@ def _render_home_riepilogo():
         st.divider()
 
 
+GIORNI_SETTIMANA_PROGRAMMA = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+_TIPO_EMOJI_PROGRAMMA = {"Pista": "🔵", "Palestra": "🟢", "Campo": "🟠"}
+
+
+def _nuovo_id_settimana_programma() -> str:
+    seq = st.session_state.get("_settimana_programma_seq", 0) + 1
+    st.session_state["_settimana_programma_seq"] = seq
+    return f"s{seq}"
+
+
+def _nuova_settimana_programma(numero: int) -> dict:
+    return {"id": _nuovo_id_settimana_programma(), "nome": f"Settimana {numero}", "blocchi": []}
+
+
 @st.fragment
 def _render_programma():
     st.markdown("## 🛠️ Programma Settimanale")
@@ -2446,152 +2460,193 @@ def _render_programma():
             get_specialita_disponibili, get_assegnazioni_settimana,
             crea_assegnazione_tag, crea_assegnazione_atleti, get_atleti,
         )
-        from pdf_export import genera_pdf_settimana
+        from pdf_export import genera_pdf_pattern
 
         specialita_opts = get_specialita_disponibili()
         opzioni_assegna = ["Tutta la squadra"] + specialita_opts
         df_atleti_attivi = get_atleti(with_foto=False, solo_attivi=True)
 
-        if "programma_blocchi" not in st.session_state:
-            st.session_state["programma_blocchi"] = []
-        if "ultimo_giorno_blocco" not in st.session_state:
-            st.session_state["ultimo_giorno_blocco"] = pd.Timestamp.now().normalize().date()
+        if "programma_settimane" not in st.session_state:
+            st.session_state["programma_settimane"] = [_nuova_settimana_programma(1)]
+        if "settimana_attiva_id" not in st.session_state:
+            st.session_state["settimana_attiva_id"] = st.session_state["programma_settimane"][0]["id"]
 
-        col_lbl, col_dup, col_copy = st.columns([2, 1, 1])
-        with col_lbl:
-            settimana_label = st.text_input("Etichetta settimana (opzionale)",
-                                             placeholder="es. Settimana 3/4 - Carico",
-                                             key="programma_settimana_label")
-        with col_dup:
-            st.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
-            if st.button("📋 Duplica settimana precedente", use_container_width=True,
-                         help="Dal database: riprende una settimana già assegnata in passato."):
-                oggi = pd.Timestamp.now().normalize()
-                df_prec = get_assegnazioni_settimana(
-                    (oggi - pd.Timedelta(days=14)).strftime("%Y-%m-%d"),
-                    (oggi - pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
-                )
-                if not df_prec.empty:
-                    df_prec = df_prec[df_prec["target_tag"].notna()]
-                if not df_prec.empty:
-                    st.session_state["programma_blocchi"] = [
+        settimane = st.session_state["programma_settimane"]
+        attiva_id = st.session_state["settimana_attiva_id"]
+        if not any(s["id"] == attiva_id for s in settimane):
+            attiva_id = st.session_state["settimana_attiva_id"] = settimane[0]["id"]
+
+        st.caption("Scrivi il pattern di settimane una sola volta (es. 3 di carico + 1 di scarico), poi assegnalo ripetendolo nel tempo — non serve ricostruire ogni settimana da zero.")
+
+        # a) Vista d'insieme
+        for settimana in settimane:
+            puntini = []
+            for giorno in GIORNI_SETTIMANA_PROGRAMMA:
+                blocchi_giorno = [b for b in settimana["blocchi"] if b["Giorno settimana"] == giorno]
+                puntini.append(_TIPO_EMOJI_PROGRAMMA.get(blocchi_giorno[0]["Tipo sessione"], "⚪") if blocchi_giorno else "⚪")
+            evidenzia = "**" if settimana["id"] == attiva_id else ""
+            st.caption(f"{evidenzia}📅 {settimana['nome']} — {''.join(puntini)}{evidenzia}")
+
+        # b) Pillole di navigazione tra settimane + azioni globali
+        pill_cols = st.columns(len(settimane))
+        for i, settimana in enumerate(settimane):
+            if pill_cols[i].button(
+                settimana["nome"], key=f"pill_settimana_{settimana['id']}",
+                type="primary" if settimana["id"] == attiva_id else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state["settimana_attiva_id"] = settimana["id"]
+                st.rerun()
+
+        az_col1, az_col2 = st.columns(2)
+        if az_col1.button("➕ Nuova settimana", use_container_width=True, key="nuova_settimana_btn"):
+            nuova = _nuova_settimana_programma(len(settimane) + 1)
+            st.session_state["programma_settimane"].append(nuova)
+            st.session_state["settimana_attiva_id"] = nuova["id"]
+            st.rerun()
+        if az_col2.button("📋 Importa da settimana passata", use_container_width=True, key="importa_settimana_btn",
+                           help="Dal database: crea una nuova settimana nel pattern a partire dall'ultima settimana realmente assegnata."):
+            oggi = pd.Timestamp.now().normalize()
+            df_prec = get_assegnazioni_settimana(
+                (oggi - pd.Timedelta(days=14)).strftime("%Y-%m-%d"),
+                (oggi - pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
+            )
+            if not df_prec.empty:
+                df_prec = df_prec[df_prec["target_tag"].notna()]
+            if df_prec.empty:
+                st.warning("Nessuna assegnazione a tag trovata nelle ultime 2 settimane da importare.")
+            else:
+                max_giorno = pd.to_datetime(df_prec["data"]).max()
+                lunedi_ultima = max_giorno - pd.Timedelta(days=int(max_giorno.weekday()))
+                domenica_ultima = lunedi_ultima + pd.Timedelta(days=6)
+                df_ultima = df_prec[
+                    (pd.to_datetime(df_prec["data"]) >= lunedi_ultima) & (pd.to_datetime(df_prec["data"]) <= domenica_ultima)
+                ]
+                nuova = {
+                    "id": _nuovo_id_settimana_programma(),
+                    "nome": f"Settimana {len(settimane) + 1}",
+                    "blocchi": [
                         {
-                            "Giorno": (pd.to_datetime(r["data"]) + pd.Timedelta(days=7)).date(),
+                            "Giorno settimana": GIORNI_SETTIMANA_PROGRAMMA[pd.Timestamp(r["data"]).weekday()],
                             "Tipo sessione": r["tipo_sessione"],
                             "Descrizione": r["descrizione"],
                             "Target": r["target"] or "",
                             "Assegna a": r["target_tag"],
-                            "assegnato": False,
+                            "cicli_assegnati": [],
                         }
-                        for _, r in df_prec.iterrows()
-                    ]
-                    st.rerun()
-                else:
-                    st.warning("Nessuna assegnazione a tag trovata nelle ultime 2 settimane da duplicare.")
-        with col_copy:
-            st.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
-            if st.button("📋 Copia ultima settimana", use_container_width=True,
-                         help="Duplica qui sotto (non salvato) l'ultima settimana che hai già scritto in questo elenco, per costruire un mese intero modificando le copie."):
-                blocchi_correnti = st.session_state["programma_blocchi"]
-                if not blocchi_correnti:
-                    st.warning("Aggiungi prima almeno un blocco da copiare.")
-                else:
-                    max_giorno = max(pd.Timestamp(b["Giorno"]) for b in blocchi_correnti)
-                    lunedi_ultima = max_giorno - pd.Timedelta(days=int(max_giorno.weekday()))
-                    domenica_ultima = lunedi_ultima + pd.Timedelta(days=6)
-                    nuovi = [
-                        {**b, "Giorno": (pd.Timestamp(b["Giorno"]) + pd.Timedelta(days=7)).date(), "assegnato": False}
-                        for b in blocchi_correnti
-                        if lunedi_ultima.date() <= pd.Timestamp(b["Giorno"]).date() <= domenica_ultima.date()
-                    ]
-                    st.session_state["programma_blocchi"].extend(nuovi)
-                    st.rerun()
+                        for _, r in df_ultima.iterrows()
+                    ],
+                }
+                st.session_state["programma_settimane"].append(nuova)
+                st.session_state["settimana_attiva_id"] = nuova["id"]
+                st.rerun()
 
-        st.markdown("#### Blocchi ricorrenti (per tag)")
+        settimana_attiva = next(s for s in settimane if s["id"] == attiva_id)
+        idx_attiva = settimane.index(settimana_attiva)
+
+        st.divider()
+
+        # c) Header della settimana attiva
+        nome_col, azioni_col = st.columns([2, 3])
+        with nome_col:
+            nuovo_nome = st.text_input("Nome settimana", value=settimana_attiva["nome"],
+                                        key=f"nome_settimana_{settimana_attiva['id']}")
+            if nuovo_nome != settimana_attiva["nome"]:
+                settimana_attiva["nome"] = nuovo_nome
+        with azioni_col:
+            st.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
+            azb_col1, azb_col2, azb_col3 = st.columns(3)
+            if azb_col1.button("📋 Duplica questa settimana", key=f"duplica_settimana_{settimana_attiva['id']}", use_container_width=True):
+                nuova = {
+                    "id": _nuovo_id_settimana_programma(),
+                    "nome": f"{settimana_attiva['nome']} (copia)",
+                    "blocchi": [{**b, "cicli_assegnati": []} for b in settimana_attiva["blocchi"]],
+                }
+                st.session_state["programma_settimane"].append(nuova)
+                st.session_state["settimana_attiva_id"] = nuova["id"]
+                st.rerun()
+            if azb_col2.button("✅ Settimana pronta → successiva", key=f"pronta_settimana_{settimana_attiva['id']}", use_container_width=True):
+                if idx_attiva + 1 < len(settimane):
+                    st.session_state["settimana_attiva_id"] = settimane[idx_attiva + 1]["id"]
+                else:
+                    nuova = _nuova_settimana_programma(len(settimane) + 1)
+                    st.session_state["programma_settimane"].append(nuova)
+                    st.session_state["settimana_attiva_id"] = nuova["id"]
+                st.rerun()
+            if azb_col3.button("🗑️ Elimina questa settimana", key=f"elimina_settimana_{settimana_attiva['id']}", use_container_width=True):
+                if len(settimane) <= 1:
+                    st.warning("Deve rimanere almeno una settimana nel pattern.")
+                else:
+                    st.session_state["_confirm_elimina_settimana"] = settimana_attiva["id"]
+
+        if st.session_state.get("_confirm_elimina_settimana") == settimana_attiva["id"]:
+            st.warning(f"⚠️ Eliminare '{settimana_attiva['nome']}' dal pattern? I blocchi già assegnati sul database non vengono toccati.")
+            cf_col1, cf_col2 = st.columns(2)
+            if cf_col1.button("✅ Sì, elimina", key=f"conferma_elimina_settimana_{settimana_attiva['id']}", type="primary", use_container_width=True):
+                st.session_state["programma_settimane"] = [s for s in settimane if s["id"] != settimana_attiva["id"]]
+                st.session_state["settimana_attiva_id"] = st.session_state["programma_settimane"][0]["id"]
+                st.session_state.pop("_confirm_elimina_settimana", None)
+                st.rerun()
+            if cf_col2.button("Annulla", key=f"annulla_elimina_settimana_{settimana_attiva['id']}", use_container_width=True):
+                st.session_state.pop("_confirm_elimina_settimana", None)
+                st.rerun()
+
+        # d) Form di aggiunta blocco alla settimana attiva
+        st.markdown(f"#### Aggiungi un blocco a **{settimana_attiva['nome']}**")
         st.caption("Un blocco alla volta — aggiungine quanti vuoi per lo stesso giorno (es. uno per il riscaldamento, uno per la corsa).")
 
         with st.container(border=True):
-            with st.form("form_aggiungi_blocco", clear_on_submit=True):
+            with st.form(f"form_aggiungi_blocco_{settimana_attiva['id']}", clear_on_submit=True):
                 add_col1, add_col2 = st.columns(2)
-                n_giorno = add_col1.date_input(
-                    "Giorno", value=st.session_state["ultimo_giorno_blocco"], key="add_blocco_giorno",
-                )
-                n_tipo = add_col2.selectbox("Tipo sessione", ["Pista", "Palestra", "Campo"], key="add_blocco_tipo")
+                n_giorno_sett = add_col1.selectbox("Giorno della settimana", GIORNI_SETTIMANA_PROGRAMMA,
+                                                     key=f"add_blocco_giorno_{settimana_attiva['id']}")
+                n_tipo = add_col2.selectbox("Tipo sessione", ["Pista", "Palestra", "Campo"],
+                                             key=f"add_blocco_tipo_{settimana_attiva['id']}")
                 n_descrizione = st.text_area(
-                    "Descrizione", key="add_blocco_descrizione",
+                    "Descrizione", key=f"add_blocco_descrizione_{settimana_attiva['id']}",
                     placeholder="es. Attivazione + Mobilità Hs · Pliometria: pogo 80 tot + 6 over · Andature: 2 avvii 2 appoggi + 2 con 3 appoggi",
                 )
                 n_target = st.text_input(
-                    "Target (opzionale)", key="add_blocco_target",
+                    "Target (opzionale)", key=f"add_blocco_target_{settimana_attiva['id']}",
                     placeholder="es. 1x30m + 2x50m + 2x60m — lascia vuoto se non è misurabile",
                 )
-                n_assegna = st.selectbox("Assegna a", options=opzioni_assegna, key="add_blocco_assegna")
+                n_assegna = st.selectbox("Assegna a", options=opzioni_assegna, key=f"add_blocco_assegna_{settimana_attiva['id']}")
                 if st.form_submit_button("➕ Aggiungi blocco", use_container_width=True):
                     if not n_descrizione.strip():
                         st.warning("Scrivi una descrizione per il blocco.")
                     else:
-                        st.session_state["programma_blocchi"].append({
-                            "Giorno": n_giorno,
+                        settimana_attiva["blocchi"].append({
+                            "Giorno settimana": n_giorno_sett,
                             "Tipo sessione": n_tipo,
                             "Descrizione": n_descrizione.strip(),
                             "Target": n_target.strip(),
                             "Assegna a": n_assegna,
-                            "assegnato": False,
+                            "cicli_assegnati": [],
                         })
-                        st.session_state["ultimo_giorno_blocco"] = n_giorno
                         st.rerun()
 
-        blocchi = st.session_state["programma_blocchi"]
-        if blocchi:
-            n_assegnati = sum(1 for b in blocchi if b.get("assegnato"))
-            riep_col1, riep_col2 = st.columns([4, 1])
-            riep_col1.markdown(
-                f"**{len(blocchi)} bloc{'co' if len(blocchi) == 1 else 'chi'} in elenco**"
-                + (f" · {n_assegnati} già assegnat{'o' if n_assegnati == 1 else 'i'}" if n_assegnati else "")
-            )
-            if riep_col2.button("🧹 Svuota elenco", key="svuota_blocchi_btn"):
-                st.session_state["_confirm_svuota_blocchi"] = True
-            if st.session_state.get("_confirm_svuota_blocchi"):
-                st.warning("⚠️ Svuotare l'intero elenco? I blocchi già assegnati restano salvati, solo la vista di lavoro qui sotto viene ripulita.")
-                sv_col1, sv_col2 = st.columns(2)
-                if sv_col1.button("✅ Sì, svuota", key="conferma_svuota_blocchi", type="primary", use_container_width=True):
-                    st.session_state["programma_blocchi"] = []
-                    st.session_state.pop("_confirm_svuota_blocchi", None)
-                    st.rerun()
-                if sv_col2.button("Annulla", key="annulla_svuota_blocchi", use_container_width=True):
-                    st.session_state.pop("_confirm_svuota_blocchi", None)
-                    st.rerun()
-            indici_ordinati = sorted(range(len(blocchi)), key=lambda i: pd.Timestamp(blocchi[i]["Giorno"]))
-            settimana_corrente = None
+        # e) Riepilogo blocchi della settimana attiva
+        if settimana_attiva["blocchi"]:
+            ordine_giorni = {g: i for i, g in enumerate(GIORNI_SETTIMANA_PROGRAMMA)}
+            indici_ordinati = sorted(range(len(settimana_attiva["blocchi"])),
+                                      key=lambda i: ordine_giorni[settimana_attiva["blocchi"][i]["Giorno settimana"]])
             for i in indici_ordinati:
-                b = blocchi[i]
-                giorno_ts = pd.Timestamp(b["Giorno"])
-                lunedi = giorno_ts - pd.Timedelta(days=int(giorno_ts.weekday()))
-                if settimana_corrente is None or lunedi != settimana_corrente:
-                    settimana_corrente = lunedi
-                    domenica = lunedi + pd.Timedelta(days=6)
-                    wk_col1, wk_col2 = st.columns([4, 1])
-                    wk_col1.markdown(f"##### 📅 Settimana {lunedi.strftime('%d/%m')} – {domenica.strftime('%d/%m')}")
-                    if wk_col2.button("🗑️ Rimuovi settimana", key=f"rm_week_{lunedi.date()}"):
-                        st.session_state["programma_blocchi"] = [
-                            bb for bb in st.session_state["programma_blocchi"]
-                            if not (lunedi.date() <= pd.Timestamp(bb["Giorno"]).date() <= domenica.date())
-                        ]
-                        st.rerun()
+                b = settimana_attiva["blocchi"][i]
                 rc1, rc2 = st.columns([10, 1])
                 with rc1:
-                    giorno_txt = giorno_ts.strftime("%d/%m/%Y")
                     target_txt = f" · rif: {b['Target']}" if b["Target"] else ""
-                    stato_txt = " · ✅ assegnato" if b.get("assegnato") else ""
-                    st.markdown(f"**{giorno_txt} · {b['Tipo sessione']} · {b['Assegna a']}{stato_txt}**  \n{b['Descrizione']}{target_txt}")
+                    n_cicli_ass = len(b.get("cicli_assegnati", []))
+                    stato_txt = f" · ✅ assegnato ({n_cicli_ass} cicl{'o' if n_cicli_ass == 1 else 'i'})" if n_cicli_ass else ""
+                    st.markdown(f"**{b['Giorno settimana']} · {b['Tipo sessione']} · {b['Assegna a']}{stato_txt}**  \n{b['Descrizione']}{target_txt}")
                 with rc2:
-                    if st.button("🗑️", key=f"rm_blocco_{i}", help="Rimuovi"):
-                        st.session_state["programma_blocchi"].pop(i)
+                    if st.button("🗑️", key=f"rm_blocco_{settimana_attiva['id']}_{i}", help="Rimuovi"):
+                        settimana_attiva["blocchi"].pop(i)
                         st.rerun()
                 st.divider()
         else:
-            st.caption("Nessun blocco ancora aggiunto.")
+            st.caption("Nessun blocco ancora in questa settimana.")
 
+        # f) Assegnazione mirata (eccezioni o sottogruppi ad-hoc) — invariata
         st.markdown("#### Assegnazione mirata (eccezioni o sottogruppi ad-hoc)")
         st.caption("Es. 'Davide fa un 300 invece del 150', oppure 'chi non ha gareggiato' — una selezione libera di atleti, non un tag fisso.")
         nomi_atleti = df_atleti_attivi["nome_completo"].tolist() if not df_atleti_attivi.empty else []
@@ -2607,7 +2662,7 @@ def _render_programma():
                     atleti_ids = df_atleti_attivi[df_atleti_attivi["nome_completo"].isin(m_atleti)]["id"].tolist()
                     ok = crea_assegnazione_atleti(
                         m_giorno.strftime("%Y-%m-%d"), m_tipo, m_descrizione.strip(),
-                        m_target.strip(), atleti_ids, settimana_label.strip() or None,
+                        m_target.strip(), atleti_ids, None,
                     )
                     if ok:
                         st.success("✅ Eccezione salvata.")
@@ -2616,66 +2671,108 @@ def _render_programma():
                 else:
                     st.warning("Seleziona almeno un atleta e scrivi una descrizione.")
 
+        # g) Assegnazione del pattern (con ripetizione su più cicli)
         st.divider()
-        righe_valide = pd.DataFrame(blocchi) if blocchi else pd.DataFrame(
-            columns=["Giorno", "Tipo sessione", "Descrizione", "Target", "Assegna a"]
-        )
+        st.markdown("#### Assegna il pattern")
 
-        col_pdf, col_assegna = st.columns(2)
-        with col_pdf:
-            pdf_bytes = genera_pdf_settimana(righe_valide)
-            st.download_button("📄 Esporta PDF", data=pdf_bytes, file_name="programma_settimanale.pdf",
+        n_settimane_pattern = len(settimane)
+        tot_blocchi_pattern = sum(len(s["blocchi"]) for s in settimane)
+
+        if "programma_data_inizio" not in st.session_state:
+            oggi = pd.Timestamp.now().normalize()
+            prossimo_lunedi = oggi if oggi.weekday() == 0 else oggi + pd.Timedelta(days=(7 - oggi.weekday()))
+            st.session_state["programma_data_inizio"] = prossimo_lunedi.date()
+        if "programma_n_cicli" not in st.session_state:
+            st.session_state["programma_n_cicli"] = 1
+
+        col_data, col_ripeti = st.columns(2)
+        data_inizio_scelta = col_data.date_input("Data di inizio (lunedì)", key="programma_data_inizio")
+        n_cicli = col_ripeti.number_input("Ripeti per N cicli", min_value=1, step=1,
+                                           key="programma_n_cicli",
+                                           help="Es. 6 cicli di un pattern di 4 settimane = 24 settimane assegnate in un click.")
+
+        lunedi_inizio = pd.Timestamp(data_inizio_scelta) - pd.Timedelta(days=int(pd.Timestamp(data_inizio_scelta).weekday()))
+        if lunedi_inizio.date() != data_inizio_scelta:
+            st.caption(f"Il pattern parte dal lunedì di quella settimana: {lunedi_inizio.strftime('%d/%m/%Y')}.")
+
+        if n_settimane_pattern:
+            data_fine = lunedi_inizio + pd.Timedelta(weeks=n_settimane_pattern * int(n_cicli)) - pd.Timedelta(days=1)
+            st.caption(
+                f"Il pattern di {n_settimane_pattern} settiman{'a' if n_settimane_pattern == 1 else 'e'} "
+                f"× {int(n_cicli)} cicl{'o' if n_cicli == 1 else 'i'} coprirà dal {lunedi_inizio.strftime('%d/%m/%Y')} "
+                f"al {data_fine.strftime('%d/%m/%Y')}."
+            )
+
+        pdf_col1, pdf_col2, assegna_col = st.columns(3)
+        with pdf_col1:
+            pdf_bytes_attiva = genera_pdf_pattern([settimana_attiva], titolo=settimana_attiva["nome"])
+            st.download_button("📄 PDF questa settimana", data=pdf_bytes_attiva, file_name="settimana.pdf",
                                 mime="application/pdf", use_container_width=True)
-        with col_assegna:
-            if st.button("✅ Assegna", type="primary", use_container_width=True):
-                if not blocchi:
-                    st.warning("Nessun blocco da assegnare.")
-                else:
-                    da_assegnare = [(i, b) for i, b in enumerate(blocchi) if not b.get("assegnato")]
-                    if not da_assegnare:
-                        st.info("Tutti i blocchi in elenco sono già stati assegnati.")
-                    else:
-                        successi, errori = 0, 0
-                        for i, b in da_assegnare:
-                            data_str = pd.Timestamp(b["Giorno"]).strftime("%Y-%m-%d")
-                            target = str(b.get("Target") or "").strip()
-                            assegna_a = b["Assegna a"]
-                            if assegna_a == "Tutta la squadra":
-                                ids_tutti = df_atleti_attivi["id"].tolist()
-                                ok_riga = crea_assegnazione_atleti(
-                                    data_str, b["Tipo sessione"], b["Descrizione"],
-                                    target, ids_tutti, settimana_label.strip() or None,
-                                    target_tag="Tutta la squadra",
+        with pdf_col2:
+            pdf_bytes_tutto = genera_pdf_pattern(settimane, titolo="Programma")
+            st.download_button("📄 PDF tutto il pattern", data=pdf_bytes_tutto, file_name="programma_pattern.pdf",
+                                mime="application/pdf", use_container_width=True)
+        with assegna_col:
+            assegna_click = st.button("✅ Assegna pattern", type="primary", use_container_width=True)
+
+        st.caption("Per correggere un blocco già assegnato: modifica il pattern qui sopra, poi elimina le righe sbagliate già create in \"📊 Stato Completamento\" — i blocchi assegnati non sono modificabili in-place.")
+
+        if assegna_click:
+            if tot_blocchi_pattern == 0:
+                st.warning("Aggiungi almeno un blocco al pattern prima di assegnare.")
+            else:
+                successi, errori, saltati = 0, 0, 0
+                with st.spinner("Assegnazione in corso..."):
+                    for ciclo in range(int(n_cicli)):
+                        for idx_s, settimana in enumerate(settimane):
+                            for blocco in settimana["blocchi"]:
+                                if ciclo in blocco["cicli_assegnati"]:
+                                    saltati += 1
+                                    continue
+                                data_reale = (
+                                    lunedi_inizio
+                                    + pd.Timedelta(weeks=ciclo * n_settimane_pattern + idx_s)
+                                    + pd.Timedelta(days=GIORNI_SETTIMANA_PROGRAMMA.index(blocco["Giorno settimana"]))
                                 )
-                            else:
-                                ok_riga = crea_assegnazione_tag(
-                                    data_str, b["Tipo sessione"], b["Descrizione"],
-                                    target, assegna_a, settimana_label.strip() or None,
-                                )
-                            if ok_riga:
-                                successi += 1
-                                st.session_state["programma_blocchi"][i]["assegnato"] = True
-                            else:
-                                errori += 1
-                        if successi:
-                            st.success(f"✅ {successi} blocchi assegnati! Da qui l'atleta li vedrà nella propria area (Fase 2). Restano in elenco per PDF/copia — usa 🧹 Svuota elenco quando hai finito.")
-                        if errori:
-                            st.warning(f"⚠️ {errori} blocchi non salvati (controlla i campi).")
-                        if successi:
-                            st.rerun(scope="app")
-                    if successi:
-                        st.rerun(scope="app")
+                                data_str = data_reale.strftime("%Y-%m-%d")
+                                target = str(blocco.get("Target") or "").strip()
+                                if blocco["Assegna a"] == "Tutta la squadra":
+                                    ok_riga = crea_assegnazione_atleti(
+                                        data_str, blocco["Tipo sessione"], blocco["Descrizione"],
+                                        target, df_atleti_attivi["id"].tolist(), settimana["nome"],
+                                        target_tag="Tutta la squadra",
+                                    )
+                                else:
+                                    ok_riga = crea_assegnazione_tag(
+                                        data_str, blocco["Tipo sessione"], blocco["Descrizione"],
+                                        target, blocco["Assegna a"], settimana["nome"],
+                                    )
+                                if ok_riga:
+                                    blocco["cicli_assegnati"].append(ciclo)
+                                    successi += 1
+                                else:
+                                    errori += 1
+                if successi:
+                    st.success(f"✅ {successi} blocchi assegnati (dal {lunedi_inizio.strftime('%d/%m/%Y')}). Da qui l'atleta li vedrà nella propria area.")
+                if errori:
+                    st.warning(f"⚠️ {errori} blocchi non salvati (controlla i campi).")
+                if saltati and not successi and not errori:
+                    st.info("Tutti i blocchi per questi cicli erano già assegnati con questa data di inizio.")
+                if successi:
+                    st.rerun(scope="app")
 
     with tab_stato:
         from supabase_connector import get_assegnazioni_con_stato, delete_assegnazione
 
-        oggi = pd.Timestamp.now().normalize()
-        lunedi_default = oggi - pd.Timedelta(days=int(oggi.weekday()))
-        domenica_default = lunedi_default + pd.Timedelta(days=6)
+        if "stato_data_da" not in st.session_state:
+            oggi = pd.Timestamp.now().normalize()
+            lunedi_default = oggi - pd.Timedelta(days=int(oggi.weekday()))
+            st.session_state["stato_data_da"] = lunedi_default.date()
+            st.session_state["stato_data_a"] = (lunedi_default + pd.Timedelta(days=6)).date()
 
         col_da, col_a = st.columns(2)
-        stato_da = col_da.date_input("Dal", value=lunedi_default.date(), key="stato_data_da")
-        stato_a = col_a.date_input("Al", value=domenica_default.date(), key="stato_data_a")
+        stato_da = col_da.date_input("Dal", key="stato_data_da")
+        stato_a = col_a.date_input("Al", key="stato_data_a")
 
         df_stato = get_assegnazioni_con_stato(
             pd.Timestamp(stato_da).strftime("%Y-%m-%d"),
