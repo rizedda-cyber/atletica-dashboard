@@ -2454,6 +2454,8 @@ def _render_programma():
 
         if "programma_blocchi" not in st.session_state:
             st.session_state["programma_blocchi"] = []
+        if "ultimo_giorno_blocco" not in st.session_state:
+            st.session_state["ultimo_giorno_blocco"] = pd.Timestamp.now().normalize().date()
 
         col_lbl, col_dup, col_copy = st.columns([2, 1, 1])
         with col_lbl:
@@ -2479,6 +2481,7 @@ def _render_programma():
                             "Descrizione": r["descrizione"],
                             "Target": r["target"] or "",
                             "Assegna a": r["target_tag"],
+                            "assegnato": False,
                         }
                         for _, r in df_prec.iterrows()
                     ]
@@ -2497,7 +2500,7 @@ def _render_programma():
                     lunedi_ultima = max_giorno - pd.Timedelta(days=int(max_giorno.weekday()))
                     domenica_ultima = lunedi_ultima + pd.Timedelta(days=6)
                     nuovi = [
-                        {**b, "Giorno": (pd.Timestamp(b["Giorno"]) + pd.Timedelta(days=7)).date()}
+                        {**b, "Giorno": (pd.Timestamp(b["Giorno"]) + pd.Timedelta(days=7)).date(), "assegnato": False}
                         for b in blocchi_correnti
                         if lunedi_ultima.date() <= pd.Timestamp(b["Giorno"]).date() <= domenica_ultima.date()
                     ]
@@ -2510,7 +2513,9 @@ def _render_programma():
         with st.container(border=True):
             with st.form("form_aggiungi_blocco", clear_on_submit=True):
                 add_col1, add_col2 = st.columns(2)
-                n_giorno = add_col1.date_input("Giorno", key="add_blocco_giorno")
+                n_giorno = add_col1.date_input(
+                    "Giorno", value=st.session_state["ultimo_giorno_blocco"], key="add_blocco_giorno",
+                )
                 n_tipo = add_col2.selectbox("Tipo sessione", ["Pista", "Palestra", "Campo"], key="add_blocco_tipo")
                 n_descrizione = st.text_area(
                     "Descrizione", key="add_blocco_descrizione",
@@ -2531,12 +2536,31 @@ def _render_programma():
                             "Descrizione": n_descrizione.strip(),
                             "Target": n_target.strip(),
                             "Assegna a": n_assegna,
+                            "assegnato": False,
                         })
+                        st.session_state["ultimo_giorno_blocco"] = n_giorno
                         st.rerun()
 
         blocchi = st.session_state["programma_blocchi"]
         if blocchi:
-            st.markdown(f"**{len(blocchi)} bloc{'co' if len(blocchi) == 1 else 'chi'} pronti**")
+            n_assegnati = sum(1 for b in blocchi if b.get("assegnato"))
+            riep_col1, riep_col2 = st.columns([4, 1])
+            riep_col1.markdown(
+                f"**{len(blocchi)} bloc{'co' if len(blocchi) == 1 else 'chi'} in elenco**"
+                + (f" · {n_assegnati} già assegnat{'o' if n_assegnati == 1 else 'i'}" if n_assegnati else "")
+            )
+            if riep_col2.button("🧹 Svuota elenco", key="svuota_blocchi_btn"):
+                st.session_state["_confirm_svuota_blocchi"] = True
+            if st.session_state.get("_confirm_svuota_blocchi"):
+                st.warning("⚠️ Svuotare l'intero elenco? I blocchi già assegnati restano salvati, solo la vista di lavoro qui sotto viene ripulita.")
+                sv_col1, sv_col2 = st.columns(2)
+                if sv_col1.button("✅ Sì, svuota", key="conferma_svuota_blocchi", type="primary", use_container_width=True):
+                    st.session_state["programma_blocchi"] = []
+                    st.session_state.pop("_confirm_svuota_blocchi", None)
+                    st.rerun()
+                if sv_col2.button("Annulla", key="annulla_svuota_blocchi", use_container_width=True):
+                    st.session_state.pop("_confirm_svuota_blocchi", None)
+                    st.rerun()
             indici_ordinati = sorted(range(len(blocchi)), key=lambda i: pd.Timestamp(blocchi[i]["Giorno"]))
             settimana_corrente = None
             for i in indici_ordinati:
@@ -2558,7 +2582,8 @@ def _render_programma():
                 with rc1:
                     giorno_txt = giorno_ts.strftime("%d/%m/%Y")
                     target_txt = f" · rif: {b['Target']}" if b["Target"] else ""
-                    st.markdown(f"**{giorno_txt} · {b['Tipo sessione']} · {b['Assegna a']}**  \n{b['Descrizione']}{target_txt}")
+                    stato_txt = " · ✅ assegnato" if b.get("assegnato") else ""
+                    st.markdown(f"**{giorno_txt} · {b['Tipo sessione']} · {b['Assegna a']}{stato_txt}**  \n{b['Descrizione']}{target_txt}")
                 with rc2:
                     if st.button("🗑️", key=f"rm_blocco_{i}", help="Rimuovi"):
                         st.session_state["programma_blocchi"].pop(i)
@@ -2603,33 +2628,41 @@ def _render_programma():
                                 mime="application/pdf", use_container_width=True)
         with col_assegna:
             if st.button("✅ Assegna", type="primary", use_container_width=True):
-                if righe_valide.empty:
-                    st.warning("Nessun blocco da assegnare (righe vuote o incomplete).")
+                if not blocchi:
+                    st.warning("Nessun blocco da assegnare.")
                 else:
-                    successi, errori = 0, 0
-                    for _, riga in righe_valide.iterrows():
-                        data_str = pd.Timestamp(riga["Giorno"]).strftime("%Y-%m-%d")
-                        target = str(riga.get("Target") or "").strip()
-                        assegna_a = riga["Assegna a"]
-                        if assegna_a == "Tutta la squadra":
-                            ids_tutti = df_atleti_attivi["id"].tolist()
-                            ok_riga = crea_assegnazione_atleti(
-                                data_str, riga["Tipo sessione"], riga["Descrizione"],
-                                target, ids_tutti, settimana_label.strip() or None,
-                                target_tag="Tutta la squadra",
-                            )
-                        else:
-                            ok_riga = crea_assegnazione_tag(
-                                data_str, riga["Tipo sessione"], riga["Descrizione"],
-                                target, assegna_a, settimana_label.strip() or None,
-                            )
-                        successi += 1 if ok_riga else 0
-                        errori += 0 if ok_riga else 1
-                    if successi:
-                        st.success(f"✅ {successi} blocchi assegnati! Da qui l'atleta li vedrà nella propria area (Fase 2).")
-                        st.session_state["programma_blocchi"] = []
-                    if errori:
-                        st.warning(f"⚠️ {errori} blocchi non salvati (controlla i campi).")
+                    da_assegnare = [(i, b) for i, b in enumerate(blocchi) if not b.get("assegnato")]
+                    if not da_assegnare:
+                        st.info("Tutti i blocchi in elenco sono già stati assegnati.")
+                    else:
+                        successi, errori = 0, 0
+                        for i, b in da_assegnare:
+                            data_str = pd.Timestamp(b["Giorno"]).strftime("%Y-%m-%d")
+                            target = str(b.get("Target") or "").strip()
+                            assegna_a = b["Assegna a"]
+                            if assegna_a == "Tutta la squadra":
+                                ids_tutti = df_atleti_attivi["id"].tolist()
+                                ok_riga = crea_assegnazione_atleti(
+                                    data_str, b["Tipo sessione"], b["Descrizione"],
+                                    target, ids_tutti, settimana_label.strip() or None,
+                                    target_tag="Tutta la squadra",
+                                )
+                            else:
+                                ok_riga = crea_assegnazione_tag(
+                                    data_str, b["Tipo sessione"], b["Descrizione"],
+                                    target, assegna_a, settimana_label.strip() or None,
+                                )
+                            if ok_riga:
+                                successi += 1
+                                st.session_state["programma_blocchi"][i]["assegnato"] = True
+                            else:
+                                errori += 1
+                        if successi:
+                            st.success(f"✅ {successi} blocchi assegnati! Da qui l'atleta li vedrà nella propria area (Fase 2). Restano in elenco per PDF/copia — usa 🧹 Svuota elenco quando hai finito.")
+                        if errori:
+                            st.warning(f"⚠️ {errori} blocchi non salvati (controlla i campi).")
+                        if successi:
+                            st.rerun(scope="app")
                     if successi:
                         st.rerun(scope="app")
 
