@@ -2595,10 +2595,15 @@ def _render_programma():
         st.markdown(f"#### Aggiungi un blocco a **{settimana_attiva['nome']}**")
         st.caption("Un blocco alla volta — aggiungine quanti vuoi per lo stesso giorno (es. uno per il riscaldamento, uno per la corsa).")
 
+        if "ultimo_giorno_settimana_scelto" not in st.session_state:
+            st.session_state["ultimo_giorno_settimana_scelto"] = GIORNI_SETTIMANA_PROGRAMMA[0]
+
         with st.container(border=True):
             with st.form(f"form_aggiungi_blocco_{settimana_attiva['id']}", clear_on_submit=True):
                 add_col1, add_col2 = st.columns(2)
+                idx_giorno_default = GIORNI_SETTIMANA_PROGRAMMA.index(st.session_state["ultimo_giorno_settimana_scelto"])
                 n_giorno_sett = add_col1.selectbox("Giorno della settimana", GIORNI_SETTIMANA_PROGRAMMA,
+                                                     index=idx_giorno_default,
                                                      key=f"add_blocco_giorno_{settimana_attiva['id']}")
                 n_tipo = add_col2.selectbox("Tipo sessione", ["Pista", "Palestra", "Campo"],
                                              key=f"add_blocco_tipo_{settimana_attiva['id']}")
@@ -2623,6 +2628,8 @@ def _render_programma():
                             "Assegna a": n_assegna,
                             "cicli_assegnati": [],
                         })
+                        st.session_state["ultimo_giorno_settimana_scelto"] = n_giorno_sett
+                        st.session_state.pop(f"add_blocco_giorno_{settimana_attiva['id']}", None)
                         st.rerun()
 
         # e) Riepilogo blocchi della settimana attiva
