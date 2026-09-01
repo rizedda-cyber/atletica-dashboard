@@ -2455,14 +2455,15 @@ def _render_programma():
         if "programma_blocchi" not in st.session_state:
             st.session_state["programma_blocchi"] = []
 
-        col_lbl, col_dup = st.columns([3, 1])
+        col_lbl, col_dup, col_copy = st.columns([2, 1, 1])
         with col_lbl:
             settimana_label = st.text_input("Etichetta settimana (opzionale)",
                                              placeholder="es. Settimana 3/4 - Carico",
                                              key="programma_settimana_label")
         with col_dup:
             st.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
-            if st.button("📋 Duplica settimana precedente", use_container_width=True):
+            if st.button("📋 Duplica settimana precedente", use_container_width=True,
+                         help="Dal database: riprende una settimana già assegnata in passato."):
                 oggi = pd.Timestamp.now().normalize()
                 df_prec = get_assegnazioni_settimana(
                     (oggi - pd.Timedelta(days=14)).strftime("%Y-%m-%d"),
@@ -2484,6 +2485,24 @@ def _render_programma():
                     st.rerun()
                 else:
                     st.warning("Nessuna assegnazione a tag trovata nelle ultime 2 settimane da duplicare.")
+        with col_copy:
+            st.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
+            if st.button("📋 Copia ultima settimana", use_container_width=True,
+                         help="Duplica qui sotto (non salvato) l'ultima settimana che hai già scritto in questo elenco, per costruire un mese intero modificando le copie."):
+                blocchi_correnti = st.session_state["programma_blocchi"]
+                if not blocchi_correnti:
+                    st.warning("Aggiungi prima almeno un blocco da copiare.")
+                else:
+                    max_giorno = max(pd.Timestamp(b["Giorno"]) for b in blocchi_correnti)
+                    lunedi_ultima = max_giorno - pd.Timedelta(days=int(max_giorno.weekday()))
+                    domenica_ultima = lunedi_ultima + pd.Timedelta(days=6)
+                    nuovi = [
+                        {**b, "Giorno": (pd.Timestamp(b["Giorno"]) + pd.Timedelta(days=7)).date()}
+                        for b in blocchi_correnti
+                        if lunedi_ultima.date() <= pd.Timestamp(b["Giorno"]).date() <= domenica_ultima.date()
+                    ]
+                    st.session_state["programma_blocchi"].extend(nuovi)
+                    st.rerun()
 
         st.markdown("#### Blocchi ricorrenti (per tag)")
         st.caption("Un blocco alla volta — aggiungine quanti vuoi per lo stesso giorno (es. uno per il riscaldamento, uno per la corsa).")
@@ -2517,11 +2536,27 @@ def _render_programma():
 
         blocchi = st.session_state["programma_blocchi"]
         if blocchi:
-            st.markdown(f"**{len(blocchi)} bloc{'co' if len(blocchi) == 1 else 'chi'} pronti per questa settimana**")
-            for i, b in enumerate(blocchi):
+            st.markdown(f"**{len(blocchi)} bloc{'co' if len(blocchi) == 1 else 'chi'} pronti**")
+            indici_ordinati = sorted(range(len(blocchi)), key=lambda i: pd.Timestamp(blocchi[i]["Giorno"]))
+            settimana_corrente = None
+            for i in indici_ordinati:
+                b = blocchi[i]
+                giorno_ts = pd.Timestamp(b["Giorno"])
+                lunedi = giorno_ts - pd.Timedelta(days=int(giorno_ts.weekday()))
+                if settimana_corrente is None or lunedi != settimana_corrente:
+                    settimana_corrente = lunedi
+                    domenica = lunedi + pd.Timedelta(days=6)
+                    wk_col1, wk_col2 = st.columns([4, 1])
+                    wk_col1.markdown(f"##### 📅 Settimana {lunedi.strftime('%d/%m')} – {domenica.strftime('%d/%m')}")
+                    if wk_col2.button("🗑️ Rimuovi settimana", key=f"rm_week_{lunedi.date()}"):
+                        st.session_state["programma_blocchi"] = [
+                            bb for bb in st.session_state["programma_blocchi"]
+                            if not (lunedi.date() <= pd.Timestamp(bb["Giorno"]).date() <= domenica.date())
+                        ]
+                        st.rerun()
                 rc1, rc2 = st.columns([10, 1])
                 with rc1:
-                    giorno_txt = pd.Timestamp(b["Giorno"]).strftime("%d/%m/%Y")
+                    giorno_txt = giorno_ts.strftime("%d/%m/%Y")
                     target_txt = f" · rif: {b['Target']}" if b["Target"] else ""
                     st.markdown(f"**{giorno_txt} · {b['Tipo sessione']} · {b['Assegna a']}**  \n{b['Descrizione']}{target_txt}")
                 with rc2:
@@ -2530,7 +2565,7 @@ def _render_programma():
                         st.rerun()
                 st.divider()
         else:
-            st.caption("Nessun blocco ancora aggiunto per questa settimana.")
+            st.caption("Nessun blocco ancora aggiunto.")
 
         st.markdown("#### Assegnazione mirata (eccezioni o sottogruppi ad-hoc)")
         st.caption("Es. 'Davide fa un 300 invece del 150', oppure 'chi non ha gareggiato' — una selezione libera di atleti, non un tag fisso.")
@@ -2623,38 +2658,69 @@ def _render_programma():
             st.divider()
 
             _giorni_it = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+            settimana_corrente = None
+            selezionati_ids = []
             for assegnazione_id, gruppo in df_stato.groupby("assegnazione_id", sort=False):
+                assegnazione_id = int(assegnazione_id)
                 prima = gruppo.iloc[0]
                 ts_giorno = pd.Timestamp(prima["data"])
+                lunedi = ts_giorno - pd.Timedelta(days=int(ts_giorno.weekday()))
+                if settimana_corrente is None or lunedi != settimana_corrente:
+                    settimana_corrente = lunedi
+                    domenica = lunedi + pd.Timedelta(days=6)
+                    wk_col1, wk_col2 = st.columns([4, 1])
+                    wk_col1.markdown(f"##### 📅 Settimana {lunedi.strftime('%d/%m')} – {domenica.strftime('%d/%m')}")
+                    if wk_col2.button("Seleziona tutta", key=f"selweek_{lunedi.date()}"):
+                        ids_settimana = df_stato[
+                            (df_stato["data"] >= lunedi) & (df_stato["data"] <= domenica)
+                        ]["assegnazione_id"].unique()
+                        for aid in ids_settimana:
+                            st.session_state[f"sel_{int(aid)}"] = True
+                        st.rerun()
+
                 giorno_label = f"{_giorni_it[ts_giorno.weekday()]} {ts_giorno.strftime('%d/%m')}"
                 tag_label = prima["target_tag"] if pd.notna(prima.get("target_tag")) else "selezione libera"
                 with st.container(border=True):
-                    cap_col, del_col = st.columns([6, 1])
+                    chk_col, cap_col = st.columns([1, 9])
+                    with chk_col:
+                        selezionato = st.checkbox(
+                            "Seleziona", key=f"sel_{assegnazione_id}",
+                            label_visibility="collapsed",
+                        )
+                        if selezionato:
+                            selezionati_ids.append(assegnazione_id)
                     with cap_col:
                         st.markdown(f"**{giorno_label} — {prima['tipo_sessione']} — {tag_label}**")
                         st.caption(prima["descrizione"])
-                    with del_col:
-                        if st.button("🗑️", key=f"del_assegnazione_{assegnazione_id}", help="Elimina questo blocco"):
-                            st.session_state["_confirm_del_assegnazione_id"] = assegnazione_id
                     righe_nomi = []
                     for _, riga in gruppo.sort_values("nome_atleta").iterrows():
                         icona = "✅" if riga["stato"] == "completato" else "⬜"
                         righe_nomi.append(f"{icona} {riga['nome_atleta']}")
                     st.markdown(" &nbsp;&nbsp; ".join(righe_nomi))
 
-                    if st.session_state.get("_confirm_del_assegnazione_id") == assegnazione_id:
-                        st.warning(f"⚠️ Eliminare **{giorno_label} — {prima['tipo_sessione']} — {tag_label}** per tutti gli atleti assegnati?")
-                        conf_col1, conf_col2 = st.columns(2)
-                        if conf_col1.button("✅ Sì, elimina", key=f"confirm_del_assegnazione_{assegnazione_id}", type="primary", use_container_width=True):
-                            if delete_assegnazione(assegnazione_id):
-                                st.session_state.pop("_confirm_del_assegnazione_id", None)
-                                st.success("🗑️ Blocco eliminato.")
-                                st.rerun(scope="app")
-                            else:
-                                st.error("Errore durante l'eliminazione.")
-                        if conf_col2.button("Annulla", key=f"cancel_del_assegnazione_{assegnazione_id}", use_container_width=True):
-                            st.session_state.pop("_confirm_del_assegnazione_id", None)
-                            st.rerun()
+            n_sel = len(selezionati_ids)
+            if n_sel:
+                st.divider()
+                plurale = n_sel != 1
+                if st.button(
+                    f"🗑️ Elimina {n_sel} blocc{'hi' if plurale else 'o'} selezionat{'i' if plurale else 'o'}",
+                    type="primary", key="bulk_delete_btn",
+                ):
+                    st.session_state["_confirm_bulk_delete"] = True
+
+                if st.session_state.get("_confirm_bulk_delete"):
+                    st.warning(f"⚠️ Eliminare {n_sel} blocc{'hi' if plurale else 'o'} selezionat{'i' if plurale else 'o'} per tutti gli atleti assegnati?")
+                    conf_col1, conf_col2 = st.columns(2)
+                    if conf_col1.button("✅ Sì, elimina", key="confirm_bulk_delete", type="primary", use_container_width=True):
+                        for aid in selezionati_ids:
+                            delete_assegnazione(aid)
+                            st.session_state.pop(f"sel_{aid}", None)
+                        st.session_state.pop("_confirm_bulk_delete", None)
+                        st.success("🗑️ Blocchi eliminati.")
+                        st.rerun(scope="app")
+                    if conf_col2.button("Annulla", key="cancel_bulk_delete", use_container_width=True):
+                        st.session_state.pop("_confirm_bulk_delete", None)
+                        st.rerun()
 
 
 @st.fragment
