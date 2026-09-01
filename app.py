@@ -2924,10 +2924,18 @@ def _render_oggi():
                 st.info("Assegnato — non ancora completato")
                 return
             if tipo == "Campo":
-                # Non misurabile: nessuna spunta propria, si considera fatto
-                # insieme al resto della giornata (vedi completa_blocchi_campo_giorno,
-                # chiamata dopo ogni completamento di un blocco Pista/Palestra).
-                st.caption("Si segna da solo completo quando registri i tempi/carichi di oggi.")
+                # Non misurabile: si completa da solo quando lo stesso giorno
+                # si registra un blocco Pista/Palestra (completa_blocchi_campo_giorno).
+                # Bottone manuale di riserva per i giorni in cui questo e' l'unico
+                # blocco assegnato (nessun Pista/Palestra a far scattare il cascade).
+                st.caption("Si segna da solo completo quando registri i tempi/carichi di oggi — oppure segnalo a mano se oggi non c'è altro.")
+                if st.button("✅ Segna come fatto", key=f"fatto_campo_{aa_id}"):
+                    if completa_assegnazione(aa_id):
+                        st.success("Fatto!")
+                        st.session_state["checkin_prompt_pending"] = True
+                        st.rerun(scope="app")
+                    else:
+                        st.error("Errore nel salvataggio.")
                 return
 
             modo = st.radio("Come vuoi completarlo?",
