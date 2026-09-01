@@ -2581,6 +2581,7 @@ def _render_programma():
                             ok_riga = crea_assegnazione_atleti(
                                 data_str, riga["Tipo sessione"], riga["Descrizione"],
                                 target, ids_tutti, settimana_label.strip() or None,
+                                target_tag="Tutta la squadra",
                             )
                         else:
                             ok_riga = crea_assegnazione_tag(

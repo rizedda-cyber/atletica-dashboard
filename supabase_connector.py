@@ -484,16 +484,22 @@ def crea_assegnazione_tag(data: str, tipo_sessione: str, descrizione: str,
 
 
 def crea_assegnazione_atleti(data: str, tipo_sessione: str, descrizione: str,
-                              target: str, atleti_ids: list[int], settimana_label: str = None) -> bool:
+                              target: str, atleti_ids: list[int], settimana_label: str = None,
+                              target_tag: str = None) -> bool:
     """Crea un blocco assegnato a una selezione esplicita di atleti (1 o piu').
 
     Copre sia le eccezioni individuali sia i sottogruppi ad-hoc (es. "chi non
-    ha gareggiato") che non corrispondono a un tag fisso.
+    ha gareggiato") che non corrispondono a un tag fisso - in quel caso
+    target_tag resta None di proposito, cosi' "Duplica settimana precedente"
+    (che filtra su target_tag.notna()) non ripropone eccezioni una-tantum la
+    settimana dopo. Il chiamante puo' pero' passare target_tag="Tutta la
+    squadra" per i blocchi di gruppo assegnati a tutti (vedi _render_programma),
+    cosi' anche quelli diventano duplicabili come i blocchi per tag.
     """
     if not atleti_ids:
         return False
     return _crea_assegnazione(data, tipo_sessione, descrizione, target, atleti_ids,
-                               target_tag=None, settimana_label=settimana_label)
+                               target_tag=target_tag, settimana_label=settimana_label)
 
 
 def _crea_assegnazione(data: str, tipo_sessione: str, descrizione: str, target: str,
