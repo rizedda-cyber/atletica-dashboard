@@ -30,7 +30,7 @@ from plotly.subplots import make_subplots
 from pathlib import Path
 from data_loader import load_all_data
 from ui_helpers import (
-    get_logo_b64, get_cover_b64, get_team_pin, get_admin_password, convert_df_to_csv,
+    get_logo_b64, get_cover_b64, get_admin_password, convert_df_to_csv,
     get_sort_key, filter_running, filter_vbt, make_kpi_card, make_alert_card,
 )
 
@@ -129,13 +129,20 @@ if st.session_state.page_just_changed:
 
 
 
-# get_team_pin: spostata in ui_helpers.py
-
 # get_admin_password: spostata in ui_helpers.py
 
 # ──────────────────────────────────────────────────────────────────────
 # SCHERMATA DI VISIBILITA' BLOCCATA (HOME AMSICORA)
 # ──────────────────────────────────────────────────────────────────────
+
+# Sessioni "ospite" rimaste aperte da prima che il login squadra venisse
+# tolto: autenticate ma ne' admin ne' atleta. Non e' piu' uno stato valido,
+# e piu' sotto farebbe crashare la sidebar (role_label leggerebbe il nome
+# dell'atleta loggato, che li' e' None). Si torna al login.
+if (st.session_state.authenticated
+        and not st.session_state.is_admin
+        and not st.session_state.is_athlete_session):
+    st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
     b64_string = get_logo_b64()
@@ -183,14 +190,22 @@ if not st.session_state.authenticated:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         with st.container(border=True):
-            st.markdown("<h4 style='text-align: center;'>Login Squadra</h4>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; color:rgba(255,255,255,0.4); font-size:0.85em;'>PIN squadra · PIN personale · Password admin</p>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center;'>Accedi</h4>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; color:rgba(255,255,255,0.4); font-size:0.85em;'>Il tuo PIN personale · oppure la password dell'allenatore</p>", unsafe_allow_html=True)
             with st.form("login_form"):
                 pin_input = st.text_input("Codice di Accesso", type="password", placeholder="PIN o Password...", label_visibility="collapsed", key="pin_field")
                 submitted_login = st.form_submit_button("🔐 Accedi", type="primary", use_container_width=True)
             if submitted_login:
+                # ── DUE SOLI RUOLI: ALLENATORE E ATLETA ──────────────
+                # Il PIN squadra e' stato tolto di proposito. Non era un
+                # accesso in sola lettura: chiunque lo avesse poteva
+                # registrare gare sul profilo di chiunque, creare atleti e
+                # inserire allenamenti a nome altrui. Ogni atleta ha il
+                # proprio PIN, quindi non serviva piu' a nessuno.
+                # Un atleta nuovo entra col PIN provvisorio che gli da'
+                # l'allenatore alla registrazione, e poi se lo cambia dal
+                # proprio profilo.
                 pin_str = pin_input.strip()
-                # 1. CONTROLLO ADMIN (Precedenza massima)
                 admin_pass = get_admin_password().strip()
                 if admin_pass and pin_str == admin_pass:
                     st.session_state.authenticated = True
@@ -198,16 +213,6 @@ if not st.session_state.authenticated:
                     st.session_state.is_athlete_session = False
                     st.session_state.logged_athlete_name = None
                     st.rerun()
-
-                # 2. CONTROLLO SQUADRA
-                elif pin_str == get_team_pin().strip():
-                    st.session_state.authenticated = True
-                    st.session_state.is_admin = False
-                    st.session_state.is_athlete_session = False
-                    st.session_state.logged_athlete_name = None
-                    st.rerun()
-
-                # 3. CONTROLLO PIN PERSONALE ATLETA
                 else:
                     from supabase_connector import get_atleta_by_pin
                     atleta_trovato = get_atleta_by_pin(pin_str)
@@ -221,7 +226,7 @@ if not st.session_state.authenticated:
                         st.session_state.page_just_changed = True
                         st.rerun()
                     else:
-                        st.error("❌ Codice errato")
+                        st.error("❌ Codice errato. Se sei un atleta nuovo, chiedi il PIN al tuo allenatore.")
     st.stop()  # Ferma il caricamento dell'app finché non c'è login
 
 # ──────────────────────────────────────────────────────────────────────
@@ -390,12 +395,10 @@ with st.sidebar:
         st.markdown('<div style="text-align:center;"><span class="cloud-badge cloud-local">📂 Dati Locali (Excel)</span></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.session_state.is_athlete_session:
-        role_label = f"🏃 {st.session_state.logged_athlete_name.split()[0]}"
-    elif st.session_state.is_admin:
-        role_label = "👑 Admin"
+    if st.session_state.is_admin:
+        role_label = "👑 Allenatore"
     else:
-        role_label = "🟢 Ospite"
+        role_label = f"🏃 {st.session_state.logged_athlete_name.split()[0]}"
     if st.button(f"🚪 {role_label} — Esci", key="btn_logout", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.is_admin = False
@@ -609,34 +612,30 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
             render_edit_profile_modal()
 
     # ── PIN PERSONALE ────────────────────────────────────────────────
-    # Due casi, stesso form:
-    #  - profilo senza PIN: chi e' entrato col PIN squadra puo' "reclamarlo"
-    #    e diventarne il proprietario (e' cosi' che un atleta appena
-    #    registrato si crea il PIN da solo, senza passare dall'allenatore);
-    #  - profilo proprio con PIN gia' impostato: si puo' cambiare, cosi' un
-    #    PIN provvisorio dato dall'allenatore non resta quello per sempre.
-    _pin_gia_impostato = bool(atleta_info and atleta_info.get('pin_personale'))
-    _puo_reclamare = not st.session_state.is_admin and atleta_info and not _pin_gia_impostato
-    _puo_cambiare = is_own_profile and _pin_gia_impostato
-    if _puo_reclamare or _puo_cambiare:
+    # Solo sul proprio profilo, e solo per cambiarlo: il PIN provvisorio
+    # dato dall'allenatore alla registrazione non deve restare quello per
+    # sempre. Qui c'era anche un banner "Sei tu? Imposta un PIN" per chi
+    # entrava col PIN squadra e reclamava un profilo ancora scoperto: con
+    # il login squadra tolto quel caso non esiste piu' (senza PIN non si
+    # entra), e la condizione era per giunta troppo larga - avrebbe fatto
+    # reclamare a un atleta il profilo di un compagno senza PIN.
+    if is_own_profile and atleta_info and atleta_info.get('pin_personale'):
         st.markdown("<br>", unsafe_allow_html=True)
         with st.container(border=True):
-            if _puo_reclamare:
-                st.markdown(f"🔐 **Sei {atleta_info['nome_completo']}?** Imposta un PIN personale per proteggere il tuo profilo e poter modificare i tuoi dati e i tuoi tempi.")
-            else:
-                st.markdown("🔐 **Il tuo PIN personale.** Scegline uno nuovo quando vuoi — vale dal prossimo accesso.")
+            st.markdown("🔐 **Il tuo PIN personale.** Scegline uno nuovo quando vuoi — vale dal prossimo accesso.")
             with st.form("form_set_pin", clear_on_submit=True):
                 c_p1, c_p2 = st.columns(2)
                 p1 = c_p1.text_input("Scegli un PIN", type="password", placeholder="Almeno 4 caratteri", key="new_pin_1")
                 p2 = c_p2.text_input("Conferma PIN", type="password", placeholder="Ripeti il PIN", key="new_pin_2")
-                _label_pin = "🔐 Cambia PIN Personale" if _puo_cambiare else "🔐 Imposta PIN Personale"
-                if st.form_submit_button(_label_pin, type="primary", use_container_width=True):
+                if st.form_submit_button("🔐 Cambia PIN Personale", type="primary", use_container_width=True):
+                    from supabase_connector import set_atleta_pin, pin_gia_in_uso
                     if not p1.strip() or len(p1.strip()) < 4:
                         st.error("⚠️ Il PIN deve essere di almeno 4 caratteri.")
                     elif p1.strip() != p2.strip():
                         st.error("⚠️ I PIN non coincidono.")
+                    elif pin_gia_in_uso(p1.strip(), escludi_atleta_id=atleta_info['id']):
+                        st.error("⚠️ Questo PIN è già di un altro atleta. Scegline un altro.")
                     else:
-                        from supabase_connector import set_atleta_pin
                         ok = set_atleta_pin(atleta_info['id'], p1.strip())
                         if ok:
                             st.success("✅ PIN personale salvato! Dalla prossima sessione potrai accedere direttamente con questo PIN.")
@@ -2359,7 +2358,12 @@ def _render_dettaglio_tabs():
             else:
                 df_gare = pd.DataFrame()
 
-            if st.session_state.authenticated and selected_athlete != "Tutta la squadra":
+            # can_edit = admin, oppure atleta ma solo sul proprio profilo.
+            # Prima qui bastava `authenticated`, quindi un atleta poteva
+            # registrare una gara sul profilo di un compagno - il contrario
+            # di quello che promette la Guida Atleta ("puoi guardare, non
+            # puoi toccare"). Stesso controllo gia' usato da "Correggi Tempo".
+            if can_edit and selected_athlete != "Tutta la squadra":
                 @st.dialog("Inserisci Risultato di Gara")
                 def render_pb_modal():
                     with st.form("form_gara", clear_on_submit=True):
@@ -3014,10 +3018,18 @@ def _render_programma():
                                     ed_col1, ed_col2 = st.columns(2)
                                     ed_data = ed_col1.date_input("Giorno", value=ts_giorno.date())
                                     ed_tipo = ed_col2.selectbox("Tipo sessione", tipi, index=tipi.index(tipo_attuale))
-                                    ed_descrizione = st.text_area("Descrizione", value=prima["descrizione"] or "")
+                                    # `or ""` non basta: un target NULL arriva
+                                    # come float NaN, che in Python e' *vero*,
+                                    # quindi il campo si precompilava con la
+                                    # stringa "nan" - e salvando sarebbe finita
+                                    # nel database come riferimento vero,
+                                    # visibile agli atleti in "Oggi".
+                                    descrizione_attuale = prima["descrizione"] if pd.notna(prima.get("descrizione")) else ""
+                                    target_attuale = prima["target"] if pd.notna(prima.get("target")) else ""
+                                    ed_descrizione = st.text_area("Descrizione", value=str(descrizione_attuale))
                                     ed_target = st.text_input(
                                         "Target (opzionale)",
-                                        value=str(prima["target"] or ""),
+                                        value=str(target_attuale),
                                         placeholder="es. 1x30m + 2x50m + 2x60m",
                                     )
                                     st.caption("Chi è assegnato e chi ha già completato non cambiano: si corregge solo il contenuto del blocco.")
@@ -3354,11 +3366,11 @@ def _render_inserimento():
             with st.form("form_corsa", clear_on_submit=True):
                 st.markdown("**Sessione in Pista**")
                 col_a, col_b = st.columns(2)
-                if st.session_state.is_athlete_session:
+                if st.session_state.is_admin:
+                    atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_corsa")
+                else:
                     atleta_sel = st.session_state.logged_athlete_name
                     col_a.markdown(f"**Atleta:** {atleta_sel}")
-                else:
-                    atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_corsa")
                 data_sel = col_b.date_input("Data", key="data_corsa")
 
                 st.markdown("---")
@@ -3413,11 +3425,11 @@ def _render_inserimento():
             with st.form("form_vbt", clear_on_submit=True):
                 st.markdown("**Sessione in Palestra (VBT)**")
                 col_a, col_b = st.columns(2)
-                if st.session_state.is_athlete_session:
+                if st.session_state.is_admin:
+                    atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_vbt")
+                else:
                     atleta_sel = st.session_state.logged_athlete_name
                     col_a.markdown(f"**Atleta:** {atleta_sel}")
-                else:
-                    atleta_sel = col_a.selectbox("Atleta", options=atleti_list, index=default_atleta_idx, key="atleta_vbt")
                 data_sel = col_b.date_input("Data", key="data_vbt")
                 st.markdown("---")
                 esercizio_sel = st.selectbox("Esercizio", options=esercizi_noti, key="esercizio_sel")
@@ -4028,13 +4040,14 @@ def _render_home():
                             st.session_state.page_just_changed = True
                             st.rerun()
 
-        if st.session_state.authenticated:
+        # Registrare un atleta e' un atto da allenatore: prima lo poteva
+        # fare chiunque fosse loggato, atleti compresi.
+        if st.session_state.is_admin:
             @st.dialog("Registra Nuovo Atleta")
             def render_new_atleta_modal():
                 st.caption(
-                    "Il PIN non devi crearlo tu: lascia il campo vuoto e l'atleta entra col PIN squadra, "
-                    "apre il proprio profilo da questa pagina e si imposta il PIN da solo. "
-                    "Se preferisci dargliene uno provvisorio, scrivilo qui — potrà cambiarselo dal suo profilo."
+                    "Il PIN provvisorio è la chiave con cui l'atleta entra la prima volta: "
+                    "comunicaglielo, poi sarà lui a cambiarlo dal proprio profilo, quando vorrà."
                 )
                 with st.form("new_atleta_form", clear_on_submit=True):
                     st.markdown("**Inserisci il nuovo membro della squadra**")
@@ -4043,20 +4056,25 @@ def _render_home():
                     cognome = n2.text_input("Cognome")
                     spec = st.selectbox("Specialità", options=["Velocista", "400ista"])
                     pin_provv = st.text_input(
-                        "PIN provvisorio (opzionale)", placeholder="lascia vuoto: se lo crea lui",
-                        help="Almeno 4 caratteri. L'atleta potrà cambiarlo dal proprio profilo.",
+                        "PIN provvisorio", placeholder="almeno 4 caratteri",
+                        help="Senza PIN l'atleta non può accedere. Potrà cambiarlo dal proprio profilo.",
                     )
                     if st.form_submit_button("✅ Registra Atleta", type="primary", use_container_width=True):
+                        from supabase_connector import upsert_atleta, set_atleta_pin, pin_gia_in_uso
+                        pin_pulito = pin_provv.strip()
                         if not (nome.strip() and cognome.strip()):
                             st.error("⚠️ Inserisci Nome e Cognome.")
-                        elif pin_provv.strip() and len(pin_provv.strip()) < 4:
-                            st.error("⚠️ Il PIN provvisorio deve essere di almeno 4 caratteri.")
+                        elif len(pin_pulito) < 4:
+                            st.error("⚠️ Serve un PIN provvisorio di almeno 4 caratteri: senza, l'atleta non può accedere.")
+                        elif pin_gia_in_uso(pin_pulito):
+                            st.error("⚠️ Questo PIN è già di un altro atleta. Scegline un altro.")
                         else:
-                            from supabase_connector import upsert_atleta, set_atleta_pin
                             nuovo = upsert_atleta(nome.strip(), cognome.strip(), spec)
-                            if pin_provv.strip() and nuovo.get("id"):
-                                set_atleta_pin(nuovo["id"], pin_provv.strip())
-                            st.success("✅ Completato! (Ricaricamento...)")
+                            if nuovo.get("id"):
+                                set_atleta_pin(nuovo["id"], pin_pulito)
+                                st.success(f"✅ {nome.strip()} registrato. PIN provvisorio: {pin_pulito}")
+                            else:
+                                st.error("❌ Errore nella registrazione.")
                             get_atleti.clear()
                             st.rerun()
                             
@@ -4081,9 +4099,19 @@ def _render_admin():
             nuovo_pin = c2.text_input("", value=pin_val, placeholder="nessun PIN",
                                       label_visibility="collapsed", key=f"pin_inp_{pr['id']}")
             if c3.button("💾", key=f"pin_save_{pr['id']}", help="Salva PIN"):
-                set_atleta_pin(pr['id'], nuovo_pin if nuovo_pin.strip() else None)
-                st.success(f"✅ PIN di {pr['nome_completo'].split()[0]} aggiornato")
-                st.rerun()
+                from supabase_connector import pin_gia_in_uso
+                pin_pulito = nuovo_pin.strip()
+                if pin_pulito and pin_gia_in_uso(pin_pulito, escludi_atleta_id=pr['id']):
+                    st.error("⚠️ PIN già assegnato a un altro atleta.")
+                else:
+                    # PIN vuoto = nessun PIN: da quando il login squadra non
+                    # esiste piu', vuol dire togliere l'accesso all'atleta.
+                    set_atleta_pin(pr['id'], pin_pulito or None)
+                    if pin_pulito:
+                        st.success(f"✅ PIN di {pr['nome_completo'].split()[0]} aggiornato")
+                    else:
+                        st.warning(f"⚠️ {pr['nome_completo'].split()[0]} è rimasto senza PIN: non potrà più accedere.")
+                    st.rerun()
             icona_toggle = "☀️" if not is_attivo else "❄️"
             help_toggle = "Riattiva atleta" if not is_attivo else "Congela atleta (nasconde da roster/KPI, storico intatto)"
             if c4.button(icona_toggle, key=f"pin_toggle_{pr['id']}", help=help_toggle):

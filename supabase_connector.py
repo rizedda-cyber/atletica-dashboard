@@ -105,6 +105,28 @@ def get_atleta_by_nome(nome_completo: str) -> dict | None:
     return response.data[0] if response.data else None
 
 
+def pin_gia_in_uso(pin: str, escludi_atleta_id: int | None = None) -> bool:
+    """True se quel PIN appartiene gia' a un altro atleta.
+
+    Da quando il PIN personale e' l'unica credenziale dell'atleta, un
+    duplicato non e' un fastidio ma un buco: get_atleta_by_pin restituisce
+    il primo che trova, quindi due atleti con lo stesso PIN significa che
+    uno dei due entra nel profilo dell'altro.
+    """
+    if not pin or not pin.strip():
+        return False
+    supabase = get_supabase()
+    try:
+        response = supabase.table("atleti")             .select("id")             .eq("pin_personale", pin.strip())             .execute()
+        for riga in (response.data or []):
+            if escludi_atleta_id is None or riga["id"] != escludi_atleta_id:
+                return True
+        return False
+    except Exception as e:
+        print(f"Errore pin_gia_in_uso: {e}")
+        return False
+
+
 def upsert_atleta(nome: str, cognome: str, specialita: str = "") -> dict:
     """
     Inserisce un atleta se non esiste, o aggiorna. Usa nome_completo come chiave.

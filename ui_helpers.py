@@ -87,16 +87,15 @@ def _cover_b64_da_file(percorso: str, mtime_ns: int, dimensione: int,
 
 # ── Credenziali (dai secrets di Streamlit) ────────────────────────────
 
-def get_team_pin() -> str:
-    if "TEAM_PIN" in st.secrets:
-        return str(st.secrets["TEAM_PIN"])
-    if "secrets" in st.secrets and "TEAM_PIN" in st.secrets["secrets"]:
-        return str(st.secrets["secrets"]["TEAM_PIN"])
-    return "1234"
+# get_team_pin: rimossa insieme al login squadra. L'app ha due soli ruoli,
+# allenatore e atleta; la chiave TEAM_PIN nei secrets non viene piu' letta.
 
 
 def get_admin_password() -> str:
-    # Prova prima ADMIN_PASSWORD, poi TEAM_PASSWORD come fallback
+    """Password dell'allenatore. ADMIN_PASSWORD e' il nome giusto;
+    TEAM_PASSWORD resta accettata perche' e' quella configurata oggi nei
+    secrets (locali e in cloud) e rinominarla richiede di intervenire su
+    entrambi."""
     for key in ["ADMIN_PASSWORD", "TEAM_PASSWORD"]:
         if key in st.secrets:
             return str(st.secrets[key])
