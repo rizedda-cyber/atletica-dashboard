@@ -3,6 +3,184 @@
 /* ============ BLOCCO 1: tema base, layout, componenti ============ */
     @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
+/* ══════════════════════════════════════════════════════════════════
+   PALETTE — a ogni colore un solo mestiere
+   ------------------------------------------------------------------
+   Il verde e l'oro sono campionati dallo stemma sociale (anello esterno
+   e alloro). Il verde sociale e' troppo scuro per fare testo su fondo
+   nero (contrasto 2.4:1, sotto il minimo leggibile), quindi vive come
+   SUPERFICIE - copertina, cornici, campiture - e ha una versione
+   schiarita nello stesso tono per quando deve diventare scritta.
+
+   Regola che tiene insieme il sistema: un colore d'identita' non fa
+   anche da colore semantico. Il verde dice "Amsicora" e nient'altro;
+   "va bene / e' andata bene" lo dice il lime. Per questo gli stati
+   dell'atleta nella griglia (Picco → Buona → Monitor → Fermo) sono una
+   scala lime → ciano → arancio → rosso, senza verdi di mezzo.
+   ══════════════════════════════════════════════════════════════════ */
+    :root {
+        /* Identita' */
+        --amsicora-verde:        #2C5834;  /* stemma - superfici e campiture */
+        --amsicora-verde-chiaro: #7BC48A;  /* stesso tono, leggibile sul nero */
+        --amsicora-oro:          #DAA623;  /* alloro - merito, PB, record */
+
+        /* Energia e azione */
+        --lime:                  #E8FF3A;  /* CTA, stato attivo, positivo */
+
+        /* Semantica */
+        --info:                  #00D9FF;
+        --attenzione:            #FFB347;
+        --allarme:               #FF6B6B;
+
+        /* Fondi */
+        --fondo:                 #0A0D14;
+        --testo:                 #E8EDF5;
+    }
+
+/* ── COPERTINA SQUADRA (Home) ──────────────────────────────────────
+   Fascia orizzontale in testa alla Home. Se nella cartella c'e' una
+   foto (copertina.jpg) fa da sfondo; altrimenti resta il fondo verde
+   con il monogramma tipografico, che e' comunque una copertina finita
+   e non un buco da riempire. Il velo sopra la foto e' obbligatorio,
+   non decorativo: senza, il testo non e' leggibile su una foto
+   qualsiasi. */
+    .team-cover {
+        position: relative;
+        container-type: inline-size;
+        border-radius: 16px;
+        overflow: hidden;
+        margin-bottom: 24px;
+        min-height: 250px;
+        display: flex;
+        align-items: flex-end;
+        background-color: var(--amsicora-verde);
+        background-size: cover;
+        background-position: center 35%;
+        border: 1px solid rgba(123, 196, 138, 0.28);
+    }
+    /* ── VERSIONE TIPOGRAFICA (nessuna foto) ──────────────────────
+       Non e' un riempitivo in attesa di una foto: e' la copertina. Tre
+       strati sul verde sociale - il bagliore lime in alto a destra per
+       l'energia, le corsie diagonali che citano la pista, e il monogramma
+       AMSICORA in oro *contornato* invece che pieno. Il contorno e' la
+       differenza tra una scritta in filigrana (che sembra un errore di
+       opacita') e un monogramma voluto. */
+    .team-cover.no-photo {
+        background-image:
+            radial-gradient(ellipse at 88% 8%, rgba(232,255,58,0.11) 0%, transparent 58%),
+            repeating-linear-gradient(112deg,
+                rgba(255,255,255,0.06) 0 1px,
+                transparent 1px 4px,
+                rgba(255,255,255,0.022) 4px 5px,
+                transparent 5px 28px),
+            linear-gradient(135deg, #3A7145 0%, var(--amsicora-verde) 44%, #16281B 100%);
+        box-shadow: inset 0 2px 0 0 rgba(218,166,35,0.55);
+    }
+    .team-cover.no-photo::before {
+        content: 'AMSICORA';
+        position: absolute;
+        right: -10px;
+        bottom: -26px;
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: clamp(74px, 13cqw, 140px);
+        line-height: 1;
+        letter-spacing: 7px;
+        color: transparent;
+        -webkit-text-stroke: 2px rgba(218,166,35,0.30);
+        text-stroke: 2px rgba(218,166,35,0.30);
+        pointer-events: none;
+        user-select: none;
+        z-index: 0;
+    }
+    /* Sotto una certa larghezza il testo occupa tutta la fascia e il
+       monogramma non ha piu' un posto dove stare senza finire dietro le
+       parole: li' sparisce. Restano corsie e sfumatura, che bastano.
+       La query e' sul contenitore, non sul viewport: la colonna di
+       Streamlit e' stretta anche su schermi larghi (sidebar aperta). */
+    @container (max-width: 620px) {
+        .team-cover.no-photo::before { display: none; }
+    }
+
+    /* Velo di leggibilita': nero pieno in basso dove va il testo,
+       velatura verde in alto cosi' qualunque foto "suona" Amsicora. */
+    .team-cover-veil {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        background:
+            linear-gradient(to top,
+                rgba(10,13,20,0.97) 0%,
+                rgba(10,13,20,0.88) 30%,
+                rgba(10,13,20,0.42) 62%,
+                rgba(44,88,52,0.45) 100%);
+    }
+    /* Senza foto non c'e' niente da domare: il velo serve solo a tenere
+       leggibile il testo in basso, e sopra deve lasciar vedere il verde. */
+    .team-cover.no-photo .team-cover-veil {
+        background:
+            linear-gradient(to top,
+                rgba(10,13,20,0.92) 0%,
+                rgba(10,13,20,0.62) 34%,
+                rgba(10,13,20,0.12) 70%,
+                transparent 100%);
+    }
+    .team-cover-content {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: flex-end;
+        gap: 20px;
+        padding: 26px 28px 22px 28px;
+        width: 100%;
+    }
+    .team-cover-logo {
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        border: 3px solid var(--amsicora-oro);
+        box-shadow: 0 6px 22px rgba(0,0,0,0.55), 0 0 0 6px rgba(44,88,52,0.5);
+        display: block;
+    }
+    .team-cover-eyebrow {
+        font-family: 'DM Mono', monospace;
+        font-size: 10px;
+        letter-spacing: 2.5px;
+        text-transform: uppercase;
+        color: var(--amsicora-verde-chiaro);
+        margin-bottom: 6px;
+    }
+    .team-cover h1 {
+        color: var(--testo) !important;
+        margin: 0 !important;
+        padding: 0;
+        font-size: clamp(1.5rem, 3.4vw, 2.5rem) !important;
+        line-height: 1.05;
+        letter-spacing: 1px;
+        text-shadow: 0 2px 14px rgba(0,0,0,0.6);
+    }
+    .team-cover h1 span { color: var(--lime); }
+    .team-cover-claim {
+        margin: 8px 0 0 0;
+        color: var(--lime);
+        font-size: 1.1em;
+        font-weight: 600;
+        line-height: 1.25;
+    }
+    .team-cover-desc {
+        margin: 3px 0 0 0;
+        color: rgba(255,255,255,0.68);
+        font-size: 0.95em;
+        line-height: 1.4;
+        max-width: 640px;
+    }
+    @media (max-width: 768px) {
+        .team-cover { min-height: 200px; }
+        .team-cover-content { flex-direction: column; align-items: flex-start; gap: 12px; padding: 20px 18px 18px 18px; }
+        .team-cover-logo { width: 62px; height: 62px; }
+        .team-cover.no-photo::before { font-size: 88px; bottom: -16px; -webkit-text-stroke-width: 1.5px; }
+    }
+
     html, body, [class*="css"] {
         font-family: 'DM Sans', sans-serif;
     }

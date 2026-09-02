@@ -76,6 +76,24 @@ def get_atleti(with_foto: bool = True, solo_attivi: bool = True) -> pd.DataFrame
     return pd.DataFrame(columns=["id", "nome", "cognome", "nome_completo", "specialita", "foto_url", "attivo"])
 
 
+@st.cache_data(show_spinner=False, ttl=175)
+def get_nomi_congelati() -> set[str]:
+    """Nomi completi degli atleti congelati (attivo=False).
+
+    Le sessioni storiche di un atleta congelato restano nel database (e sul
+    suo profilo), ma vanno escluse da tutto cio' che e' "di squadra":
+    classifiche, conteggi, KPI e alert. Questa funzione da' l'elenco da
+    sottrarre; attivo NULL conta come attivo, come ovunque nel progetto.
+    """
+    supabase = get_supabase()
+    try:
+        response = supabase.table("atleti")             .select("nome_completo")             .eq("attivo", False)             .execute()
+        return {r["nome_completo"] for r in (response.data or []) if r.get("nome_completo")}
+    except Exception as e:
+        print(f"Errore get_nomi_congelati: {e}")
+        return set()
+
+
 def get_atleta_by_nome(nome_completo: str) -> dict | None:
     """Cerca un atleta per nome completo."""
     supabase = get_supabase()
@@ -666,6 +684,31 @@ def completa_blocchi_campo_giorno(atleta_id: int, data: str) -> bool:
         return True
     except Exception as e:
         print(f"Errore completa_blocchi_campo_giorno: {e}")
+        return False
+
+
+def update_assegnazione(assegnazione_id: int, data: str, tipo_sessione: str,
+                         descrizione: str, target: str) -> bool:
+    """Corregge in-place un blocco gia' assegnato (giorno, tipo, descrizione,
+    target). Tocca solo la tabella padre 'assegnazioni': le righe figlie in
+    assegnazione_atleti - e quindi chi e' assegnato e chi ha gia' completato -
+    restano esattamente come sono.
+
+    Serve perche' un allenatore ci ripensa: prima l'unica strada era eliminare
+    il blocco e riassegnarlo dal pattern, perdendo gli stati di completamento.
+    """
+    supabase = get_supabase()
+    try:
+        payload = {
+            "data": data,
+            "tipo_sessione": tipo_sessione,
+            "descrizione": descrizione,
+            "target": (target or None),
+        }
+        response = supabase.table("assegnazioni").update(payload).eq("id", assegnazione_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        print(f"Errore update_assegnazione: {e}")
         return False
 
 

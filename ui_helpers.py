@@ -26,6 +26,65 @@ def get_logo_b64(path: str = "logo.png") -> str:
         return ""
 
 
+# ── Foto di copertina squadra ─────────────────────────────────────────
+
+# Nomi accettati per la copertina, in ordine di preferenza. Basta appoggiare
+# il file nella cartella del progetto: l'app lo trova da sola.
+NOMI_COPERTINA = ["copertina.jpg", "copertina.jpeg", "copertina.png", "copertina.webp"]
+
+
+def get_cover_b64(max_width: int = 1800, quality: int = 82) -> str:
+    """Foto di copertina della squadra come data URI JPEG, pronta per il CSS.
+
+    Basta appoggiare un file chiamato "copertina" (jpg/png/webp) nella
+    cartella del progetto. Restituisce "" se non c'e': la Home ha un fondo
+    tipografico di riserva, non resta mai vuota.
+
+    La ricerca del file NON e' cachata, la conversione si: cosi' sostituire
+    la foto ha effetto subito (la firma sotto include data e dimensione del
+    file, quindi cambia la chiave di cache) senza pero' ricodificare
+    l'immagine a ogni rerun.
+    """
+    from pathlib import Path
+
+    for nome in NOMI_COPERTINA:
+        percorso = Path(nome)
+        if percorso.exists():
+            st_info = percorso.stat()
+            return _cover_b64_da_file(str(percorso), st_info.st_mtime_ns, st_info.st_size,
+                                       max_width, quality)
+    return ""
+
+
+@st.cache_data(show_spinner=False)
+def _cover_b64_da_file(percorso: str, mtime_ns: int, dimensione: int,
+                        max_width: int, quality: int) -> str:
+    """Ridimensiona e codifica la copertina. mtime_ns e dimensione servono
+    solo come firma per la cache (una foto nuova = chiave nuova).
+
+    Il ridimensionamento non e' un vezzo: l'immagine finisce inline nell'HTML
+    (come il logo), quindi un file da 6 MB appesantirebbe ogni rerun della
+    Home. Cosi' l'allenatore puo' lasciar cadere nella cartella la foto che
+    ha, a qualunque risoluzione, senza doverla preparare.
+    """
+    import base64
+    import io as _io
+
+    try:
+        from PIL import Image
+        with Image.open(percorso) as im:
+            im = im.convert("RGB")
+            if im.width > max_width:
+                altezza = round(im.height * max_width / im.width)
+                im = im.resize((max_width, altezza), Image.LANCZOS)
+            buf = _io.BytesIO()
+            im.save(buf, format="JPEG", quality=quality, optimize=True)
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        # Pillow assente o file illeggibile: si ripiega sul fondo grafico.
+        return ""
+
+
 # ── Credenziali (dai secrets di Streamlit) ────────────────────────────
 
 def get_team_pin() -> str:
@@ -65,19 +124,26 @@ def get_sort_key(atl, last_active_dates):
 
 # ── Filtri dati per periodo e atleta selezionati ──────────────────────
 
-def filter_running(df, start_date, end_date, selected_athlete):
+def filter_running(df, start_date, end_date, selected_athlete, esclusi=None):
+    """esclusi: nomi da togliere dalla vista di squadra (atleti congelati).
+    Si applica solo a "Tutta la squadra": chiedendo esplicitamente un atleta
+    si vuole il suo storico completo, congelato o no."""
     mask = (df['Data'].dt.date >= start_date) & (df['Data'].dt.date <= end_date)
     if selected_athlete != "Tutta la squadra":
         mask &= df['Atleta'] == selected_athlete
+    elif esclusi:
+        mask &= ~df['Atleta'].isin(esclusi)
     return df[mask].copy()
 
 
-def filter_vbt(df, start_date, end_date, selected_athlete):
+def filter_vbt(df, start_date, end_date, selected_athlete, esclusi=None):
     mask = pd.Series(True, index=df.index)
     if 'Data' in df.columns:
         mask &= (df['Data'].dt.date >= start_date) & (df['Data'].dt.date <= end_date)
     if selected_athlete != "Tutta la squadra":
         mask &= df['Atleta'] == selected_athlete
+    elif esclusi:
+        mask &= ~df['Atleta'].isin(esclusi)
     return df[mask].copy()
 
 

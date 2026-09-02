@@ -30,7 +30,7 @@ from plotly.subplots import make_subplots
 from pathlib import Path
 from data_loader import load_all_data
 from ui_helpers import (
-    get_logo_b64, get_team_pin, get_admin_password, convert_df_to_csv,
+    get_logo_b64, get_cover_b64, get_team_pin, get_admin_password, convert_df_to_csv,
     get_sort_key, filter_running, filter_vbt, make_kpi_card, make_alert_card,
 )
 
@@ -48,10 +48,14 @@ except ImportError:
 # get_logo_b64: spostata in ui_helpers.py
 
 @st.cache_data
-def _load_css() -> str:
+def _load_css(mtime_ns: int) -> str:
+    """Foglio di stile, letto una volta sola. mtime_ns non si usa nel corpo:
+    serve come chiave di cache, cosi' salvare style.css si vede al rerun
+    successivo invece di richiedere il riavvio del server."""
     return Path(__file__).parent.joinpath("style.css").read_text(encoding="utf-8")
 
-st.markdown(f"<style>{_load_css()}</style>", unsafe_allow_html=True)
+_CSS_PATH = Path(__file__).parent.joinpath("style.css")
+st.markdown(f"<style>{_load_css(_CSS_PATH.stat().st_mtime_ns)}</style>", unsafe_allow_html=True)
 
 
 style_metric_cards(
@@ -101,6 +105,11 @@ if "current_page" not in st.session_state:
     st.session_state.current_page = "Home"
 if "page_just_changed" not in st.session_state:
     st.session_state.page_just_changed = False
+
+# Tag di specialita': vocabolario fisso, auto-assegnabile dall'atleta dal
+# proprio profilo. Usato in due punti (badge sul profilo e card della griglia
+# atleti in Home), quindi vive qui e non dentro uno dei due.
+TAG_SPECIALITA = {"Velocista": "🏃 Velocista", "400ista": "🔁 400ista"}
 
 # ── HACK: Scroll-to-top puro HTML e Autochiusura ──
 _had_page_change = st.session_state.page_just_changed  # catturato prima che il blocco sotto lo consumi per l'hack di scroll
@@ -252,6 +261,27 @@ else:
 if not df_running.empty:
     df_running = df_running[df_running['Distanza'] >= 20].copy()
 
+# ── ATLETI CONGELATI ──────────────────────────────────────────────────
+# Congelare un atleta (Gestione PIN → ❄️) lo toglie dal roster, ma le sue
+# sessioni restano nel database: senza questa esclusione continuavano a
+# pesare su classifiche, KPI, alert e conteggi di squadra come se fosse
+# ancora in pista. df_running/df_vbt restano integri (servono al suo
+# profilo e al suo storico); e' la *vista di squadra* a filtrarli.
+if DATA_SOURCE == "cloud":
+    from supabase_connector import get_nomi_congelati
+    NOMI_CONGELATI = get_nomi_congelati()
+else:
+    NOMI_CONGELATI = set()
+
+df_running_squadra = (
+    df_running[~df_running['Atleta'].isin(NOMI_CONGELATI)].copy()
+    if (NOMI_CONGELATI and not df_running.empty) else df_running
+)
+df_vbt_squadra = (
+    df_vbt[~df_vbt['Atleta'].isin(NOMI_CONGELATI)].copy()
+    if (NOMI_CONGELATI and not df_vbt.empty) else df_vbt
+)
+
 
 # ──────────────────────────────────────────────────────────────────────
 # NAVIGAZIONE LATERALE (SIDEBAR) E FILTRI
@@ -273,8 +303,8 @@ if not df_vbt.empty:
 
 # get_sort_key: spostata in ui_helpers.py
 
-all_athletes_set = set(df_running['Atleta'].unique()) if not df_running.empty else set()
-if not df_vbt.empty: all_athletes_set |= set(df_vbt['Atleta'].unique())
+all_athletes_set = set(df_running_squadra['Atleta'].unique()) if not df_running_squadra.empty else set()
+if not df_vbt_squadra.empty: all_athletes_set |= set(df_vbt_squadra['Atleta'].unique())
 all_athletes = sorted(list(all_athletes_set), key=lambda x: (-get_sort_key(x, last_active_dates)[0], x))
 
 with st.sidebar:
@@ -403,8 +433,8 @@ is_own_profile = (
 # filter_vbt: spostata in ui_helpers.py
 
 
-df_r = filter_running(df_running, start_date, end_date, selected_athlete)
-df_v = filter_vbt(df_vbt, start_date, end_date, selected_athlete)
+df_r = filter_running(df_running, start_date, end_date, selected_athlete, esclusi=NOMI_CONGELATI)
+df_v = filter_vbt(df_vbt, start_date, end_date, selected_athlete, esclusi=NOMI_CONGELATI)
 
 # Download CSV Sidebar
 st.sidebar.divider()
@@ -438,12 +468,12 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
     avatar_html = ""
     if atleta_info and atleta_info.get("foto_url"):
         foto_url = atleta_info["foto_url"]
-        avatar_html = f'''<div style="width: 120px; height: 120px; border-radius: 50%; overflow: hidden; border: 4px solid #166534; box-shadow: 0 4px 6px rgba(0,0,0,0.1); flex-shrink: 0;">
+        avatar_html = f'''<div style="width: 120px; height: 120px; border-radius: 50%; overflow: hidden; border: 4px solid #2C5834; box-shadow: 0 0 0 2px rgba(123,196,138,0.45), 0 6px 18px rgba(0,0,0,0.45); flex-shrink: 0;">
             <img src="{foto_url}" style="width: 100%; height: 100%; object-fit: cover; object-position: center 15%; display: block;">
         </div>'''
     else:
-        avatar_html = f'''<div style="width: 120px; height: 120px; border-radius: 50%; background: #e2e8f0; border: 4px solid #94a3b8; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-            <span style="font-size: 3em; color: #64748b;">👤</span>
+        avatar_html = f'''<div style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(140deg, #2C5834 0%, #16281B 100%); border: 4px solid #2C5834; box-shadow: 0 0 0 2px rgba(123,196,138,0.45); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <span style="font-size: 3em; color: rgba(123,196,138,0.75);">👤</span>
         </div>'''
         
     @st.dialog("Aggiorna Foto Profilo")
@@ -522,14 +552,13 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
     # dall'admin qui sotto): badge visibile a chiunque guardi il profilo,
     # anche in sola lettura, cosi' la squadra vede a colpo d'occhio i gruppi
     # che poi Programma usa per assegnare il lavoro.
-    _TAG_SPECIALITA = {"Velocista": "🏃 Velocista", "400ista": "🔁 400ista"}
     specialita_val = atleta_info.get('specialita') if atleta_info else None
-    if specialita_val in _TAG_SPECIALITA:
+    if specialita_val in TAG_SPECIALITA:
         tag_badge_html = (
             f'<span style="display:inline-block; margin:2px 0 8px 0; padding:4px 10px; '
             f'border-radius:6px; background:rgba(232,255,58,0.12); border:1px solid rgba(232,255,58,0.3); '
             f'color:#E8FF3A; font-family:\'DM Mono\', monospace; font-size:0.8em; font-weight:700;">'
-            f'{_TAG_SPECIALITA[specialita_val]}</span>'
+            f'{TAG_SPECIALITA[specialita_val]}</span>'
         )
     elif can_edit:
         tag_badge_html = (
@@ -579,16 +608,29 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
         if btn2.button("✏️ Modifica Dati", key="cambia_dati_btn", use_container_width=True):
             render_edit_profile_modal()
 
-    # ── BANNER IMPOSTA PIN PERSONALE (permette a chi entra col PIN squadra di "reclamare" il profilo) ──
-    if not st.session_state.is_admin and atleta_info and not atleta_info.get('pin_personale'):
+    # ── PIN PERSONALE ────────────────────────────────────────────────
+    # Due casi, stesso form:
+    #  - profilo senza PIN: chi e' entrato col PIN squadra puo' "reclamarlo"
+    #    e diventarne il proprietario (e' cosi' che un atleta appena
+    #    registrato si crea il PIN da solo, senza passare dall'allenatore);
+    #  - profilo proprio con PIN gia' impostato: si puo' cambiare, cosi' un
+    #    PIN provvisorio dato dall'allenatore non resta quello per sempre.
+    _pin_gia_impostato = bool(atleta_info and atleta_info.get('pin_personale'))
+    _puo_reclamare = not st.session_state.is_admin and atleta_info and not _pin_gia_impostato
+    _puo_cambiare = is_own_profile and _pin_gia_impostato
+    if _puo_reclamare or _puo_cambiare:
         st.markdown("<br>", unsafe_allow_html=True)
         with st.container(border=True):
-            st.markdown(f"🔐 **Sei {atleta_info['nome_completo']}?** Imposta un PIN personale per proteggere il tuo profilo e poter modificare i tuoi dati e i tuoi tempi.")
+            if _puo_reclamare:
+                st.markdown(f"🔐 **Sei {atleta_info['nome_completo']}?** Imposta un PIN personale per proteggere il tuo profilo e poter modificare i tuoi dati e i tuoi tempi.")
+            else:
+                st.markdown("🔐 **Il tuo PIN personale.** Scegline uno nuovo quando vuoi — vale dal prossimo accesso.")
             with st.form("form_set_pin", clear_on_submit=True):
                 c_p1, c_p2 = st.columns(2)
                 p1 = c_p1.text_input("Scegli un PIN", type="password", placeholder="Almeno 4 caratteri", key="new_pin_1")
                 p2 = c_p2.text_input("Conferma PIN", type="password", placeholder="Ripeti il PIN", key="new_pin_2")
-                if st.form_submit_button("🔐 Imposta PIN Personale", type="primary", use_container_width=True):
+                _label_pin = "🔐 Cambia PIN Personale" if _puo_cambiare else "🔐 Imposta PIN Personale"
+                if st.form_submit_button(_label_pin, type="primary", use_container_width=True):
                     if not p1.strip() or len(p1.strip()) < 4:
                         st.error("⚠️ Il PIN deve essere di almeno 4 caratteri.")
                     elif p1.strip() != p2.strip():
@@ -597,26 +639,99 @@ if selected_athlete != "Tutta la squadra" and st.session_state.current_page == "
                         from supabase_connector import set_atleta_pin
                         ok = set_atleta_pin(atleta_info['id'], p1.strip())
                         if ok:
-                            st.success("✅ PIN personale impostato! Dalla prossima sessione potrai accedere direttamente con questo PIN.")
+                            st.success("✅ PIN personale salvato! Dalla prossima sessione potrai accedere direttamente con questo PIN.")
                             from supabase_connector import get_atleti
                             get_atleti.clear()
                             st.rerun()
                         else:
                             st.error("❌ Errore nel salvataggio del PIN. Riprova.")
 else:
-    b64_string_logo = get_logo_b64()
+    # L'intestazione delle pagine non-profilo non si stampa qui: la chiama
+    # ogni pagina all'inizio, passando la propria chiave (vedi
+    # _intestazione_pagina). Qui non si sa ancora quale pagina
+    # st.navigation() risolvera' davvero - un "indietro" del browser o un
+    # URL aperto a mano cambiano pagina senza passare dai bottoni della
+    # sidebar, quindi session_state.current_page puo' essere in ritardo di
+    # un rerun e mostrerebbe la descrizione della pagina precedente.
+    pass
 
-    logo_html =f'<div style="flex-shrink: 0; margin-top: 2px;"><img src="data:image/png;base64,{b64_string_logo}" style="width: 70px; height: 70px; border-radius: 50%; border: 3px solid #E8FF3A; box-shadow: 0 0 12px rgba(232,255,58,0.3); display: block;"></div>'
-    
-    st.markdown(f'''
-        <div style="display: flex; align-items: flex-start; gap: 22px; margin-bottom: 24px;">
-            {logo_html}
-            <div>
-                <h1 style="color: #E8EDF5; margin: 0; padding: 0; line-height: 1.1; letter-spacing: 1px;">S.G. Amsicora — Team <span style="color: #E8FF3A;">Velocità</span></h1>
-                <p style="margin: 6px 0 0 0; color: rgba(255,255,255,0.7); font-size: 1.1em;">Panoramica generale della squadra, metriche di volume e database atleti attivi.</p>
+
+# ── INTESTAZIONE DI PAGINA ────────────────────────────────────────────
+# Logo e nome squadra restano fissi (identita'); le due righe sotto
+# cambiano con la pagina: una frase che dice *cosa e'* questa schermata,
+# poi una riga su cosa si trova qui sotto. Stesso tono delle presentazioni
+# HTML per allenatori e atleti.
+INTRO_PAGINA = {
+    "Home": (
+        "La squadra, in un colpo d'occhio.",
+        "Chi è in forma e chi si è fermato, quanto avete corso, i record appena caduti — e sotto, l'elenco completo degli atleti.",
+    ),
+    "Oggi": (
+        "Apri. Ti alleni. Registri.",
+        "L'allenamento di oggi è già scritto: distanze e target compilati dal tuo allenatore, a te resta solo il tempo da inserire.",
+    ),
+    "Programma": (
+        "Non il calendario. Il pattern che si ripete.",
+        "Scrivi il ciclo di lavoro una volta sola, poi assegnalo per quante settimane vuoi: le date le calcola l'app.",
+    ),
+    "Inserimento": (
+        "Un tempo, due tocchi.",
+        "Registra a mano una prova in pista o una serie in palestra — anche fuori da quello che è stato assegnato.",
+    ),
+    "Admin": (
+        "Chi entra, e con quale chiave.",
+        "PIN personale di ogni atleta e stato attivo o congelato. Congelare nasconde dai conteggi, non cancella: lo storico resta intatto.",
+    ),
+}
+
+
+def _intestazione_pagina(chiave: str):
+    """Stampa l'intestazione della pagina 'chiave'.
+
+    Va chiamata come prima cosa dentro ogni pagina, cosi' il testo e' quello
+    della pagina davvero in esecuzione e non quello dell'ultimo bottone
+    premuto in sidebar.
+    """
+    titolo, sottotitolo = INTRO_PAGINA.get(chiave, INTRO_PAGINA["Home"])
+    logo_b64 = get_logo_b64()
+
+    if chiave == "Home":
+        # ── COPERTINA (solo Home) ─────────────────────────────────────
+        # La fascia grande sta solo qui: e' la vetrina della squadra e la
+        # pagina piu' "da guardare". Sulle altre - "Oggi" da telefono
+        # soprattutto - spingerebbe il contenuto operativo sotto la piega,
+        # quindi li' resta l'intestazione compatta.
+        cover_b64 = get_cover_b64()
+        classe = "team-cover" if cover_b64 else "team-cover no-photo"
+        stile = f' style="background-image: url({cover_b64});"' if cover_b64 else ""
+        st.markdown(f'''
+            <div class="{classe}"{stile}>
+                <div class="team-cover-veil"></div>
+                <div class="team-cover-content">
+                    <img class="team-cover-logo" src="data:image/png;base64,{logo_b64}" alt="Stemma S.G. Amsicora">
+                    <div>
+                        <div class="team-cover-eyebrow">Società Ginnastica Amsicora · Cagliari</div>
+                        <h1>S.G. Amsicora — Team <span>Velocità</span></h1>
+                        <p class="team-cover-claim">{titolo}</p>
+                        <p class="team-cover-desc">{sottotitolo}</p>
+                    </div>
+                </div>
             </div>
-        </div>
-    ''', unsafe_allow_html=True)
+        ''', unsafe_allow_html=True)
+    else:
+        st.markdown(f'''
+            <div style="display: flex; align-items: flex-start; gap: 22px; margin-bottom: 24px;">
+                <div style="flex-shrink: 0; margin-top: 2px;">
+                    <img src="data:image/png;base64,{logo_b64}" style="width: 70px; height: 70px; border-radius: 50%; border: 3px solid #DAA623; box-shadow: 0 0 0 5px rgba(44,88,52,0.45); display: block;">
+                </div>
+                <div>
+                    <div style="font-family:'DM Mono', monospace; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#7BC48A; margin-bottom:5px;">Società Ginnastica Amsicora · Cagliari</div>
+                    <h1 style="color: #E8EDF5; margin: 0; padding: 0; line-height: 1.1; letter-spacing: 1px;">S.G. Amsicora — Team <span style="color: #E8FF3A;">Velocità</span></h1>
+                    <p style="margin: 8px 0 0 0; color: #E8FF3A; font-size: 1.1em; font-weight: 600; line-height: 1.25;">{titolo}</p>
+                    <p style="margin: 3px 0 0 0; color: rgba(255,255,255,0.6); font-size: 0.95em; line-height: 1.4; max-width: 640px;">{sottotitolo}</p>
+                </div>
+            </div>
+        ''', unsafe_allow_html=True)
 
 # KPI HTML Generation
 # make_kpi_card: spostata in ui_helpers.py
@@ -935,6 +1050,18 @@ def _render_dettaglio_analisi_tonnellaggio():
 @st.fragment
 def _render_dettaglio_tabs():
 
+    # ── ATLETA CORRENTE ───────────────────────────────────────────────
+    # atleta_info e' calcolata a livello di modulo (blocco header, piu' in
+    # alto) quando si sta guardando il profilo di un atleta. Qui la si
+    # rilegge dai globals verificando che sia davvero l'atleta selezionato.
+    # Prima c'era un controllo `"atleta_info" in locals()`: sempre falso,
+    # perche' la variabile e' globale e non viene mai assegnata dentro
+    # questa funzione. Risultato: le gare ufficiali (PB in gara) non
+    # venivano MAI caricate sul profilo, ne' nella tab "PB & Gare" ne' nei
+    # modelli predittivi - sembravano cancellate, erano solo irraggiungibili.
+    _ai = globals().get("atleta_info")
+    _atleta_corrente = _ai if (isinstance(_ai, dict) and _ai.get("nome_completo") == selected_athlete) else None
+
     # ── MOSTRA TITOLO ATLETA SOLO se NON sei in profilo personale ──
     # (Se in profilo personale, il benvenuto è già mostrato sopra)
     if not (st.session_state.is_athlete_session and st.session_state.logged_athlete_name == selected_athlete):
@@ -1074,11 +1201,24 @@ def _render_dettaglio_tabs():
                     sel_tempo = label_to_tempo[sel_label]
                     sel_nota = label_to_nota[sel_label]
 
+                    # I due campi sotto hanno un key=: da li' in poi Streamlit
+                    # ignora value= e mostra sempre quello che c'e' in
+                    # session_state. Senza questo reset, cambiando prova nel
+                    # selectbox i campi restavano fermi sui valori della prova
+                    # precedente - e questo form scrive in modo permanente sul
+                    # database, quindi si sarebbe salvato il tempo sbagliato
+                    # sul record sbagliato. Il default va riscritto a ogni
+                    # cambio di prova, non solo al primo caricamento.
+                    if st.session_state.get('_corr_prova_id') != sel_id:
+                        st.session_state['_corr_prova_id'] = sel_id
+                        st.session_state['corr_tempo_inp'] = f"{sel_tempo:.2f}"
+                        st.session_state['corr_nota_inp'] = sel_nota
+
                     cc1, cc2 = st.columns(2)
                     with cc1:
                         with st.form("form_correggi_tempo", clear_on_submit=False):
-                            nuovo_tempo_str = st.text_input("Nuovo Tempo (secondi)", value=f"{sel_tempo:.2f}", key="corr_tempo_inp")
-                            nuova_nota = st.text_input("Note", value=sel_nota, key="corr_nota_inp")
+                            nuovo_tempo_str = st.text_input("Nuovo Tempo (secondi)", key="corr_tempo_inp")
+                            nuova_nota = st.text_input("Note", key="corr_nota_inp")
                             if st.form_submit_button("💾 Salva Correzione", type="primary", use_container_width=True):
                                 try:
                                     from data_loader import parse_time
@@ -1305,9 +1445,9 @@ def _render_dettaglio_tabs():
 
                 # Estrazione PB atleta (gare ufficiali)
                 pb_gare = {}
-                if selected_athlete != "Tutta la squadra" and "atleta_info" in locals() and atleta_info:
+                if _atleta_corrente:
                     from supabase_connector import get_gare_ufficiali
-                    df_g_pb = get_gare_ufficiali(atleta_info["id"])
+                    df_g_pb = get_gare_ufficiali(_atleta_corrente["id"])
                     if not df_g_pb.empty:
                         df_g_pb['tempo_float'] = pd.to_numeric(df_g_pb['Prestazione'].astype(str).str.replace(',', '.'), errors='coerce')
                         for spec, group in df_g_pb.groupby('Specialità'):
@@ -2214,13 +2354,10 @@ def _render_dettaglio_tabs():
             from supabase_connector import get_gare_ufficiali
             if selected_athlete == "Tutta la squadra":
                 df_gare = get_gare_ufficiali()
+            elif _atleta_corrente:
+                df_gare = get_gare_ufficiali(_atleta_corrente["id"])
             else:
-                # We need the athlete id. 
-                # atleta_info should be available in the 'if selected_athlete != "Tutta la squadra"' scope.
-                if "atleta_info" in locals() and atleta_info:
-                    df_gare = get_gare_ufficiali(atleta_info["id"])
-                else:
-                    df_gare = pd.DataFrame()
+                df_gare = pd.DataFrame()
 
             if st.session_state.authenticated and selected_athlete != "Tutta la squadra":
                 @st.dialog("Inserisci Risultato di Gara")
@@ -2460,8 +2597,8 @@ def _nuova_settimana_programma(numero: int) -> dict:
 
 @st.fragment
 def _render_programma():
+    _intestazione_pagina("Programma")
     st.markdown("## 🛠️ Programma Settimanale")
-    st.caption("Costruisci la settimana come un foglio Excel, esporta il PDF per WhatsApp, poi assegna: ogni atleta la vedrà nella propria area.")
 
     tab_costruisci, tab_stato = st.tabs(["🛠️ Costruisci", "📊 Stato Completamento"])
 
@@ -2732,7 +2869,7 @@ def _render_programma():
         with assegna_col:
             assegna_click = st.button("✅ Assegna pattern", type="primary", use_container_width=True)
 
-        st.caption("Per correggere un blocco già assegnato: modifica il pattern qui sopra, poi elimina le righe sbagliate già create in \"📊 Stato Completamento\" — i blocchi assegnati non sono modificabili in-place.")
+        st.caption("Hai sbagliato un blocco già assegnato? Non serve rifare il pattern: vai in \"📊 Stato Completamento\", clicca ✏️ Modifica sul blocco e correggilo lì. Il pattern qui sopra serve a scrivere il lavoro nuovo.")
 
         if assegna_click:
             if tot_blocchi_pattern == 0:
@@ -2779,7 +2916,11 @@ def _render_programma():
                     st.rerun(scope="app")
 
     with tab_stato:
-        from supabase_connector import get_assegnazioni_con_stato, delete_assegnazione
+        from supabase_connector import (
+            get_assegnazioni_con_stato, delete_assegnazione, update_assegnazione,
+        )
+
+        st.caption("Le settimane davvero assegnate, giorno per giorno. Un blocco sbagliato si corregge qui: ✏️ Modifica cambia giorno, tipo, descrizione e target senza rimettere mano al pattern e senza perdere chi ha già completato.")
 
         if "stato_data_da" not in st.session_state:
             oggi = pd.Timestamp.now().normalize()
@@ -2802,48 +2943,130 @@ def _render_programma():
             totale = len(df_stato)
             completati = int((df_stato["stato"] == "completato").sum())
             st.metric("Blocchi completati", f"{completati}/{totale}")
-            st.divider()
+
+            # ── TESSERA-GIORNO ────────────────────────────────────────
+            # I blocchi dello stesso giorno stanno dentro un'unica tessera
+            # con la barra gialla verticale a sinistra: la data si legge una
+            # volta sola in testa al gruppo invece di essere ripetuta su
+            # ognuno dei blocchi di quel giorno.
+            st.markdown(
+                "<style>"
+                'div[class*="st-key-ggbox_"]{border-left:4px solid #E8FF3A !important;'
+                "border-radius:10px !important;background:rgba(232,255,58,0.03);}"
+                'div[class*="st-key-ggbox_"] hr{margin:10px 0 !important;'
+                "border-color:rgba(255,255,255,0.08) !important;}"
+                "</style>",
+                unsafe_allow_html=True,
+            )
 
             _giorni_it = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
-            settimana_corrente = None
+            _mesi_it = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"]
             selezionati_ids = []
-            for assegnazione_id, gruppo in df_stato.groupby("assegnazione_id", sort=False):
-                assegnazione_id = int(assegnazione_id)
-                prima = gruppo.iloc[0]
-                ts_giorno = pd.Timestamp(prima["data"])
-                lunedi = ts_giorno - pd.Timedelta(days=int(ts_giorno.weekday()))
-                if settimana_corrente is None or lunedi != settimana_corrente:
-                    settimana_corrente = lunedi
-                    domenica = lunedi + pd.Timedelta(days=6)
-                    wk_col1, wk_col2 = st.columns([4, 1])
-                    wk_col1.markdown(f"##### 📅 Settimana {lunedi.strftime('%d/%m')} – {domenica.strftime('%d/%m')}")
-                    if wk_col2.button("Seleziona tutta", key=f"selweek_{lunedi.date()}"):
-                        ids_settimana = df_stato[
-                            (df_stato["data"] >= lunedi) & (df_stato["data"] <= domenica)
-                        ]["assegnazione_id"].unique()
-                        for aid in ids_settimana:
-                            st.session_state[f"sel_{int(aid)}"] = True
-                        st.rerun()
 
-                giorno_label = f"{_giorni_it[ts_giorno.weekday()]} {ts_giorno.strftime('%d/%m')}"
-                tag_label = prima["target_tag"] if pd.notna(prima.get("target_tag")) else "selezione libera"
-                with st.container(border=True):
-                    chk_col, cap_col = st.columns([1, 9])
-                    with chk_col:
-                        selezionato = st.checkbox(
-                            "Seleziona", key=f"sel_{assegnazione_id}",
-                            label_visibility="collapsed",
+            df_stato = df_stato.copy()
+            df_stato["_lunedi"] = df_stato["data"] - pd.to_timedelta(df_stato["data"].dt.weekday, unit="D")
+
+            for lunedi, df_settimana in df_stato.groupby("_lunedi", sort=True):
+                domenica = lunedi + pd.Timedelta(days=6)
+                wk_col1, wk_col2 = st.columns([4, 1])
+                wk_col1.markdown(f"##### 📅 Settimana {lunedi.strftime('%d/%m')} – {domenica.strftime('%d/%m')}")
+                if wk_col2.button("Seleziona tutta", key=f"selweek_{lunedi.date()}"):
+                    for aid in df_settimana["assegnazione_id"].unique():
+                        st.session_state[f"sel_{int(aid)}"] = True
+                    st.rerun(scope="fragment")
+
+                for giorno, df_giorno in df_settimana.groupby("data", sort=True):
+                    ts_giorno = pd.Timestamp(giorno)
+                    id_blocchi = list(dict.fromkeys(int(a) for a in df_giorno["assegnazione_id"]))
+                    n_blocchi = len(id_blocchi)
+                    fatti_giorno = int((df_giorno["stato"] == "completato").sum())
+                    tot_giorno = len(df_giorno)
+                    etichetta_blocchi = "blocco" if n_blocchi == 1 else "blocchi"
+
+                    with st.container(border=True, key=f"ggbox_{ts_giorno.strftime('%Y%m%d')}"):
+                        st.markdown(
+                            "<div style='display:flex; justify-content:space-between; align-items:baseline; "
+                            "gap:10px; flex-wrap:wrap; margin-bottom:2px;'>"
+                            "<span style=\"font-family:'DM Mono', monospace; font-size:0.8em; letter-spacing:1.5px; "
+                            "text-transform:uppercase; color:#E8FF3A; font-weight:700;\">"
+                            f"{_giorni_it[ts_giorno.weekday()]} {ts_giorno.day} {_mesi_it[ts_giorno.month - 1]}</span>"
+                            "<span style=\"font-family:'DM Mono', monospace; font-size:0.75em; color:rgba(255,255,255,0.45);\">"
+                            f"{n_blocchi} {etichetta_blocchi} · {fatti_giorno}/{tot_giorno} fatti</span>"
+                            "</div>",
+                            unsafe_allow_html=True,
                         )
-                        if selezionato:
-                            selezionati_ids.append(assegnazione_id)
-                    with cap_col:
-                        st.markdown(f"**{giorno_label} — {prima['tipo_sessione']} — {tag_label}**")
-                        st.caption(prima["descrizione"])
-                    righe_nomi = []
-                    for _, riga in gruppo.sort_values("nome_atleta").iterrows():
-                        icona = "✅" if riga["stato"] == "completato" else "⬜"
-                        righe_nomi.append(f"{icona} {riga['nome_atleta']}")
-                    st.markdown(" &nbsp;&nbsp; ".join(righe_nomi))
+
+                        for pos_blocco, assegnazione_id in enumerate(id_blocchi):
+                            gruppo = df_giorno[df_giorno["assegnazione_id"] == assegnazione_id]
+                            prima = gruppo.iloc[0]
+                            if pos_blocco > 0:
+                                st.markdown("<hr>", unsafe_allow_html=True)
+
+                            # ── MODIFICA IN-PLACE DEL BLOCCO ──────────
+                            # Nessun key= sui campi del form: il default deve
+                            # poter cambiare quando si passa da un blocco a un
+                            # altro, e key= farebbe vincere lo stato vecchio.
+                            if st.session_state.get("_edit_assegnazione") == assegnazione_id:
+                                with st.form(f"form_edit_asg_{assegnazione_id}"):
+                                    st.markdown("**✏️ Modifica blocco**")
+                                    tipi = ["Pista", "Palestra", "Campo"]
+                                    tipo_attuale = prima["tipo_sessione"] if prima["tipo_sessione"] in tipi else "Pista"
+                                    ed_col1, ed_col2 = st.columns(2)
+                                    ed_data = ed_col1.date_input("Giorno", value=ts_giorno.date())
+                                    ed_tipo = ed_col2.selectbox("Tipo sessione", tipi, index=tipi.index(tipo_attuale))
+                                    ed_descrizione = st.text_area("Descrizione", value=prima["descrizione"] or "")
+                                    ed_target = st.text_input(
+                                        "Target (opzionale)",
+                                        value=str(prima["target"] or ""),
+                                        placeholder="es. 1x30m + 2x50m + 2x60m",
+                                    )
+                                    st.caption("Chi è assegnato e chi ha già completato non cambiano: si corregge solo il contenuto del blocco.")
+                                    sv_col1, sv_col2 = st.columns(2)
+                                    salva = sv_col1.form_submit_button("💾 Salva modifiche", type="primary", use_container_width=True)
+                                    annulla = sv_col2.form_submit_button("Annulla", use_container_width=True)
+                                    if salva:
+                                        if not ed_descrizione.strip():
+                                            st.warning("La descrizione non può restare vuota.")
+                                        elif update_assegnazione(
+                                            assegnazione_id, ed_data.strftime("%Y-%m-%d"),
+                                            ed_tipo, ed_descrizione.strip(), ed_target.strip(),
+                                        ):
+                                            st.session_state.pop("_edit_assegnazione", None)
+                                            st.success("✅ Blocco aggiornato.")
+                                            st.rerun(scope="app")
+                                        else:
+                                            st.error("❌ Errore nel salvataggio.")
+                                    if annulla:
+                                        st.session_state.pop("_edit_assegnazione", None)
+                                        st.rerun(scope="fragment")
+                                continue
+
+                            # ── VISTA NORMALE DEL BLOCCO ──────────────
+                            chk_col, cap_col, edit_col = st.columns([1, 8, 2])
+                            with chk_col:
+                                if st.checkbox("Seleziona", key=f"sel_{assegnazione_id}", label_visibility="collapsed"):
+                                    selezionati_ids.append(assegnazione_id)
+                            with cap_col:
+                                tag_label = prima["target_tag"] if pd.notna(prima.get("target_tag")) else "selezione libera"
+                                pallino = _TIPO_EMOJI_PROGRAMMA.get(prima["tipo_sessione"], "⚪")
+                                st.markdown(f"{pallino} **{prima['tipo_sessione']} — {tag_label}**")
+                                st.caption(prima["descrizione"])
+                                if pd.notna(prima.get("target")) and str(prima["target"]).strip():
+                                    st.caption(f"Riferimento: {prima['target']}")
+                            with edit_col:
+                                if st.button("✏️ Modifica", key=f"edit_{assegnazione_id}", use_container_width=True):
+                                    st.session_state["_edit_assegnazione"] = assegnazione_id
+                                    st.rerun(scope="fragment")
+
+                            righe_nomi = []
+                            for _, riga in gruppo.sort_values("nome_atleta").iterrows():
+                                icona = "✅" if riga["stato"] == "completato" else "⬜"
+                                righe_nomi.append(f"{icona} {riga['nome_atleta']}")
+                            st.markdown(
+                                "<div style='font-size:0.85em; color:rgba(255,255,255,0.75); margin-top:2px;'>"
+                                + " &nbsp;&nbsp; ".join(righe_nomi) + "</div>",
+                                unsafe_allow_html=True,
+                            )
 
             n_sel = len(selezionati_ids)
             if n_sel:
@@ -2872,6 +3095,7 @@ def _render_programma():
 
 @st.fragment
 def _render_oggi():
+    _intestazione_pagina("Oggi")
     from supabase_connector import (
         get_atleta_by_nome, get_assegnazioni_atleta, completa_assegnazione,
         completa_blocchi_campo_giorno, insert_sessione_corsa, insert_sessione_vbt,
@@ -2889,15 +3113,33 @@ def _render_oggi():
 
     oggi = pd.Timestamp.now().normalize()
 
+    # ── CHECK-IN DI GIORNATA ──────────────────────────────────────────
+    # Sempre disponibile appena si apre "Oggi", non solo dopo aver completato
+    # un allenamento: come ti senti *prima* di allenarti e' l'informazione
+    # piu' utile al coach, ed e' proprio quella che prima non si poteva dare.
+    # Un check-in gia' dato resta modificabile (l'upsert sovrascrive la riga
+    # del giorno), quindi si puo' correggere se cambia la giornata.
     from supabase_connector import get_checkin_oggi, upsert_checkin_stato
-    if st.session_state.get("checkin_prompt_pending") and not get_checkin_oggi(atleta_id):
-        with st.container(border=True):
-            st.markdown("**Come ti sei sentito oggi?**")
-            emoji_opts = ["😴 Stanco", "😐 Normale", "💪 Carico", "🔥 In forma", "😩 Pesante"]
+    checkin_corrente = get_checkin_oggi(atleta_id)
+    emoji_opts = ["😴 Stanco", "😐 Normale", "💪 Carico", "🔥 In forma", "😩 Pesante"]
+    mostra_bottoni_checkin = (not checkin_corrente) or st.session_state.get("checkin_modifica")
+
+    with st.container(border=True):
+        if checkin_corrente and not mostra_bottoni_checkin:
+            ck_col1, ck_col2 = st.columns([3, 1])
+            ck_col1.markdown(f"**Come ti senti oggi:** {checkin_corrente}")
+            if ck_col2.button("✏️ Cambia", key="checkin_cambia_btn", use_container_width=True):
+                st.session_state["checkin_modifica"] = True
+                st.rerun(scope="fragment")
+        else:
+            st.markdown("**Come ti senti oggi?**")
+            st.caption("Un tocco solo. Il tuo allenatore lo vede subito, senza doverti fermare a chiedertelo.")
             cols_emoji = st.columns(len(emoji_opts))
             for col_e, opt in zip(cols_emoji, emoji_opts):
-                if col_e.button(opt, key=f"checkin_opt_{opt}", use_container_width=True):
+                tipo_btn = "primary" if opt == checkin_corrente else "secondary"
+                if col_e.button(opt, key=f"checkin_opt_{opt}", use_container_width=True, type=tipo_btn):
                     upsert_checkin_stato(atleta_id, oggi.strftime("%Y-%m-%d"), opt)
+                    st.session_state.pop("checkin_modifica", None)
                     st.rerun(scope="app")
 
     def _target_valido(target) -> bool:
@@ -2949,7 +3191,6 @@ def _render_oggi():
                 if st.button("✅ Segna come fatto", key=f"fatto_campo_{aa_id}"):
                     if completa_assegnazione(aa_id):
                         st.success("Fatto!")
-                        st.session_state["checkin_prompt_pending"] = True
                         st.rerun(scope="app")
                     else:
                         st.error("Errore nel salvataggio.")
@@ -2964,7 +3205,6 @@ def _render_oggi():
                     if completa_assegnazione(aa_id):
                         completa_blocchi_campo_giorno(atleta_id, data_str)
                         st.success("Fatto!")
-                        st.session_state["checkin_prompt_pending"] = True
                         st.rerun(scope="app")
                     else:
                         st.error("Errore nel salvataggio.")
@@ -2986,7 +3226,6 @@ def _render_oggi():
                                 completa_blocchi_campo_giorno(atleta_id, data_str)
                                 get_data_cloud.clear()
                                 st.success("✅ Salvato!")
-                                st.session_state["checkin_prompt_pending"] = True
                                 st.rerun(scope="app")
                             else:
                                 st.error("Errore nel salvataggio.")
@@ -2999,6 +3238,18 @@ def _render_oggi():
                 # comunque cambiare la distanza se ha corso qualcosa di diverso.
                 reps_attese = parse_target_running(target) if _target_valido(target) else None
                 n_righe = len(reps_attese) if reps_attese else 12
+                # I selectbox sotto hanno un key=: da li' in poi Streamlit
+                # ignora index= e riusa quello che ha in session_state. Ora che
+                # il coach puo' correggere il target di un blocco gia'
+                # assegnato ("Stato Completamento" → ✏️ Modifica), le distanze
+                # precompilate resterebbero ferme a quelle vecchie: quando il
+                # target cambia si buttano via le chiavi e si riparte dal
+                # nuovo default.
+                chiave_target = f"_target_visto_{aa_id}"
+                if st.session_state.get(chiave_target) != str(target):
+                    st.session_state[chiave_target] = str(target)
+                    for _i in range(1, 13):
+                        st.session_state.pop(f"dist_{aa_id}_{_i}", None)
                 with st.form(f"form_pista_{aa_id}", clear_on_submit=True):
                     prove = []
                     for i in range(1, n_righe + 1):
@@ -3031,7 +3282,6 @@ def _render_oggi():
                                 completa_blocchi_campo_giorno(atleta_id, data_str)
                                 get_data_cloud.clear()
                                 st.success(f"✅ {successi} prove salvate!")
-                                st.session_state["checkin_prompt_pending"] = True
                                 st.rerun(scope="app")
                             else:
                                 st.warning("Nessuna prova valida da salvare (controlla il formato tempo).")
@@ -3077,6 +3327,7 @@ def _render_oggi():
 
 
 def _render_inserimento():
+    _intestazione_pagina("Inserimento")
     st.markdown("## ➕ Inserisci Nuovo Allenamento")
     
     # Mostra messaggio di conferma se c'è (persiste attraverso il rerun)
@@ -3207,13 +3458,14 @@ def _render_dettaglio_atleta():
 
 
 def _render_home():
+    _intestazione_pagina("Home")
     # Home mostra sempre i dati di tutta la squadra: senza questo reset locale,
     # arrivare qui via il menu di navigazione nativo (che salta i vecchi bottoni
     # custom, gia' rimossi) lascerebbe le KPI filtrate su un singolo atleta se
     # 'app_athlete' era rimasto impostato da una precedente visita a un profilo.
     st.session_state.app_athlete = "Tutta la squadra"
-    df_r = filter_running(df_running, start_date, end_date, "Tutta la squadra")
-    df_v = filter_vbt(df_vbt, start_date, end_date, "Tutta la squadra")
+    df_r = filter_running(df_running_squadra, start_date, end_date, "Tutta la squadra")
+    df_v = filter_vbt(df_vbt_squadra, start_date, end_date, "Tutta la squadra")
 
     # ────────────────────────────────────────────────────────────────
     # CALCOLO KPI DI SQUADRA (HOME)
@@ -3225,11 +3477,11 @@ def _render_home():
     prev_end_d = start_d - pd.Timedelta(days=1)
     
     # Maschere e subset pre-periodo
-    mask_prev_r = (df_running['Data'].dt.date >= prev_start_d.date()) & (df_running['Data'].dt.date <= prev_end_d.date())
-    df_r_prev = df_running[mask_prev_r]
+    mask_prev_r = (df_running_squadra['Data'].dt.date >= prev_start_d.date()) & (df_running_squadra['Data'].dt.date <= prev_end_d.date())
+    df_r_prev = df_running_squadra[mask_prev_r]
     
-    mask_prev_v = (df_vbt['Data'].dt.date >= prev_start_d.date()) & (df_vbt['Data'].dt.date <= prev_end_d.date())
-    df_v_prev = df_vbt[mask_prev_v]
+    mask_prev_v = (df_vbt_squadra['Data'].dt.date >= prev_start_d.date()) & (df_vbt_squadra['Data'].dt.date <= prev_end_d.date())
+    df_v_prev = df_vbt_squadra[mask_prev_v]
 
     # KPI 1. Sessioni (Presenze Atleti, calcolato come combinazioni Atleta-Giorno)
     sess_curr = df_r.groupby(['Atleta', df_r['Data'].dt.date]).ngroups if len(df_r) > 0 else 0
@@ -3238,10 +3490,10 @@ def _render_home():
 
     # KPI 2. Prove
     prove_curr = len(df_r)
-    prove_totali = len(df_running)
+    prove_totali = len(df_running_squadra)
     
     # KPI 3. Record VBT
-    storico_vbt = df_vbt[df_vbt['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Esercizio'])['Potenza_max'].max().to_dict()
+    storico_vbt = df_vbt_squadra[df_vbt_squadra['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Esercizio'])['Potenza_max'].max().to_dict()
     nuovi_vbt = 0
     df_v_ex = df_v[df_v['Esercizio'] != 'General']
     for idx, row in df_v_ex.iterrows():
@@ -3256,7 +3508,7 @@ def _render_home():
 
     # KPI Row 2 calcoli
     # 1. Atleti con PB nel periodo (SOLO se attivi negli ultimi 30 giorni)
-    storico_pb = df_running[df_running['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Distanza'])['Tempo'].min().to_dict()
+    storico_pb = df_running_squadra[df_running_squadra['Data'].dt.date < start_d.date()].groupby(['Atleta', 'Distanza'])['Tempo'].min().to_dict()
 
     # Calcola atleti attivi negli ultimi 30 giorni per filtrare falsi positivi
     ultimi_30gg = pd.Timestamp.now().tz_localize(None) - pd.Timedelta(days=30)
@@ -3280,7 +3532,7 @@ def _render_home():
             storico_pb[k] = row['Tempo']
             
     # 2. Atleti inattivi
-    ultime_date = pd.concat([df_running[['Atleta', 'Data']], df_vbt[['Atleta', 'Data']]]).groupby('Atleta')['Data'].max()
+    ultime_date = pd.concat([df_running_squadra[['Atleta', 'Data']], df_vbt_squadra[['Atleta', 'Data']]]).groupby('Atleta')['Data'].max()
     inattivi = []
     for atl, ud in ultime_date.items():
         if pd.notnull(ud) and (pd.Timestamp.now().tz_localize(None) - ud).days > 7:
@@ -3403,8 +3655,8 @@ def _render_home():
         """
 
     # ── STOP VBT: atleti attivi in pista ma fermi sul monitoraggio forza (>14 gg) ──
-    running_last = df_running.groupby('Atleta')['Data'].max() if not df_running.empty else pd.Series(dtype='datetime64[ns]')
-    vbt_last = df_vbt.groupby('Atleta')['Data'].max() if not df_vbt.empty else pd.Series(dtype='datetime64[ns]')
+    running_last = df_running_squadra.groupby('Atleta')['Data'].max() if not df_running_squadra.empty else pd.Series(dtype='datetime64[ns]')
+    vbt_last = df_vbt_squadra.groupby('Atleta')['Data'].max() if not df_vbt_squadra.empty else pd.Series(dtype='datetime64[ns]')
     stop_vbt = []
     for atl, rdate in running_last.items():
         if pd.notnull(rdate) and (oggi_tz - rdate).days <= 14:
@@ -3414,8 +3666,8 @@ def _render_home():
 
     # ── TREND NEGATIVO: peggioramento sulle ultime sessioni di una distanza ──
     trend_negativo = []  # (atleta, distanza, var_pct)
-    if not df_running.empty:
-        for (atl, dist), g in df_running.groupby(['Atleta', 'Distanza']):
+    if not df_running_squadra.empty:
+        for (atl, dist), g in df_running_squadra.groupby(['Atleta', 'Distanza']):
             g2 = g.dropna(subset=['Tempo']).sort_values('Data')
             if len(g2) >= 4:
                 last4 = g2['Tempo'].tail(4).to_numpy()
@@ -3428,7 +3680,7 @@ def _render_home():
 
     # ── CLASSIFICA COSTANZA (top 3, non e' una classifica di performance) ──
     ultimi_7gg = oggi_tz - pd.Timedelta(days=7)
-    sess_7 = pd.concat([df_running[['Atleta', 'Data']], df_vbt[['Atleta', 'Data']]]) if (not df_running.empty or not df_vbt.empty) else pd.DataFrame(columns=['Atleta', 'Data'])
+    sess_7 = pd.concat([df_running_squadra[['Atleta', 'Data']], df_vbt_squadra[['Atleta', 'Data']]]) if (not df_running_squadra.empty or not df_vbt_squadra.empty) else pd.DataFrame(columns=['Atleta', 'Data'])
     sess_7 = sess_7[sess_7['Data'] >= ultimi_7gg]
     classifica_costanza = []  # [(atleta, giorni), ...] fino a 3
     giorni_squadra_attivi = 0  # su quanti dei 7 giorni la squadra ha fatto almeno una sessione
@@ -3470,11 +3722,11 @@ def _render_home():
         txt = " e altri" if len(atleti_pb) > 3 else ""
         pb_list = ', '.join(list(atleti_pb)[:3]) + txt
         html_pb = f"""
-        <div style="background: rgba(184,255,138,0.1); border-left: 4px solid #B8FF8A; border-radius: 8px; padding: 14px; height: 100%; box-sizing: border-box;">
+        <div style="background: rgba(218,166,35,0.12); border-left: 4px solid #DAA623; border-radius: 8px; padding: 14px; height: 100%; box-sizing: border-box;">
             <div style="display: flex; gap: 10px; align-items: flex-start;">
                 <span style="font-size: 24px; margin-top: 2px;">🏆</span>
                 <div style="flex: 1;">
-                    <div style="color: #B8FF8A; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">RECORD INFRANTI</div>
+                    <div style="color: #DAA623; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">RECORD INFRANTI</div>
                     <div style="color: #fff; font-size: 0.9em;">
                         <strong>{pb_list}</strong> hanno battuto il PB in questo periodo! 🔥
                     </div>
@@ -3515,11 +3767,11 @@ def _render_home():
         """
     else:
         html_inattivi = f"""
-        <div style="background: rgba(22,163,74,0.1); border-left: 4px solid #16a34a; border-radius: 8px; padding: 14px; height: 100%; box-sizing: border-box;">
+        <div style="background: rgba(232,255,58,0.09); border-left: 4px solid #E8FF3A; border-radius: 8px; padding: 14px; height: 100%; box-sizing: border-box;">
             <div style="display: flex; gap: 10px; align-items: flex-start;">
                 <span style="font-size: 24px;">✅</span>
                 <div style="flex: 1;">
-                    <div style="color: #16a34a; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">SQUADRA ATTIVA</div>
+                    <div style="color: #E8FF3A; font-weight: 700; font-family: 'DM Mono'; letter-spacing: 1px; font-size: 10px; margin-bottom: 4px;">SQUADRA ATTIVA</div>
                     <div style="color: #fff; font-size: 0.9em;">
                         Tutti gli atleti si allenano regolarmente. Ottimo lavoro! 🎉
                     </div>
@@ -3633,10 +3885,10 @@ def _render_home():
             atl = row['nome_completo']
             f_url = row.get('foto_url', '')
             
-            mask_r = df_running['Atleta'] == atl
-            mask_v = df_vbt['Atleta'] == atl
-            last_r = df_running[mask_r]['Data'].max() if len(df_running[mask_r]) > 0 else pd.NaT
-            last_v = df_vbt[mask_v]['Data'].max() if len(df_vbt[mask_v]) > 0 else pd.NaT
+            mask_r = df_running_squadra['Atleta'] == atl
+            mask_v = df_vbt_squadra['Atleta'] == atl
+            last_r = df_running_squadra[mask_r]['Data'].max() if len(df_running_squadra[mask_r]) > 0 else pd.NaT
+            last_v = df_vbt_squadra[mask_v]['Data'].max() if len(df_vbt_squadra[mask_v]) > 0 else pd.NaT
             
             last_d = max(last_r, last_v) if pd.notnull(last_r) and pd.notnull(last_v) else (last_r if pd.notnull(last_r) else last_v)
             days_ago = (pd.Timestamp.now().tz_localize(None) - last_d).days if pd.notnull(last_d) else 999
@@ -3647,8 +3899,8 @@ def _render_home():
                 c_badge = "background: rgba(232,255,58,0.1); color: #E8FF3A;"
             elif days_ago <= 10:
                 stato = "✓ Buona"
-                color = "#16a34a"
-                c_badge = "background: rgba(22,163,74,0.1); color: #16a34a;"
+                color = "#00D9FF"
+                c_badge = "background: rgba(0,217,255,0.1); color: #00D9FF;"
             elif days_ago <= 30:
                 stato = "⚠ Monitor"
                 color = "#FFB347"
@@ -3658,7 +3910,7 @@ def _render_home():
                 color = "#FF6B6B"
                 c_badge = "background: rgba(255,107,107,0.1); color: #FF6B6B;"
                 
-            atl_run = df_running[mask_r]
+            atl_run = df_running_squadra[mask_r]
             highlight_txt = "-"
             if len(atl_run) > 0:
                 if 100 in atl_run['Distanza'].values:
@@ -3668,9 +3920,10 @@ def _render_home():
                     pb = atl_run[atl_run['Distanza'] == 60]['Tempo'].min()
                     highlight_txt = f"{pb:.2f}s (60m)"
             
-            if highlight_txt == "-" and len(df_vbt[mask_v]) > 0:
-                 highlight_txt = f"{len(df_vbt[mask_v])} sess. VBT"
+            if highlight_txt == "-" and len(df_vbt_squadra[mask_v]) > 0:
+                 highlight_txt = f"{len(df_vbt_squadra[mask_v])} sess. VBT"
 
+            spec_atl = row.get('specialita')
             roster_data.append({
                 'id': row['id'],
                 'nome': atl,
@@ -3679,7 +3932,8 @@ def _render_home():
                 'color': color,
                 'c_badge': c_badge,
                 'highlight': highlight_txt,
-                'days_ago': days_ago
+                'days_ago': days_ago,
+                'tag': TAG_SPECIALITA.get(spec_atl, ''),
             })
             
         roster_df = pd.DataFrame(roster_data)
@@ -3735,12 +3989,31 @@ def _render_home():
                                             {inz}
                                           </div>'''
 
+                        # Tag di specialita' dell'atleta: giallo se impostato
+                        # (lo stesso badge che si vede sul profilo), grigio e
+                        # neutro se l'atleta non si e' ancora identificato.
+                        # Prima era "● VELOCITÀ" scritto a mano, uguale per
+                        # tutti: non distingueva nessuno.
+                        if row["tag"]:
+                            tag_card_html = (
+                                f'<div style="display:inline-block; margin-bottom:12px; padding:3px 9px; border-radius:6px; '
+                                f'background:rgba(232,255,58,0.12); border:1px solid rgba(232,255,58,0.3); color:#E8FF3A; '
+                                f"font-family:'DM Mono', monospace; font-size:0.7em; font-weight:700; letter-spacing:0.5px;\">"
+                                f'{row["tag"]}</div>'
+                            )
+                        else:
+                            tag_card_html = (
+                                '<div style="font-size: 0.7em; color: rgba(255,255,255,0.28); margin-bottom: 12px; '
+                                "font-family: 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; "
+                                'font-weight: 600;">○ NESSUN TAG</div>'
+                            )
+
                         st.markdown(f'''
                         <div style="position: relative; padding: 6px;">
                             <div style="position: absolute; right: 8px; top: 8px; font-size: 80px; opacity: 0.06; color: {row["color"]}; user-select: none; pointer-events: none;">👤</div>
                             {av_html}
                             <div style="font-weight: 700; font-size: 1.1em; line-height: 1.3; margin-bottom: 6px; color: #E8EDF5;">{row["nome"]}</div>
-                            <div style="font-size: 0.7em; color: rgba(255,255,255,0.4); margin-bottom: 12px; font-family: 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; font-weight: 600;">● VELOCITÀ</div>
+                            {tag_card_html}
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
                                 <span style="font-size: 11px; padding: 5px 10px; border-radius: 6px; font-family: 'DM Mono', monospace; font-weight: 700; {row["c_badge"]}">{row["stato"]}</span>
                                 <span style="font-size: 12px; color: {row["color"]}; font-family: 'DM Mono', monospace; font-weight: bold;">{row["highlight"]}</span>
@@ -3758,21 +4031,34 @@ def _render_home():
         if st.session_state.authenticated:
             @st.dialog("Registra Nuovo Atleta")
             def render_new_atleta_modal():
+                st.caption(
+                    "Il PIN non devi crearlo tu: lascia il campo vuoto e l'atleta entra col PIN squadra, "
+                    "apre il proprio profilo da questa pagina e si imposta il PIN da solo. "
+                    "Se preferisci dargliene uno provvisorio, scrivilo qui — potrà cambiarselo dal suo profilo."
+                )
                 with st.form("new_atleta_form", clear_on_submit=True):
                     st.markdown("**Inserisci il nuovo membro della squadra**")
                     n1, n2 = st.columns(2)
                     nome = n1.text_input("Nome")
                     cognome = n2.text_input("Cognome")
                     spec = st.selectbox("Specialità", options=["Velocista", "400ista"])
+                    pin_provv = st.text_input(
+                        "PIN provvisorio (opzionale)", placeholder="lascia vuoto: se lo crea lui",
+                        help="Almeno 4 caratteri. L'atleta potrà cambiarlo dal proprio profilo.",
+                    )
                     if st.form_submit_button("✅ Registra Atleta", type="primary", use_container_width=True):
-                        if nome.strip() and cognome.strip():
-                            from supabase_connector import upsert_atleta
-                            upsert_atleta(nome.strip(), cognome.strip(), spec)
+                        if not (nome.strip() and cognome.strip()):
+                            st.error("⚠️ Inserisci Nome e Cognome.")
+                        elif pin_provv.strip() and len(pin_provv.strip()) < 4:
+                            st.error("⚠️ Il PIN provvisorio deve essere di almeno 4 caratteri.")
+                        else:
+                            from supabase_connector import upsert_atleta, set_atleta_pin
+                            nuovo = upsert_atleta(nome.strip(), cognome.strip(), spec)
+                            if pin_provv.strip() and nuovo.get("id"):
+                                set_atleta_pin(nuovo["id"], pin_provv.strip())
                             st.success("✅ Completato! (Ricaricamento...)")
                             get_atleti.clear()
                             st.rerun()
-                        else:
-                            st.error("⚠️ Inserisci Nome e Cognome.")
                             
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("➕ Aggiungi Nuovo Atleta", use_container_width=True):
@@ -3780,8 +4066,8 @@ def _render_home():
 
 
 def _render_admin():
-    st.markdown("## 🔑 Gestione PIN")
-    st.markdown("### 🔑 Gestione PIN Atleti")
+    _intestazione_pagina("Admin")
+    st.markdown("## 🔑 Gestione PIN Atleti")
     from supabase_connector import get_all_pins, set_atleta_pin, set_atleta_attivo
     df_pins = get_all_pins()
     if not df_pins.empty:
@@ -3860,5 +4146,14 @@ if pg is PAGE_DETTAGLIO and selected_athlete == "Tutta la squadra":
 _target_page = _PAGE_BY_LABEL.get(st.session_state.current_page)
 if _had_page_change and _target_page is not None and pg is not _target_page:
     st.switch_page(_target_page)
+
+# Riallinea current_page alla pagina che st.navigation() ha davvero
+# risolto: un "indietro" del browser o un URL aperto a mano cambiano
+# pagina senza passare dai bottoni della sidebar, e senza questo
+# l'evidenziazione del menu resterebbe indietro di un rerun.
+_LABEL_PER_PAGINA = {pagina: etichetta for etichetta, pagina in _PAGE_BY_LABEL.items()}
+_etichetta_corrente = _LABEL_PER_PAGINA.get(pg)
+if _etichetta_corrente and st.session_state.current_page != _etichetta_corrente:
+    st.session_state.current_page = _etichetta_corrente
 
 pg.run()
