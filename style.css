@@ -201,10 +201,23 @@
         text-align: center; padding: 60px 40px; position: relative; overflow: hidden; margin: -6rem -4rem 2rem -4rem; border-radius: 0 0 20px 20px;
     }
     
-    /* Cover Amsicora Login Dark Neon */
+    /* Cover di login — stessa famiglia della copertina in Home: verde
+       sociale in alto che scende nel nero dove sta il testo piccolo,
+       corsie diagonali, filo d'oro sul bordo superiore. E' la prima
+       schermata che vede chiunque, quindi e' qui che l'identita' conta
+       piu' che altrove. */
     .cover {
-        background: #080A0E; display: flex; flex-direction: column; align-items: center; justify-content: center;
-        text-align: center; padding: 40px; border-radius: 20px; margin: 0 auto; max-width: 600px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        text-align: center; padding: 40px; border-radius: 20px; margin: 0 auto; max-width: 600px;
+        background-color: var(--amsicora-verde);
+        background-image:
+            repeating-linear-gradient(112deg,
+                rgba(255,255,255,0.05) 0 1px,
+                transparent 1px 4px,
+                rgba(255,255,255,0.02) 4px 5px,
+                transparent 5px 28px),
+            linear-gradient(168deg, #35683F 0%, var(--amsicora-verde) 30%, #16281B 62%, #080A0E 100%);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5), inset 0 2px 0 0 rgba(218,166,35,0.55);
     }
     html, body { overscroll-behavior: none; }
     
@@ -243,20 +256,21 @@
     }
     .cover-logo {
         width: 160px; height: 160px; border-radius: 50%; object-fit: cover;
-        border: 2px solid rgba(232,255,58,0.3); box-shadow: 0 0 30px rgba(232,255,58,0.1);
+        border: 3px solid var(--amsicora-oro); box-shadow: 0 8px 26px rgba(0,0,0,0.5), 0 0 0 7px rgba(44,88,52,0.45);
         margin-bottom: 36px; position: relative; z-index: 1;
     }
     .cover-eyebrow {
-        font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 4px; color: rgba(255,255,255,0.4); text-transform: uppercase;
+        font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 4px; color: var(--amsicora-verde-chiaro); text-transform: uppercase;
         margin-bottom: 16px; position: relative; z-index: 1;
     }
     .cover-title {
         font-family: 'Bebas Neue', sans-serif; font-size: clamp(40px, 6vw, 68px); color: #FFFFFF;
         line-height: 1.1; margin-bottom: 12px; position: relative; z-index: 1; letter-spacing: 2px;
+        text-shadow: 0 2px 16px rgba(0,0,0,0.55);
     }
     .cover-title span { color: #E8FF3A; }
     .cover-subtitle {
-        font-size: 16px; color: rgba(255,255,255,0.4); max-width: 480px; margin: 0 auto 40px;
+        font-size: 16px; color: rgba(255,255,255,0.62); max-width: 480px; margin: 0 auto 40px;
         position: relative; z-index: 1;
     }
 

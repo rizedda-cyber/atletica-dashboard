@@ -152,7 +152,7 @@ if not st.session_state.authenticated:
         <img class="cover-logo" src="data:image/png;base64,{b64_string}" alt="Logo">
         <div class="cover-eyebrow">Società Ginnastica Amsicora</div>
         <div class="cover-title">Atletica<br><span>Sprint</span><br>Dashboard</div>
-        <div class="cover-subtitle">I dati e le statistiche di questa dashboard sono riservati allo staff e agli atleti. Inserisci il PIN.</div>
+        <div class="cover-subtitle">I dati e le statistiche di questa dashboard sono riservati allo staff e agli atleti.</div>
     </div>
     ''', unsafe_allow_html=True)
     
