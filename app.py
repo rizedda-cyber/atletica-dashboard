@@ -2947,10 +2947,21 @@ def _render_programma():
         st.caption("Le settimane davvero assegnate, giorno per giorno. Un blocco sbagliato si corregge qui: ✏️ Modifica cambia giorno, tipo, descrizione e target senza rimettere mano al pattern e senza perdere chi ha già completato.")
 
         if "stato_data_da" not in st.session_state:
+            # Il periodo di default parte dal lunedi' di questa settimana e
+            # arriva fino alla domenica della settimana in cui cade l'ultimo
+            # blocco assegnato. Prima si fermava a questa domenica: siccome il
+            # lavoro si assegna in avanti, la scheda si apriva quasi sempre
+            # dicendo "nessuna assegnazione" proprio mentre andavi a
+            # controllare quello che avevi appena assegnato.
+            from supabase_connector import get_ultima_data_assegnata
             oggi = pd.Timestamp.now().normalize()
             lunedi_default = oggi - pd.Timedelta(days=int(oggi.weekday()))
+            domenica_default = lunedi_default + pd.Timedelta(days=6)
+            ultima = get_ultima_data_assegnata()
+            if ultima is not None and ultima > domenica_default:
+                domenica_default = ultima + pd.Timedelta(days=6 - int(ultima.weekday()))
             st.session_state["stato_data_da"] = lunedi_default.date()
-            st.session_state["stato_data_a"] = (lunedi_default + pd.Timedelta(days=6)).date()
+            st.session_state["stato_data_a"] = domenica_default.date()
 
         col_da, col_a = st.columns(2)
         stato_da = col_da.date_input("Dal", key="stato_data_da")

@@ -588,6 +588,21 @@ def get_assegnazioni_settimana(data_inizio: str, data_fine: str) -> pd.DataFrame
                                   "descrizione", "target", "target_tag", "creato_il"])
 
 
+def get_ultima_data_assegnata() -> pd.Timestamp | None:
+    """Data del blocco assegnato piu' lontano nel tempo, o None se non ce
+    ne sono. Serve a far partire "Stato Completamento" su un periodo che
+    contenga davvero qualcosa: il coach assegna in avanti, quindi una
+    finestra ferma alla settimana corrente si apre quasi sempre vuota."""
+    supabase = get_supabase()
+    try:
+        response = supabase.table("assegnazioni")             .select("data")             .is_("deleted_at", "null")             .order("data", desc=True)             .limit(1)             .execute()
+        if response.data:
+            return pd.Timestamp(response.data[0]["data"])
+    except Exception as e:
+        print(f"Errore get_ultima_data_assegnata: {e}")
+    return None
+
+
 def get_assegnazioni_atleta(atleta_id: int, data_da: str, data_a: str) -> pd.DataFrame:
     """Assegnazioni di UN atleta (via assegnazione_atleti) in un intervallo di
     date, con i dati del blocco appiattiti (stesso pattern di get_sessioni_corsa
