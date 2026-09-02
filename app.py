@@ -190,6 +190,8 @@ if not st.session_state.authenticated:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         with st.container(border=True):
+            if st.session_state.pop("sospeso_msg", False):
+                st.warning("❄️ Il tuo profilo è stato sospeso dall'allenatore.")
             st.markdown("<h4 style='text-align: center;'>Accedi</h4>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; color:rgba(255,255,255,0.4); font-size:0.85em;'>Il tuo PIN personale · oppure la password dell'allenatore</p>", unsafe_allow_html=True)
             with st.form("login_form"):
@@ -216,7 +218,13 @@ if not st.session_state.authenticated:
                 else:
                     from supabase_connector import get_atleta_by_pin
                     atleta_trovato = get_atleta_by_pin(pin_str)
-                    if atleta_trovato:
+                    # attivo=None vale come attivo (atleti migrati prima che la
+                    # colonna esistesse), stessa semantica usata ovunque.
+                    _congelato = (atleta_trovato is not None
+                                  and atleta_trovato.get("attivo") is False)
+                    if _congelato:
+                        st.warning("❄️ Il tuo profilo è sospeso. Per rientrare chiedi al tuo allenatore di riattivarlo.")
+                    elif atleta_trovato:
                         st.session_state.authenticated = True
                         st.session_state.is_admin = False
                         st.session_state.is_athlete_session = True
@@ -267,7 +275,8 @@ if not df_running.empty:
     df_running = df_running[df_running['Distanza'] >= 20].copy()
 
 # ── ATLETI CONGELATI ──────────────────────────────────────────────────
-# Congelare un atleta (Gestione PIN → ❄️) lo toglie dal roster, ma le sue
+# Congelare un atleta (Gestione PIN → ❄️) gli toglie l'accesso e lo toglie
+# dal roster, ma le sue
 # sessioni restano nel database: senza questa esclusione continuavano a
 # pesare su classifiche, KPI, alert e conteggi di squadra come se fosse
 # ancora in pista. df_running/df_vbt restano integri (servono al suo
@@ -277,6 +286,17 @@ if DATA_SOURCE == "cloud":
     NOMI_CONGELATI = get_nomi_congelati()
 else:
     NOMI_CONGELATI = set()
+
+# Congelato mentre era gia' dentro: la sessione decade da sola. Senza questo
+# il congelamento bloccherebbe solo i login nuovi, e chi era connesso
+# resterebbe operativo finche' non chiude la scheda.
+if (st.session_state.is_athlete_session
+        and st.session_state.logged_athlete_name in NOMI_CONGELATI):
+    st.session_state.authenticated = False
+    st.session_state.is_athlete_session = False
+    st.session_state.logged_athlete_name = None
+    st.session_state.sospeso_msg = True
+    st.rerun()
 
 df_running_squadra = (
     df_running[~df_running['Atleta'].isin(NOMI_CONGELATI)].copy()
@@ -679,7 +699,7 @@ INTRO_PAGINA = {
     ),
     "Admin": (
         "Chi entra, e con quale chiave.",
-        "PIN personale di ogni atleta e stato attivo o congelato. Congelare nasconde dai conteggi, non cancella: lo storico resta intatto.",
+        "PIN personale di ogni atleta e stato attivo o congelato. Congelare toglie dai conteggi e blocca l'accesso, ma non cancella nulla: lo storico resta, e si riattiva quando vuoi.",
     ),
 }
 
@@ -4096,7 +4116,7 @@ def _render_admin():
             c1, c2, c3, c4 = st.columns([3, 2, 1, 1])
             nome_label = pr['nome_completo'] if is_attivo else f"{pr['nome_completo']} ❄️"
             c1.markdown(f"<div style='padding-top:6px; font-size:0.9em;'>{nome_label}</div>", unsafe_allow_html=True)
-            nuovo_pin = c2.text_input("", value=pin_val, placeholder="nessun PIN",
+            nuovo_pin = c2.text_input(f"PIN di {pr['nome_completo']}", value=pin_val, placeholder="nessun PIN",
                                       label_visibility="collapsed", key=f"pin_inp_{pr['id']}")
             if c3.button("💾", key=f"pin_save_{pr['id']}", help="Salva PIN"):
                 from supabase_connector import pin_gia_in_uso
@@ -4113,12 +4133,18 @@ def _render_admin():
                         st.warning(f"⚠️ {pr['nome_completo'].split()[0]} è rimasto senza PIN: non potrà più accedere.")
                     st.rerun()
             icona_toggle = "☀️" if not is_attivo else "❄️"
-            help_toggle = "Riattiva atleta" if not is_attivo else "Congela atleta (nasconde da roster/KPI, storico intatto)"
+            help_toggle = ("Riattiva atleta: torna nei conteggi e può rientrare col suo PIN"
+                           if not is_attivo else
+                           "Congela atleta: esce da roster/KPI e non può più accedere. Storico intatto, reversibile")
             if c4.button(icona_toggle, key=f"pin_toggle_{pr['id']}", help=help_toggle):
                 set_atleta_attivo(pr['id'], not is_attivo)
                 from supabase_connector import get_atleti
                 get_atleti.clear()
-                st.success(f"{'❄️ Congelato' if is_attivo else '☀️ Riattivato'}: {pr['nome_completo'].split()[0]}")
+                _nome_breve = pr['nome_completo'].split()[0]
+                if is_attivo:
+                    st.success(f"❄️ {_nome_breve} congelato: non potrà più accedere finché non lo riattivi.")
+                else:
+                    st.success(f"☀️ {_nome_breve} riattivato: può rientrare col suo PIN.")
                 st.rerun()
     else:
         st.info("Nessun atleta nel DB.")
