@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+<title>Atletica Sprint Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#f4f5f3;
+  --panel:#ffffff;
+  --panel-2:#eef0ed;
+  --border:rgba(20,24,20,0.12);
+  --text-h:#14171a;
+  --text-b:rgba(20,24,20,0.72);
+  --text-m:rgba(20,24,20,0.48);
+  --accent:#7a8b1f;
+  --accent-glow:rgba(122,139,31,0.18);
+  --cyan:#0e7a8f;
+  --cyan-glow:rgba(14,122,143,0.14);
+  --success:#166534;
+  --app-bg:#0b0d12;
+  --app-panel:#12151c;
+  --app-border:rgba(255,255,255,0.08);
+  --app-text-h:#E8EDF5;
+  --app-text-b:rgba(255,255,255,0.72);
+  --app-text-m:rgba(255,255,255,0.42);
+  --app-yellow:#E8FF3A;
+  --app-cyan:#00D9FF;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b0d12; --panel:#12151c; --panel-2:#171b23;
+    --border:rgba(255,255,255,0.09);
+    --text-h:#E8EDF5; --text-b:rgba(255,255,255,0.72); --text-m:rgba(255,255,255,0.45);
+    --accent:#c7de52; --accent-glow:rgba(199,222,82,0.14);
+    --cyan:#4fd6e8; --cyan-glow:rgba(79,214,232,0.12);
+    --success:#4ade80;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b0d12; --panel:#12151c; --panel-2:#171b23;
+  --border:rgba(255,255,255,0.09);
+  --text-h:#E8EDF5; --text-b:rgba(255,255,255,0.72); --text-m:rgba(255,255,255,0.45);
+  --accent:#c7de52; --accent-glow:rgba(199,222,82,0.14);
+  --cyan:#4fd6e8; --cyan-glow:rgba(79,214,232,0.12);
+  --success:#4ade80;
+}
+
+*{box-sizing:border-box;}
+html{scroll-snap-type:y proximity; scroll-behavior:smooth;}
+body{
+  margin:0; background:var(--bg); color:var(--text-b);
+  font-family:'Manrope', system-ui, sans-serif; line-height:1.55;
+  overflow-x:hidden;
+}
+h1,h2,h3{text-wrap:balance;}
+p{margin:0 0 14px; max-width:64ch;}
+.mono{font-family:'DM Mono', monospace;}
+
+.eyebrow{
+  font-family:'DM Mono', monospace; font-size:11px; letter-spacing:1.8px;
+  text-transform:uppercase; color:var(--accent); font-weight:500;
+}
+.eyebrow.on-dark{color:var(--app-yellow);}
+
+/* ---- Deck chrome: progress rail + counter ---- */
+.rail{position:fixed; top:0; left:0; height:3px; width:0%; background:var(--accent); z-index:50; transition:width .25s ease;}
+.counter{
+  position:fixed; bottom:20px; right:22px; z-index:50;
+  font-family:'DM Mono', monospace; font-size:11px; letter-spacing:1px;
+  color:var(--text-m); background:var(--panel); border:1px solid var(--border);
+  padding:6px 12px; border-radius:20px; backdrop-filter:blur(6px);
+}
+.counter b{color:var(--text-h);}
+.brand-mark{
+  position:fixed; top:20px; left:22px; z-index:50;
+  font-family:'Barlow Condensed', sans-serif; font-weight:700; font-size:14px;
+  letter-spacing:1px; color:var(--text-m); text-transform:uppercase;
+}
+@media (max-width:640px){ .counter, .brand-mark{display:none;} }
+
+/* ---- Slide shell ---- */
+.slide{
+  min-height:100vh; scroll-snap-align:start;
+  display:flex; flex-direction:column; justify-content:center;
+  padding:100px 64px; position:relative;
+}
+.slide.dark{ background:var(--app-bg); color:var(--app-text-b); }
+.slide-inner{max-width:1040px; margin:0 auto; width:100%;}
+.slide-inner.wide{max-width:1180px;}
+@media (max-width:900px){ .slide{padding:80px 26px;} }
+
+h1.slide-h{
+  font-family:'Barlow Condensed', sans-serif; font-weight:700;
+  font-size:clamp(34px,5.4vw,64px); letter-spacing:0.2px; color:var(--text-h);
+  margin:10px 0 18px; line-height:1.02;
+}
+.dark h1.slide-h{color:var(--app-text-h);}
+h2.slide-h{
+  font-family:'Barlow Condensed', sans-serif; font-weight:700;
+  font-size:clamp(28px,4vw,46px); letter-spacing:0.2px; color:var(--text-h);
+  margin:8px 0 16px; line-height:1.06;
+}
+.dark h2.slide-h{color:var(--app-text-h);}
+.lede{font-size:18px; color:var(--text-b); max-width:62ch;}
+.dark .lede{color:var(--app-text-b);}
+.lede.big{font-size:21px;}
+
+/* ---- Cover ---- */
+.cover{align-items:flex-start;}
+.cover .crest{
+  width:74px; height:74px; border-radius:50%; border:2px solid var(--app-yellow);
+  display:flex; align-items:center; justify-content:center; font-size:30px;
+  box-shadow:0 0 30px rgba(232,255,58,0.25); margin-bottom:28px;
+  background:radial-gradient(circle at 30% 30%, rgba(232,255,58,0.12), transparent 70%);
+}
+.cover .kicker{font-family:'DM Mono',monospace; font-size:12px; letter-spacing:3px; color:rgba(255,255,255,0.4); text-transform:uppercase; margin-bottom:10px;}
+.cover h1{
+  font-family:'Barlow Condensed', sans-serif; font-weight:700; color:var(--app-text-h);
+  font-size:clamp(48px,9vw,108px); line-height:0.94; letter-spacing:0.5px; margin:0;
+}
+.cover h1 .hl{color:var(--app-yellow);}
+.cover .sub{font-size:19px; color:var(--app-text-b); max-width:52ch; margin-top:26px;}
+.cover .foot{
+  position:absolute; bottom:56px; left:64px; right:64px;
+  display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px;
+  font-family:'DM Mono',monospace; font-size:11px; color:rgba(255,255,255,0.35); letter-spacing:0.5px;
+}
+@media (max-width:640px){ .cover .foot{left:26px; right:26px; bottom:36px;} }
+
+/* ---- Stat blocks ---- */
+.stat-row{display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:28px; margin-top:36px;}
+.stat{border-left:2px solid var(--app-border); padding-left:18px;}
+.stat .n{font-family:'Bebas Neue',sans-serif; font-size:52px; color:var(--app-yellow); line-height:1; letter-spacing:0.5px;}
+.stat .l{font-family:'DM Mono',monospace; font-size:11px; color:var(--app-text-m); letter-spacing:0.8px; text-transform:uppercase; margin-top:8px;}
+
+/* ---- Pillars / feature grid ---- */
+.pillars{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:22px; margin-top:36px;}
+.pillar{background:var(--panel-2); border:1px solid var(--border); border-radius:14px; padding:26px 24px;}
+.pillar .ic{font-size:26px; margin-bottom:14px; display:block;}
+.pillar h3{font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:20px; color:var(--text-h); margin:0 0 8px; text-transform:uppercase; letter-spacing:0.4px;}
+.pillar p{font-size:14px; margin:0; color:var(--text-b);}
+
+/* ---- Two-column split ---- */
+.split{display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:start; margin-top:34px;}
+@media (max-width:800px){ .split{grid-template-columns:1fr;} }
+.split-card{border-radius:16px; padding:28px 26px; height:100%;}
+.split-card.coach{background:linear-gradient(160deg, rgba(122,139,31,0.08), transparent); border:1px solid var(--border);}
+.split-card.athlete{background:linear-gradient(160deg, rgba(14,122,143,0.08), transparent); border:1px solid var(--border);}
+.split-card .tag{font-family:'DM Mono',monospace; font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; padding:4px 10px; border-radius:5px; display:inline-block; margin-bottom:14px;}
+.split-card.coach .tag{background:var(--accent-glow); color:var(--accent);}
+.split-card.athlete .tag{background:var(--cyan-glow); color:var(--cyan);}
+.split-card h3{font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; margin:0 0 10px; color:var(--text-h);}
+.split-card ul{margin:14px 0 0; padding:0; list-style:none; display:grid; gap:9px;}
+.split-card li{font-size:14px; color:var(--text-b); display:flex; gap:9px; align-items:baseline;}
+.split-card li::before{content:'—'; color:var(--text-m); flex-shrink:0;}
+
+/* ---- App-frame mockup (shared component language) ---- */
+.appframe{
+  background:var(--app-bg); border:1px solid var(--app-border); border-radius:14px;
+  overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,0.6);
+}
+.dark .appframe{box-shadow:0 30px 80px -30px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.04);}
+.appframe-top{display:flex; align-items:center; gap:8px; padding:10px 16px; border-bottom:1px solid var(--app-border); background:rgba(255,255,255,0.02);}
+.dot{width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,0.14);}
+.appframe-label{font-family:'DM Mono',monospace; font-size:11px; color:var(--app-text-m); letter-spacing:0.5px; margin-left:4px;}
+.appframe-body{padding:22px 22px 26px;}
+.app-h{font-family:'Bebas Neue',sans-serif; color:var(--app-text-h); font-size:22px; letter-spacing:0.5px; margin:0 0 2px;}
+.app-sub{font-family:'DM Mono',monospace; font-size:10.5px; color:var(--app-text-m); letter-spacing:1px; text-transform:uppercase; margin-bottom:16px;}
+
+.kpi-mini-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px;}
+.kpi-mini{background:rgba(255,255,255,0.03); border:1px solid var(--app-border); border-radius:10px; padding:14px;}
+.kpi-mini .t{font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.6px; text-transform:uppercase; color:var(--app-text-m); margin-bottom:6px;}
+.kpi-mini .v{font-family:'Bebas Neue',sans-serif; font-size:26px; color:var(--app-text-h); line-height:1;}
+.kpi-mini .v.pos{color:var(--app-yellow);}
+.kpi-mini .v.neg{color:#FF6B6B;}
+
+.alertline{display:flex; gap:10px; align-items:flex-start; padding:12px 0; border-top:1px solid var(--app-border);}
+.alertline:first-child{border-top:none;}
+.alertline .ic{font-size:17px; margin-top:1px;}
+.alertline .tt{font-family:'DM Mono',monospace; font-size:9.5px; letter-spacing:0.6px; text-transform:uppercase; color:var(--app-text-m); margin-bottom:3px;}
+.alertline .dd{font-size:12px; color:var(--app-text-b);}
+
+.pillrow{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+.wpill{font-family:'DM Mono',monospace; font-size:11.5px; padding:8px 14px; border-radius:8px; border:1px solid var(--app-border); background:rgba(255,255,255,0.03); color:var(--app-text-b);}
+.wpill.ghost{color:var(--app-text-m); border-style:dashed;}
+.wpill.active{background:var(--app-yellow); color:#14171a; border-color:var(--app-yellow); font-weight:600;}
+
+.overview{display:grid; gap:7px;}
+.ov-row{display:flex; align-items:center; gap:10px; font-family:'DM Mono',monospace; font-size:11.5px; color:var(--app-text-m);}
+.ov-row .ov-name{min-width:150px; color:var(--app-text-b);}
+.ov-dots{display:flex; gap:5px;}
+.ov-dot{width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,0.1);}
+.ov-dot.pista{background:var(--app-cyan);} .ov-dot.palestra{background:#5ee88f;} .ov-dot.campo{background:#ff9d4d;}
+
+.blockrow{display:grid; grid-template-columns:74px 1fr auto; gap:14px; padding:11px 0; border-bottom:1px solid var(--app-border); align-items:start;}
+.blockrow:last-child{border-bottom:none;}
+.blockrow .day{font-family:'DM Mono',monospace; font-size:11.5px; color:var(--app-yellow); padding-top:1px;}
+.blockrow .info .title{font-size:12.5px; color:var(--app-text-h); font-weight:500; margin-bottom:2px;}
+.blockrow .info .desc{font-size:11.5px; color:var(--app-text-m); line-height:1.5;}
+.blockrow .tag{font-family:'DM Mono',monospace; font-size:10px; padding:3px 8px; border-radius:5px; background:rgba(0,217,255,0.1); color:var(--app-cyan); height:fit-content; white-space:nowrap;}
+
+.formrow{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;}
+.field{display:flex; flex-direction:column; gap:5px;}
+.field label{font-family:'DM Mono',monospace; font-size:9.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--app-text-m);}
+.fake-input{background:rgba(255,255,255,0.04); border:1px solid var(--app-border); border-radius:6px; padding:8px 10px; font-family:'DM Mono',monospace; font-size:11.5px; color:var(--app-text-b);}
+.fake-input.filled{color:var(--app-yellow); background:rgba(232,255,58,0.06); border-color:rgba(232,255,58,0.22);}
+.btn-mock{font-family:'DM Mono',monospace; font-size:11.5px; padding:9px 14px; border-radius:7px; text-align:center; border:1px solid var(--app-border); color:var(--app-text-b); background:rgba(255,255,255,0.03);}
+.btn-mock.primary{background:var(--app-yellow); color:#14171a; border-color:var(--app-yellow); font-weight:600;}
+.btnrow{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;}
+.btnrow .btn-mock{flex:1; min-width:120px;}
+.preview-line{font-family:'DM Mono',monospace; font-size:11.5px; color:var(--app-cyan); background:rgba(0,217,255,0.06); border:1px solid rgba(0,217,255,0.18); border-radius:7px; padding:9px 12px; margin:14px 0;}
+
+.statorow{display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--app-border); font-size:12px; color:var(--app-text-b);}
+.statorow:last-child{border-bottom:none;}
+.chk-mock{width:15px; height:15px; border-radius:4px; border:1.5px solid var(--app-text-m); flex-shrink:0;}
+.chk-mock.on{background:var(--app-yellow); border-color:var(--app-yellow);}
+
+.modelbox{background:rgba(255,255,255,0.03); border:1px solid var(--app-border); border-radius:10px; padding:16px; margin-bottom:12px;}
+.modelbox .mt{font-family:'DM Mono',monospace; font-size:10px; letter-spacing:0.8px; text-transform:uppercase; color:var(--app-cyan); margin-bottom:6px;}
+.modelbox .mv{font-family:'Bebas Neue',sans-serif; font-size:28px; color:var(--app-text-h);}
+.modelbox .md{font-size:11.5px; color:var(--app-text-m); margin-top:4px;}
+
+/* ---- Recipe / step cards (light slides) ---- */
+.steps{display:grid; gap:14px; margin-top:26px;}
+.step{display:grid; grid-template-columns:44px 1fr; gap:18px; padding:20px 22px; background:var(--panel-2); border:1px solid var(--border); border-radius:12px;}
+.step .num{font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:26px; color:var(--accent); line-height:1;}
+.step h3{font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:18px; margin:0 0 6px; color:var(--text-h); text-transform:none;}
+.step p{font-size:14px; margin:0; color:var(--text-b);}
+
+.recipes{display:grid; gap:14px; margin-top:22px;}
+.recipe{display:grid; grid-template-columns:26px 1fr; gap:14px; padding:16px 18px; background:var(--panel-2); border:1px solid var(--border); border-radius:10px;}
+.recipe .ic{font-size:17px; line-height:1.3;}
+.recipe h3{font-family:'Barlow Condensed',sans-serif; margin:0 0 5px; font-size:15.5px; color:var(--text-h); font-weight:600;}
+.recipe p{font-size:13.5px; margin:0; color:var(--text-b);}
+
+.quote-bar{border-left:3px solid var(--accent); padding:4px 0 4px 20px; margin-top:30px; font-family:'Barlow Condensed',sans-serif; font-size:22px; color:var(--text-h); font-weight:500;}
+.dark .quote-bar{border-left-color:var(--app-yellow); color:var(--app-text-h);}
+
+.cta-final{
+  display:inline-flex; align-items:center; gap:12px; margin-top:30px;
+  background:var(--app-yellow); color:#14171a; font-weight:700;
+  padding:16px 28px; border-radius:10px; font-family:'Barlow Condensed',sans-serif;
+  font-size:19px; letter-spacing:0.3px;
+}
+
+footer.end{
+  font-family:'DM Mono',monospace; font-size:11px; color:var(--app-text-m);
+  margin-top:40px; letter-spacing:0.4px;
+}
+
+@media (max-width:640px){
+  .formrow{grid-template-columns:1fr;}
+  .blockrow{grid-template-columns:56px 1fr; grid-template-areas:"day info" ". tag";}
+  .blockrow .tag{justify-self:start;}
+}
+
+/* ---- Export to PDF: Stampa → Salva come PDF, una slide per pagina ---- */
+@media print{
+  .rail, .counter, .brand-mark{display:none !important;}
+  html{scroll-snap-type:none;}
+  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+  /* height fissa a 100vh tagliava via il contenuto delle slide piu' dense
+     senza dirlo: in PDF sparivano le ultime righe. Con min-height la
+     slide occupa comunque una pagina intera, ma se e' piu' alta prosegue
+     sulla successiva invece di perdere pezzi. */
+  .slide{
+    min-height:100vh; height:auto; padding:56px 54px;
+    page-break-after:always; break-after:page;
+  }
+  .step, .recipe, .callout, .pillar, .appframe{ break-inside:avoid; page-break-inside:avoid; }
+  .slide:last-child{page-break-after:auto; break-after:auto;}
+  .appframe{box-shadow:none;}
+}
+</style>
+
+<div class="rail" id="rail"></div>
+<div class="brand-mark">Atletica Sprint Dashboard</div>
+<div class="counter"><b id="slideNo">01</b> / 20</div>
+
+<!-- 1 — COVER -->
+<section class="slide dark cover">
+  <div class="slide-inner">
+    <div class="crest">🏃</div>
+    <div class="kicker">S.G. Amsicora · Team Velocità</div>
+    <h1>ATLETICA<br><span class="hl">SPRINT</span> DASHBOARD</h1>
+    <p class="sub">La sala macchine digitale per una squadra di velocità: un allenatore scrive il programma una volta sola, ogni atleta lo vede sul telefono, e ogni tempo registrato diventa scienza — dai personal best ai modelli predittivi.</p>
+  </div>
+  <div class="foot">
+    <span>PRESENTAZIONE · 20 SEZIONI</span>
+    <span>PISTA · PALESTRA · DATI</span>
+  </div>
+</section>
+
+<!-- 2 — IL PROBLEMA -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">01 — Il punto di partenza</div>
+    <h1 class="slide-h">Il programma vive su WhatsApp.<br>I tempi, su un foglio.</h1>
+    <p class="lede big">È così che lavora oggi la maggior parte delle squadre di sprint: un PDF scritto la sera prima, spedito in un gruppo, letto di corsa a bordo pista. I tempi finiscono su un quaderno, o in un Excel che solo il coach sa aprire. Cosa succede quando un atleta chiede "qual era il mio PB sui 60 a marzo?"</p>
+    <div class="quote-bar">Il problema non è la mancanza di dati. È che nessuno riesce a rileggerli.</div>
+  </div>
+</section>
+
+<!-- 3 — LA SOLUZIONE -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">02 — La soluzione</div>
+    <h1 class="slide-h">Un'unica piattaforma.<br>Tre lavori diversi.</h1>
+    <p class="lede">Un allenatore costruisce il programma una volta, la squadra lo esegue dal telefono, e ogni prova registrata alimenta automaticamente statistiche, record e modelli predittivi — senza inserimento doppio, senza fogli persi.</p>
+    <div class="pillars" style="margin-top:40px;">
+      <div class="pillar" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <span class="ic">🛠️</span>
+        <h3 style="color:var(--app-text-h);">Programma</h3>
+        <p style="color:var(--app-text-b);">L'allenatore scrive il pattern di allenamento e lo assegna alla squadra o a un tag di atleti.</p>
+      </div>
+      <div class="pillar" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <span class="ic">📋</span>
+        <h3 style="color:var(--app-text-h);">Oggi</h3>
+        <p style="color:var(--app-text-b);">L'atleta apre il telefono, vede il blocco di oggi già pronto, registra il tempo in due tocchi.</p>
+      </div>
+      <div class="pillar" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <span class="ic">📈</span>
+        <h3 style="color:var(--app-text-h);">Analisi</h3>
+        <p style="color:var(--app-text-b);">Ogni prova diventa un punto in più su record, trend, e modelli di previsione gara.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 — DUE MONDI -->
+<section class="slide">
+  <div class="slide-inner wide">
+    <div class="eyebrow">03 — Due pubblici, un solo sistema</div>
+    <h1 class="slide-h">Pensata per chi la usa da un ufficio,<br>e per chi la usa a bordo pista.</h1>
+    <div class="split">
+      <div class="split-card coach">
+        <span class="tag">Allenatore · PC</span>
+        <h3>Regia e controllo</h3>
+        <p style="font-size:14px;">Da desktop, dove c'è spazio per pensare in grande: costruire il macrociclo, leggere i grafici, decidere i carichi.</p>
+        <ul>
+          <li>Programma settimanale a pattern ripetibile</li>
+          <li>Panoramica squadra con alert automatici</li>
+          <li>Modelli predittivi e analisi tonnellaggio/performance</li>
+          <li>Gestione PIN e anagrafica atleti</li>
+        </ul>
+      </div>
+      <div class="split-card athlete">
+        <span class="tag">Atleta · Telefono</span>
+        <h3>Il minimo indispensabile, veloce</h3>
+        <p style="font-size:14px;">A bordo pista non c'è tempo per compilare form lunghi: due tocchi, il tempo è salvato.</p>
+        <ul>
+          <li>"Oggi": il blocco del giorno, target già compilato</li>
+          <li>Profilo personale con PB e storico</li>
+          <li>Check-in di stato con un'emoji</li>
+          <li>Grafici che si apprezzano di più da tablet, a casa</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 — HOME SQUADRA -->
+<section class="slide dark">
+  <div class="slide-inner wide">
+    <div class="eyebrow on-dark">04 — Cosa vede l'allenatore, prima cosa</div>
+    <h1 class="slide-h">La squadra, in un colpo d'occhio.</h1>
+    <p class="lede">Home Squadra apre con i numeri che contano: chi è in forma, chi si è fermato, quanto volume si è fatto — e sotto, gli alert che il coach dovrebbe controllare oggi.</p>
+    <div class="appframe" style="margin-top:28px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Home Squadra</span></div>
+      <div class="appframe-body">
+        <div class="kpi-mini-grid" style="margin-bottom:18px;">
+          <div class="kpi-mini"><div class="t">Atleti in PB</div><div class="v pos">3</div></div>
+          <div class="kpi-mini"><div class="t">Volume Squadra</div><div class="v">368 km</div></div>
+          <div class="kpi-mini"><div class="t">Sessioni Pista</div><div class="v pos">501</div></div>
+          <div class="kpi-mini"><div class="t">Inattivi &gt;7gg</div><div class="v neg">4</div></div>
+        </div>
+        <div class="app-sub">Alert & Notifiche</div>
+        <div class="alertline"><span class="ic">⚠️</span><div><div class="tt">Atleti inattivi</div><div class="dd">3 atleti non si allenano da più di una settimana. Richiedere contatti.</div></div></div>
+        <div class="alertline"><span class="ic">📉</span><div><div class="tt">Trend in calo</div><div class="dd">Tempi in peggioramento sui 400m per un atleta. Da monitorare.</div></div></div>
+        <div class="alertline"><span class="ic">🎉</span><div><div class="tt">Prossimi compleanni</div><div class="dd">Un compleanno tra 3 giorni.</div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 — PROFILO ATLETA -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">05 — Ogni atleta, la sua scheda completa</div>
+    <h1 class="slide-h">Non un archivio di numeri.<br>Una storia leggibile.</h1>
+    <p class="lede">Ogni profilo raccoglie i record personali, lo storico completo delle prove, e quattro schede di analisi — dai trend cronometrici alle previsioni gara — senza dover incrociare fogli diversi.</p>
+    <div class="pillars">
+      <div class="pillar"><span class="ic">🏆</span><h3>Classifica PB</h3><p>I migliori tempi per distanza, sempre aggiornati automaticamente a ogni prova.</p></div>
+      <div class="pillar"><span class="ic">📖</span><h3>Storico Completo</h3><p>Ogni prova mai registrata, raggruppata per distanza — niente si perde.</p></div>
+      <div class="pillar"><span class="ic">📈</span><h3>Trend dei Tempi</h3><p>Un grafico per distanza, con media mobile su 3 sessioni per leggere la tendenza vera.</p></div>
+      <div class="pillar"><span class="ic">✏️</span><h3>Correggi Tempo</h3><p>Un tempo inserito male si corregge in un form, senza toccare il database a mano.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 — MODELLI PREDITTIVI -->
+<section class="slide dark">
+  <div class="slide-inner wide">
+    <div class="eyebrow on-dark">06 — Quello che nessun quaderno può fare</div>
+    <h1 class="slide-h">Non solo cronometro.<br>Scienza dello sprint.</h1>
+    <p class="lede">A partire dai PB già registrati, la dashboard calcola modelli predittivi veri — la stessa logica che usano i tecnici federali per stimare il potenziale di un atleta, qui automatica e sempre aggiornata.</p>
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Previsioni Gara</span></div>
+      <div class="appframe-body">
+        <div class="modelbox">
+          <div class="mt">Modello Vittori — calcolatore reverse</div>
+          <div class="mv">Obiettivo → Split necessari</div>
+          <div class="md">Dato un tempo obiettivo su una gara target, calcola a ritroso gli split (30m, 60m, 80m) da raggiungere in allenamento.</div>
+        </div>
+        <div class="modelbox">
+          <div class="mt">Modello fisiologico 400m</div>
+          <div class="mv">SRI 1.11 → Velocista Puro</div>
+          <div class="md">Incrocia il PB sui 200m con il miglior 300m per stimare il potenziale reale sui 400m, e indica su cosa lavorare per avvicinarlo.</div>
+        </div>
+        <div class="modelbox">
+          <div class="mt">Modello fisiologico 200m</div>
+          <div class="mv">SR200 1.06 → Velocista Puro</div>
+          <div class="md">Dal PB sui 100m stima il potenziale sui 200m, distinguendo il velocista puro dallo specialista di 200m.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 — FORZA & VBT -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">07 — La palestra, non più isolata dalla pista</div>
+    <h1 class="slide-h">Il carico che sollevi oggi,<br>il tempo che corri fra 3 settimane.</h1>
+    <p class="lede">L'analisi Tonnellaggio vs Performance incrocia il volume di pesistica settimanale con l'evoluzione del tempo gara — con uno slider per tarare l'offset temporale, perché gli effetti della forza sullo sprint arrivano dopo, non subito.</p>
+    <div class="steps" style="margin-top:30px;">
+      <div class="step"><div class="num">→</div><div><h3>Tonnellaggio settimanale</h3><p>Carico × serie × ripetizioni, sommato per settimana e diviso per esercizio.</p></div></div>
+      <div class="step"><div class="num">→</div><div><h3>Tempo gara sulla stessa timeline</h3><p>Il miglior tempo della settimana sulla distanza scelta, sovrapposto al grafico.</p></div></div>
+      <div class="step"><div class="num">→</div><div><h3>Offset lag regolabile</h3><p>0–8 settimane: la letteratura dice che gli effetti VBT si vedono in 3–8 settimane dal picco di carico.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 — PROGRAMMA: IL CUORE -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">08 — Il cuore del sistema</div>
+    <h1 class="slide-h">Ora la parte che cambia<br>davvero il lavoro del coach.</h1>
+    <p class="lede">Tutto quello che hai visto finora nasce da qui: il Programma. Le prossime sezioni sono una guida pratica — passo per passo — su come un allenatore scrive un ciclo di allenamento intero in una sola seduta di lavoro.</p>
+    <div class="stat-row">
+      <div class="stat"><div class="n">1</div><div class="l">volta si scrive il pattern</div></div>
+      <div class="stat"><div class="n">N</div><div class="l">cicli in cui si ripete</div></div>
+      <div class="stat"><div class="n">1</div><div class="l">click per assegnarlo a tutti</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 — IL PATTERN -->
+<section class="slide">
+  <div class="slide-inner wide">
+    <div class="eyebrow">09 — Il concetto chiave</div>
+    <h1 class="slide-h">Non il calendario.<br>Il pattern che si ripete.</h1>
+    <p class="lede">Una squadra di sprint lavora per cicli: 3 settimane di carico, 1 di scarico, ripetuto da settembre a marzo. Il Programma non ti fa scrivere ogni settimana con una data — ti fa scrivere il ciclo <b>una volta</b>, per giorno della settimana, e poi lo ripete lui, calcolando le date vere.</p>
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Programma · Costruisci</span></div>
+      <div class="appframe-body">
+        <div class="app-sub">Vista d'insieme del pattern</div>
+        <div class="overview" style="margin-bottom:18px;">
+          <div class="ov-row"><span class="ov-name">📅 Settimana 1 - Carico</span><span class="ov-dots"><span class="ov-dot pista"></span><span class="ov-dot"></span><span class="ov-dot palestra"></span><span class="ov-dot"></span><span class="ov-dot pista"></span><span class="ov-dot"></span><span class="ov-dot"></span></span></div>
+          <div class="ov-row"><span class="ov-name">📅 Settimana 2 - Carico</span><span class="ov-dots"><span class="ov-dot pista"></span><span class="ov-dot"></span><span class="ov-dot palestra"></span><span class="ov-dot"></span><span class="ov-dot pista"></span><span class="ov-dot"></span><span class="ov-dot"></span></span></div>
+          <div class="ov-row"><span class="ov-name">📅 Settimana 3 - Carico</span><span class="ov-dots"><span class="ov-dot pista"></span><span class="ov-dot"></span><span class="ov-dot palestra"></span><span class="ov-dot"></span><span class="ov-dot pista"></span><span class="ov-dot"></span><span class="ov-dot"></span></span></div>
+          <div class="ov-row"><span class="ov-name">📅 Settimana 4 - Scarico</span><span class="ov-dots"><span class="ov-dot campo"></span><span class="ov-dot"></span><span class="ov-dot palestra"></span><span class="ov-dot"></span><span class="ov-dot"></span><span class="ov-dot"></span><span class="ov-dot"></span></span></div>
+        </div>
+        <div class="pillrow">
+          <div class="wpill active">Settimana 1 - Carico</div>
+          <div class="wpill">Settimana 2 - Carico</div>
+          <div class="wpill">Settimana 3 - Carico</div>
+          <div class="wpill">Settimana 4 - Scarico</div>
+          <div class="wpill ghost">➕ Nuova settimana</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 — GUIDA: PASSO 1 -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">10 — Guida pratica · Passo 1 di 4</div>
+    <h1 class="slide-h">Costruisci le settimane.</h1>
+    <p class="lede">Nella settimana attiva (la pillola evidenziata), aggiungi un blocco alla volta: giorno della settimana, tipo sessione, descrizione, un target opzionale, a chi va assegnato.</p>
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Aggiungi un blocco a Settimana 1 - Carico</span></div>
+      <div class="appframe-body">
+        <div class="formrow">
+          <div class="field"><label>Giorno della settimana</label><div class="fake-input filled">Lunedì</div></div>
+          <div class="field"><label>Tipo sessione</label><div class="fake-input filled">Pista</div></div>
+        </div>
+        <div class="field" style="margin-bottom:12px;"><label>Descrizione</label><div class="fake-input">Attivazione + Mobilità Hs · Pliometria: pogo 80 tot + 6 over</div></div>
+        <div class="formrow">
+          <div class="field"><label>Target (opzionale)</label><div class="fake-input filled">1x30m + 2x50m + 2x60m</div></div>
+          <div class="field"><label>Assegna a</label><div class="fake-input filled">Tutta la squadra</div></div>
+        </div>
+        <div class="btnrow"><div class="btn-mock primary">➕ Aggiungi blocco</div></div>
+      </div>
+    </div>
+    <p style="font-size:13px; color:var(--text-m); margin-top:14px;">Aggiungine quanti vuoi per lo stesso giorno — uno per il riscaldamento (tipo "Campo"), uno per la corsa vera (tipo "Pista").</p>
+  </div>
+</section>
+
+<!-- 12 — GUIDA: PASSO 2 -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">11 — Guida pratica · Passo 2 di 4</div>
+    <h1 class="slide-h">Duplica e naviga,<br>non riscrivere.</h1>
+    <p class="lede">Tre bottoni fanno tutto il lavoro di costruzione — mai copiare a mano da una settimana all'altra.</p>
+    <div class="recipes" style="margin-top:26px;">
+      <div class="recipe" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <div class="ic">📋</div>
+        <div><h3 style="color:var(--app-text-h);">Duplica questa settimana</h3><p style="color:var(--app-text-b);">Copia tutti i blocchi della settimana attiva in una nuova, e ci sposta subito sopra — poi aggiusti solo le righe diverse.</p></div>
+      </div>
+      <div class="recipe" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <div class="ic">✅</div>
+        <div><h3 style="color:var(--app-text-h);">Settimana pronta → successiva</h3><p style="color:var(--app-text-b);">Questa è fatta, si passa avanti — crea la prossima vuota se non esiste ancora.</p></div>
+      </div>
+      <div class="recipe" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <div class="ic">📋</div>
+        <div><h3 style="color:var(--app-text-h);">Importa da settimana passata</h3><p style="color:var(--app-text-b);">Legge dal database l'ultima settimana davvero assegnata e la trasforma in un nuovo modello da cui ripartire.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 — GUIDA: PASSO 3 -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">12 — Guida pratica · Passo 3 di 4</div>
+    <h1 class="slide-h">Assegna: una volta,<br>ripetuto nel tempo.</h1>
+    <p class="lede">Il pattern da solo non è ancora assegnato a nessuno. Scegli da quando parte e per quanti cicli si ripete — l'app calcola le date vere e crea le assegnazioni reali per tutta la squadra.</p>
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Assegna il pattern</span></div>
+      <div class="appframe-body">
+        <div class="formrow">
+          <div class="field"><label>Data di inizio (lunedì)</label><div class="fake-input filled">08/09/2026</div></div>
+          <div class="field"><label>Ripeti per N cicli</label><div class="fake-input filled">6</div></div>
+        </div>
+        <div class="preview-line">Il pattern di 4 settimane × 6 cicli coprirà dal 08/09/2026 al 01/03/2027.</div>
+        <div class="btnrow"><div class="btn-mock">📄 PDF pattern</div><div class="btn-mock primary">✅ Assegna pattern</div></div>
+      </div>
+    </div>
+    <p style="font-size:14px; color:var(--text-m); margin-top:16px;"><b style="color:var(--text-h);">Quattro settimane scritte una volta</b> diventano sei mesi di programma reale in un click — e ricliccare "Assegna" non crea mai doppioni: ogni blocco ricorda su quali cicli è già stato scritto.</p>
+  </div>
+</section>
+
+<!-- 14 — COSA VEDE L'ATLETA -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">13 — Dall'altra parte del telefono</div>
+    <h1 class="slide-h">L'atleta apre "Oggi".<br>Il resto è già fatto.</h1>
+    <p class="lede">Se il target è "1x30m + 2x50m + 2x60m", l'atleta non sceglie la distanza da un menu: la trova già compilata, riga per riga. Deve solo inserire il tempo.</p>
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Oggi · Riccardo</span></div>
+      <div class="appframe-body">
+        <div class="blockrow"><div class="day">⬜</div><div class="info"><div class="title">Campo — Attivazione + Mobilità</div><div class="desc">Si segna da solo completo quando registri i tempi di oggi</div></div><div class="tag">Tutta la squadra</div></div>
+        <div class="blockrow"><div class="day">⬜</div><div class="info"><div class="title">Pista — Sprint</div><div class="desc">Distanza 1: 30m (precompilata) · Distanza 2: 50m · Distanza 3: 50m · Distanza 4: 60m · Distanza 5: 60m</div></div><div class="tag">Tutta la squadra</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 — GUIDA: PASSO 4 -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">14 — Guida pratica · Passo 4 di 4</div>
+    <h1 class="slide-h">Controlla, e correggi<br>se serve.</h1>
+    <p class="lede">"Stato Completamento" mostra le settimane realmente assegnate, chi ha fatto cosa. Da qui si corregge: selezione multipla, una sola conferma per eliminare tutto insieme.</p>
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Stato Completamento</span></div>
+      <div class="appframe-body">
+        <div class="app-sub">📅 Settimana 07/09 – 13/09 · Seleziona tutta</div>
+        <div class="statorow"><div class="chk-mock on"></div><span>Lunedì — Pista — Tutta la squadra</span></div>
+        <div class="statorow"><div class="chk-mock on"></div><span>Mercoledì — Palestra — Tutta la squadra</span></div>
+        <div class="statorow"><div class="chk-mock"></div><span>Venerdì — Pista — Velocista</span></div>
+        <div class="btnrow" style="margin-top:14px;"><div class="btn-mock primary">🗑️ Elimina 2 blocchi selezionati</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 — CASI PRATICI -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">15 — Domande che ti farai davvero</div>
+    <h1 class="slide-h">Casi pratici, risposte dirette.</h1>
+    <div class="recipes" style="margin-top:26px;">
+      <div class="recipe" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <div class="ic">🗓️</div>
+        <div><h3 style="color:var(--app-text-h);">Ho dimenticato un allenamento?</h3><p style="color:var(--app-text-b);">Aggiungi il blocco al pattern e riclicca "Assegna" — si inserisce solo sui cicli già coperti, senza toccare il resto.</p></div>
+      </div>
+      <div class="recipe" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <div class="ic">🗑️</div>
+        <div><h3 style="color:var(--app-text-h);">Ho sbagliato un'intera settimana?</h3><p style="color:var(--app-text-b);">"Seleziona tutta" su quella settimana in Stato Completamento, poi elimina in blocco — una sola conferma.</p></div>
+      </div>
+      <div class="recipe" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <div class="ic">📲</div>
+        <div><h3 style="color:var(--app-text-h);">Devo mandarlo su WhatsApp?</h3><p style="color:var(--app-text-b);">"PDF questa settimana" o "PDF tutto il pattern" — pronto da condividere in un file.</p></div>
+      </div>
+      <div class="recipe" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <div class="ic">🎯</div>
+        <div><h3 style="color:var(--app-text-h);">Un'eccezione per un solo atleta?</h3><p style="color:var(--app-text-b);">Il form "Assegnazione mirata" sotto il pattern: una selezione libera di atleti, per i casi "Davide fa un 300 invece del 150".</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 17 — SICUREZZA / AFFIDABILITA -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">16 — Sotto il cofano</div>
+    <h1 class="slide-h">I dati sono al sicuro,<br>anche da un errore.</h1>
+    <div class="pillars">
+      <div class="pillar"><span class="ic">🔐</span><h3>Accesso a PIN</h3><p>PIN squadra per i dati generali, PIN personale per il profilo di ogni atleta, password separata per l'amministrazione.</p></div>
+      <div class="pillar"><span class="ic">☁️</span><h3>Cloud, sempre sincronizzato</h3><p>Database Supabase: quello che scrive il coach da PC è visibile all'istante sul telefono dell'atleta.</p></div>
+      <div class="pillar"><span class="ic">♻️</span><h3>Eliminazione reversibile</h3><p>Le cancellazioni sono "soft delete": una riga sbagliata sparisce dalla vista, ma resta recuperabile, non evapora.</p></div>
+      <div class="pillar"><span class="ic">📱</span><h3>Pensata per il dispositivo giusto</h3><p>PC per l'allenatore che costruisce, telefono per l'atleta in pista, tablet per chi rilegge i grafici a casa.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 18 — PERCHE FUNZIONA -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">17 — In sintesi</div>
+    <h1 class="slide-h">Non un software in più.<br>Un lavoro in meno.</h1>
+    <p class="lede big">Il programma si scrive una volta e vive per mesi. I tempi si registrano una volta e diventano PB, trend, e previsioni. Nessun dato viene mai ricopiato a mano da un posto all'altro — e questo, più di ogni singola funzione, è il vero motivo per cui vale la pena smettere di usare Excel e WhatsApp per allenare una squadra di sprint.</p>
+  </div>
+</section>
+
+<!-- 19 — ROADMAP / CRESCITA -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">18 — Un sistema che cresce con la squadra</div>
+    <h1 class="slide-h">Costruita sui programmi veri<br>di questa squadra.</h1>
+    <p class="lede">Ogni funzione qui dentro — dal parsing dei target di corsa ai modelli fisiologici — è nata leggendo i PDF di allenamento reali di S.G. Amsicora, non da un elenco astratto di feature. È un sistema che si adatta al modo in cui questa squadra lavora davvero, non il contrario.</p>
+  </div>
+</section>
+
+<!-- 20 — CHIUSURA -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">19 — Per iniziare</div>
+    <h1 class="slide-h">Il prossimo ciclo di lavoro<br>puoi scriverlo oggi.</h1>
+    <p class="lede">Costruisci le prime settimane, assegnale, guarda la squadra completarle dal telefono. Il resto — record, trend, previsioni — comincia ad accumularsi da solo.</p>
+    <div class="cta-final">🛠️ Vai a Programma → Costruisci</div>
+    <footer class="end">S.G. Amsicora · Team Velocità — Atletica Sprint Dashboard · v3 Cloud · Powered by Supabase + Streamlit</footer>
+  </div>
+</section>
+
+<script>
+(function(){
+  var slides = Array.from(document.querySelectorAll('.slide'));
+  var rail = document.getElementById('rail');
+  var counter = document.getElementById('slideNo');
+  var current = 0;
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting) {
+        var idx = slides.indexOf(e.target);
+        current = idx;
+        counter.textContent = String(idx+1).padStart(2,'0');
+        rail.style.width = ((idx+1)/slides.length*100) + '%';
+      }
+    });
+  }, {threshold:0.5});
+  slides.forEach(function(s){ io.observe(s); });
+
+  // Modalità presentazione: frecce / spazio / PageUp-Down per avanzare,
+  // cosi' si puo' presentare dal vivo senza dover scrollare a mano.
+  document.addEventListener('keydown', function(ev){
+    var forward = ['ArrowDown','ArrowRight','PageDown',' '].indexOf(ev.key) !== -1;
+    var back = ['ArrowUp','ArrowLeft','PageUp'].indexOf(ev.key) !== -1;
+    if (!forward && !back) return;
+    ev.preventDefault();
+    var next = current + (forward ? 1 : -1);
+    next = Math.max(0, Math.min(slides.length - 1, next));
+    slides[next].scrollIntoView({behavior:'smooth', block:'start'});
+  });
+})();
+</script>
+
+</body>
+</html>

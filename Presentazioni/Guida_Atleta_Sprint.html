@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+<title>Guida Atleta Sprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#f4f5f3;
+  --panel:#ffffff;
+  --panel-2:#eef0ed;
+  --border:rgba(20,24,20,0.12);
+  --text-h:#14171a;
+  --text-b:rgba(20,24,20,0.72);
+  --text-m:rgba(20,24,20,0.48);
+  --accent:#0e7a8f;
+  --accent-glow:rgba(14,122,143,0.14);
+  --cyan:#7a8b1f;
+  --cyan-glow:rgba(122,139,31,0.18);
+  --success:#166534;
+  --app-bg:#0b0d12;
+  --app-panel:#12151c;
+  --app-border:rgba(255,255,255,0.08);
+  --app-text-h:#E8EDF5;
+  --app-text-b:rgba(255,255,255,0.72);
+  --app-text-m:rgba(255,255,255,0.42);
+  --app-yellow:#E8FF3A;
+  --app-cyan:#00D9FF;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b0d12; --panel:#12151c; --panel-2:#171b23;
+    --border:rgba(255,255,255,0.09);
+    --text-h:#E8EDF5; --text-b:rgba(255,255,255,0.72); --text-m:rgba(255,255,255,0.45);
+    --accent:#4fd6e8; --accent-glow:rgba(79,214,232,0.12);
+    --cyan:#c7de52; --cyan-glow:rgba(199,222,82,0.14);
+    --success:#4ade80;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b0d12; --panel:#12151c; --panel-2:#171b23;
+  --border:rgba(255,255,255,0.09);
+  --text-h:#E8EDF5; --text-b:rgba(255,255,255,0.72); --text-m:rgba(255,255,255,0.45);
+  --accent:#4fd6e8; --accent-glow:rgba(79,214,232,0.12);
+  --cyan:#c7de52; --cyan-glow:rgba(199,222,82,0.14);
+  --success:#4ade80;
+}
+
+*{box-sizing:border-box;}
+html{scroll-snap-type:y proximity; scroll-behavior:smooth;}
+body{
+  margin:0; background:var(--bg); color:var(--text-b);
+  font-family:'Manrope', system-ui, sans-serif; line-height:1.55;
+  overflow-x:hidden;
+}
+h1,h2,h3{text-wrap:balance;}
+p{margin:0 0 14px; max-width:64ch;}
+.mono{font-family:'DM Mono', monospace;}
+
+.eyebrow{
+  font-family:'DM Mono', monospace; font-size:11px; letter-spacing:1.8px;
+  text-transform:uppercase; color:var(--accent); font-weight:500;
+}
+.eyebrow.on-dark{color:var(--app-yellow);}
+
+/* ---- Deck chrome: progress rail + counter ---- */
+.rail{position:fixed; top:0; left:0; height:3px; width:0%; background:var(--accent); z-index:50; transition:width .25s ease;}
+.counter{
+  position:fixed; bottom:20px; right:22px; z-index:50;
+  font-family:'DM Mono', monospace; font-size:11px; letter-spacing:1px;
+  color:var(--text-m); background:var(--panel); border:1px solid var(--border);
+  padding:6px 12px; border-radius:20px; backdrop-filter:blur(6px);
+}
+.counter b{color:var(--text-h);}
+.brand-mark{
+  position:fixed; top:20px; left:22px; z-index:50;
+  font-family:'Barlow Condensed', sans-serif; font-weight:700; font-size:14px;
+  letter-spacing:1px; color:var(--text-m); text-transform:uppercase;
+}
+@media (max-width:640px){ .counter, .brand-mark{display:none;} }
+
+/* ---- Slide shell ---- */
+.slide{
+  min-height:100vh; scroll-snap-align:start;
+  display:flex; flex-direction:column; justify-content:center;
+  padding:100px 64px; position:relative;
+}
+.slide.dark{ background:var(--app-bg); color:var(--app-text-b); }
+.slide-inner{max-width:1040px; margin:0 auto; width:100%;}
+.slide-inner.wide{max-width:1180px;}
+.slide-inner.narrow{max-width:760px;}
+@media (max-width:900px){ .slide{padding:80px 26px;} }
+
+h1.slide-h{
+  font-family:'Barlow Condensed', sans-serif; font-weight:700;
+  font-size:clamp(34px,5.4vw,64px); letter-spacing:0.2px; color:var(--text-h);
+  margin:10px 0 18px; line-height:1.02;
+}
+.dark h1.slide-h{color:var(--app-text-h);}
+.lede{font-size:18px; color:var(--text-b); max-width:62ch;}
+.dark .lede{color:var(--app-text-b);}
+.lede.big{font-size:21px;}
+
+/* ---- Cover ---- */
+.cover{align-items:flex-start;}
+.cover .crest{
+  width:74px; height:74px; border-radius:50%; border:2px solid var(--app-yellow);
+  display:flex; align-items:center; justify-content:center; font-size:30px;
+  box-shadow:0 0 30px rgba(232,255,58,0.25); margin-bottom:28px;
+  background:radial-gradient(circle at 30% 30%, rgba(232,255,58,0.12), transparent 70%);
+}
+.cover .kicker{font-family:'DM Mono',monospace; font-size:12px; letter-spacing:3px; color:rgba(255,255,255,0.4); text-transform:uppercase; margin-bottom:10px;}
+.cover h1{
+  font-family:'Barlow Condensed', sans-serif; font-weight:700; color:var(--app-text-h);
+  font-size:clamp(44px,8.4vw,100px); line-height:0.98; letter-spacing:0.5px; margin:0;
+}
+.cover h1 .hl{color:var(--app-yellow);}
+.cover .sub{font-size:19px; color:var(--app-text-b); max-width:52ch; margin-top:26px;}
+.cover .foot{
+  position:absolute; bottom:56px; left:64px; right:64px;
+  display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px;
+  font-family:'DM Mono',monospace; font-size:11px; color:rgba(255,255,255,0.35); letter-spacing:0.5px;
+}
+@media (max-width:640px){ .cover .foot{left:26px; right:26px; bottom:36px;} }
+
+/* ---- Pillars / feature grid ---- */
+.pillars{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:22px; margin-top:36px;}
+.pillar{background:var(--panel-2); border:1px solid var(--border); border-radius:14px; padding:26px 24px;}
+.pillar .ic{font-size:26px; margin-bottom:14px; display:block;}
+.pillar h3{font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:20px; color:var(--text-h); margin:0 0 8px; text-transform:uppercase; letter-spacing:0.4px;}
+.pillar p{font-size:14px; margin:0; color:var(--text-b);}
+
+.kpi-mini-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px;}
+.kpi-mini{background:rgba(255,255,255,0.03); border:1px solid var(--app-border); border-radius:10px; padding:14px;}
+.kpi-mini .t{font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.6px; text-transform:uppercase; color:var(--app-text-m); margin-bottom:6px;}
+.kpi-mini .v{font-family:'Bebas Neue',sans-serif; font-size:26px; color:var(--app-text-h); line-height:1;}
+.kpi-mini .v.pos{color:var(--app-yellow);}
+
+.pbtable{width:100%; border-collapse:collapse; font-family:'DM Mono',monospace; font-size:12px; font-variant-numeric:tabular-nums;}
+.pbtable th{text-align:left; color:var(--app-text-m); font-weight:500; padding:9px 10px; border-bottom:1px solid var(--app-border); text-transform:uppercase; font-size:9.5px; letter-spacing:0.6px;}
+.pbtable td{padding:9px 10px; border-bottom:1px solid var(--app-border); color:var(--app-text-b);}
+.pbtable tr:last-child td{border-bottom:none;}
+.pbtable td.name{color:var(--app-text-h); font-family:'Manrope',sans-serif; font-weight:500;}
+.pbtable td.best{color:#14171a; background:var(--app-cyan); border-radius:5px; font-weight:600;}
+
+.readonly-badge{display:inline-flex; align-items:center; gap:6px; font-family:'DM Mono',monospace; font-size:10.5px; letter-spacing:0.8px; text-transform:uppercase; color:var(--app-text-m); background:rgba(255,255,255,0.04); border:1px solid var(--app-border); padding:5px 11px; border-radius:20px; margin-bottom:14px;}
+
+.chart-legend{display:flex; gap:18px; margin-top:12px; font-family:'DM Mono',monospace; font-size:10.5px; color:var(--app-text-m);}
+.chart-legend .item{display:inline-flex; align-items:center; gap:6px;}
+.chart-legend .sw{width:14px; height:2px; background:var(--app-cyan); display:inline-block;}
+.chart-legend .sw.dash{background:none; border-top:2px dashed rgba(255,255,255,0.35);}
+
+/* ---- App-frame mockup (shared component language) ---- */
+.appframe{
+  background:var(--app-bg); border:1px solid var(--app-border); border-radius:14px;
+  overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,0.6);
+}
+.dark .appframe{box-shadow:0 30px 80px -30px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.04);}
+.appframe.phone{max-width:360px; margin:28px auto 0;}
+.appframe-top{display:flex; align-items:center; gap:8px; padding:10px 16px; border-bottom:1px solid var(--app-border); background:rgba(255,255,255,0.02);}
+.dot{width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,0.14);}
+.appframe-label{font-family:'DM Mono',monospace; font-size:11px; color:var(--app-text-m); letter-spacing:0.5px; margin-left:4px;}
+.appframe-body{padding:22px 22px 26px;}
+.app-sub{font-family:'DM Mono',monospace; font-size:10.5px; color:var(--app-text-m); letter-spacing:1px; text-transform:uppercase; margin-bottom:16px;}
+
+.alertline{display:flex; gap:10px; align-items:flex-start; padding:12px 0; border-top:1px solid var(--app-border);}
+.alertline:first-child{border-top:none;}
+.alertline .ic{font-size:17px; margin-top:1px;}
+.alertline .tt{font-family:'DM Mono',monospace; font-size:9.5px; letter-spacing:0.6px; text-transform:uppercase; color:var(--app-text-m); margin-bottom:3px;}
+.alertline .dd{font-size:12px; color:var(--app-text-b);}
+
+.pillrow{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+.wpill{font-family:'DM Mono',monospace; font-size:11.5px; padding:8px 14px; border-radius:8px; border:1px solid var(--app-border); background:rgba(255,255,255,0.03); color:var(--app-text-b);}
+.wpill.ghost{color:var(--app-text-m); border-style:dashed;}
+.wpill.active{background:var(--app-yellow); color:#14171a; border-color:var(--app-yellow); font-weight:600;}
+.wpill.big{font-size:14px; padding:12px 18px;}
+
+.blockrow{display:grid; grid-template-columns:34px 1fr auto; gap:14px; padding:11px 0; border-bottom:1px solid var(--app-border); align-items:start;}
+.blockrow:last-child{border-bottom:none;}
+.blockrow .chk{font-size:16px; padding-top:1px;}
+.blockrow .info .title{font-size:12.5px; color:var(--app-text-h); font-weight:500; margin-bottom:2px;}
+.blockrow .info .desc{font-size:11.5px; color:var(--app-text-m); line-height:1.5;}
+.blockrow .tag{font-family:'DM Mono',monospace; font-size:10px; padding:3px 8px; border-radius:5px; background:rgba(0,217,255,0.1); color:var(--app-cyan); height:fit-content; white-space:nowrap;}
+
+.formrow{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;}
+.field{display:flex; flex-direction:column; gap:5px;}
+.field label{font-family:'DM Mono',monospace; font-size:9.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--app-text-m);}
+.fake-input{background:rgba(255,255,255,0.04); border:1px solid var(--app-border); border-radius:6px; padding:8px 10px; font-family:'DM Mono',monospace; font-size:11.5px; color:var(--app-text-b);}
+.fake-input.filled{color:var(--app-yellow); background:rgba(232,255,58,0.06); border-color:rgba(232,255,58,0.22);}
+.btn-mock{font-family:'DM Mono',monospace; font-size:11.5px; padding:9px 14px; border-radius:7px; text-align:center; border:1px solid var(--app-border); color:var(--app-text-b); background:rgba(255,255,255,0.03);}
+.btn-mock.primary{background:var(--app-yellow); color:#14171a; border-color:var(--app-yellow); font-weight:600;}
+.btnrow{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;}
+.btnrow .btn-mock{flex:1; min-width:120px;}
+.preview-line{font-family:'DM Mono',monospace; font-size:11.5px; color:var(--app-cyan); background:rgba(0,217,255,0.06); border:1px solid rgba(0,217,255,0.18); border-radius:7px; padding:9px 12px; margin:14px 0;}
+
+.modelbox{background:rgba(255,255,255,0.03); border:1px solid var(--app-border); border-radius:10px; padding:16px; margin-bottom:12px;}
+.modelbox .mt{font-family:'DM Mono',monospace; font-size:10px; letter-spacing:0.8px; text-transform:uppercase; color:var(--app-cyan); margin-bottom:6px;}
+.modelbox .mv{font-family:'Bebas Neue',sans-serif; font-size:26px; color:var(--app-text-h);}
+.modelbox .md{font-size:11.5px; color:var(--app-text-m); margin-top:4px;}
+
+/* ---- Recipe / step cards (light slides) ---- */
+.recipes{display:grid; gap:14px; margin-top:22px;}
+.recipe{display:grid; grid-template-columns:26px 1fr; gap:14px; padding:16px 18px; background:var(--panel-2); border:1px solid var(--border); border-radius:10px;}
+.recipe .ic{font-size:17px; line-height:1.3;}
+.recipe h3{font-family:'Barlow Condensed',sans-serif; margin:0 0 5px; font-size:15.5px; color:var(--text-h); font-weight:600;}
+.recipe p{font-size:13.5px; margin:0; color:var(--text-b);}
+
+.quote-bar{border-left:3px solid var(--accent); padding:4px 0 4px 20px; margin-top:30px; font-family:'Barlow Condensed',sans-serif; font-size:22px; color:var(--text-h); font-weight:500;}
+.dark .quote-bar{border-left-color:var(--app-yellow); color:var(--app-text-h);}
+
+.cta-final{
+  display:inline-flex; align-items:center; gap:12px; margin-top:30px;
+  background:var(--app-yellow); color:#14171a; font-weight:700;
+  padding:16px 28px; border-radius:10px; font-family:'Barlow Condensed',sans-serif;
+  font-size:19px; letter-spacing:0.3px;
+}
+
+footer.end{
+  font-family:'DM Mono',monospace; font-size:11px; color:var(--app-text-m);
+  margin-top:40px; letter-spacing:0.4px;
+}
+
+@media (max-width:640px){
+  .formrow{grid-template-columns:1fr;}
+}
+
+
+/* ---- Guida pratica: numeri, step numerati, callout, due colonne ---- */
+.numbers{display:flex; gap:46px; flex-wrap:wrap;}
+.num .n{font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:clamp(44px,7vw,76px); line-height:0.9; color:var(--app-yellow);}
+.num .l{font-family:'DM Mono',monospace; font-size:11px; letter-spacing:0.8px; color:var(--app-text-m); margin-top:8px; max-width:22ch;}
+
+.steps{counter-reset:gstep; display:grid; gap:12px; margin-top:24px;}
+.step{
+  counter-increment:gstep;
+  display:grid; grid-template-columns:34px 1fr; gap:16px; align-items:start;
+  padding:16px 18px; background:var(--panel-2); border:1px solid var(--border); border-radius:12px;
+}
+.dark .step{background:rgba(255,255,255,0.03); border-color:var(--app-border);}
+.step::before{
+  content:counter(gstep);
+  font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:22px; line-height:1.05;
+  color:var(--accent); text-align:center;
+}
+.dark .step::before{color:var(--app-yellow);}
+.step h3{font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:17px; margin:0 0 4px; color:var(--text-h);}
+.dark .step h3{color:var(--app-text-h);}
+.step p{font-size:13.5px; margin:0; color:var(--text-b);}
+.dark .step p{color:var(--app-text-b);}
+.steps.compact{gap:9px; margin-top:14px;}
+.steps.compact .step{padding:12px 14px; grid-template-columns:28px 1fr; gap:12px;}
+.steps.compact .step::before{font-size:18px;}
+.steps.compact h3{font-size:15px;}
+.steps.compact p{font-size:12.5px;}
+
+.callout{border-left:3px solid var(--accent); background:var(--panel-2); border-radius:0 10px 10px 0; padding:16px 20px;}
+.dark .callout{background:rgba(255,255,255,0.03); border-left-color:var(--app-yellow);}
+.callout.warn{border-left-color:#c2410c;}
+.dark .callout.warn{border-left-color:#FFB347;}
+.callout .ct{font-family:'DM Mono',monospace; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--accent); margin-bottom:6px; font-weight:500;}
+.dark .callout .ct{color:var(--app-yellow);}
+.callout.warn .ct{color:#c2410c;}
+.dark .callout.warn .ct{color:#FFB347;}
+.callout .cd{font-size:13.5px; color:var(--text-b);}
+.dark .callout .cd{color:var(--app-text-b);}
+
+.two-col{display:grid; grid-template-columns:1fr 1fr; gap:26px;}
+@media (max-width:860px){ .two-col{grid-template-columns:1fr;} }
+.how-h{font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:20px; color:var(--text-h); text-transform:uppercase; letter-spacing:0.6px; padding-bottom:10px; border-bottom:2px solid var(--accent);}
+.dark .how-h{color:var(--app-text-h); border-bottom-color:var(--app-yellow);}
+
+/* ---- Export to PDF: Stampa → Salva come PDF, una slide per pagina ---- */
+@media print{
+  .rail, .counter, .brand-mark{display:none !important;}
+  html{scroll-snap-type:none;}
+  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+  /* height fissa a 100vh tagliava via il contenuto delle slide piu' dense
+     senza dirlo: in PDF sparivano le ultime righe. Con min-height la
+     slide occupa comunque una pagina intera, ma se e' piu' alta prosegue
+     sulla successiva invece di perdere pezzi. */
+  .slide{
+    min-height:100vh; height:auto; padding:56px 54px;
+    page-break-after:always; break-after:page;
+  }
+  .step, .recipe, .callout, .pillar, .appframe{ break-inside:avoid; page-break-inside:avoid; }
+  .slide:last-child{page-break-after:auto; break-after:auto;}
+  .appframe{box-shadow:none;}
+}
+</style>
+
+<div class="rail" id="rail"></div>
+<div class="brand-mark">Guida Atleta · Amsicora</div>
+<div class="counter"><b id="slideNo">01</b> / <span id="slideTot">16</span></div>
+
+<!-- 1 — COVER -->
+<section class="slide dark cover">
+  <div class="slide-inner">
+    <div class="crest">⏱️</div>
+    <div class="kicker">S.G. Amsicora · Team Velocità</div>
+    <h1>LA TUA PISTA<br><span class="hl">NEL TELEFONO</span></h1>
+    <p class="sub">Il programma della settimana, i tempi che corri, i tuoi record personali. Tutto in un posto solo, pensato per essere usato in due tocchi, direttamente a bordo pista.</p>
+  </div>
+  <div class="foot">
+    <span>GUIDA ATLETA</span>
+    <span>APRI · ALLENATI · REGISTRA</span>
+  </div>
+</section>
+
+<!-- 2 — PERCHE -->
+<section class="slide">
+  <div class="slide-inner narrow">
+    <div class="eyebrow">01 — Perché usarla</div>
+    <h1 class="slide-h">Il tuo PB non deve vivere<br>sul quaderno di qualcun altro.</h1>
+    <p class="lede big">Quante volte hai chiesto "qual era il mio tempo sui 60 a marzo?" e nessuno lo sapeva con certezza? Ogni tempo che registri resta tuo, per sempre, consultabile in un secondo — senza dover chiedere al coach di andare a cercarlo.</p>
+    <div class="quote-bar">Ogni volta che corri stai costruendo la tua storia. Ora puoi rileggerla quando vuoi.</div>
+  </div>
+</section>
+
+<!-- 3 — LE 3 MOSSE -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">02 — Come funziona, in breve</div>
+    <h1 class="slide-h">Apri. Ti alleni. Registri.<br>Tutto qui.</h1>
+    <p class="lede">Non c'è altro da imparare oltre a questi tre passaggi — il resto (record, grafici, previsioni) si costruisce da solo, allenamento dopo allenamento.</p>
+    <div class="pillars" style="margin-top:40px;">
+      <div class="pillar" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <span class="ic">📱</span>
+        <h3 style="color:var(--app-text-h);">Apri "Oggi"</h3>
+        <p style="color:var(--app-text-b);">Trovi il blocco di allenamento del giorno già pronto — niente da cercare tra settimane vecchie.</p>
+      </div>
+      <div class="pillar" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <span class="ic">🏃</span>
+        <h3 style="color:var(--app-text-h);">Ti alleni</h3>
+        <p style="color:var(--app-text-b);">Segui le distanze e i target scritti dal tuo allenatore, in pista o in palestra.</p>
+      </div>
+      <div class="pillar" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <span class="ic">⏱️</span>
+        <h3 style="color:var(--app-text-h);">Registri il tempo</h3>
+        <p style="color:var(--app-text-b);">Due tocchi, e il tuo profilo — PB, storico, grafici — si aggiorna da solo.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 — OGGI -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">03 — La schermata che apri ogni giorno</div>
+    <h1 class="slide-h">"Oggi" è la prima cosa che vedi.</h1>
+    <p class="lede">Ogni volta che entri, trovi solo l'allenamento di oggi — quello vero, scritto dal tuo allenatore per la squadra o apposta per te.</p>
+    <div class="appframe phone">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Oggi · Il tuo allenamento</span></div>
+      <div class="appframe-body">
+        <div class="blockrow"><div class="chk">⬜</div><div class="info"><div class="title">Campo — Attivazione + Mobilità</div><div class="desc">Si segna da solo completo quando registri i tempi di oggi</div></div></div>
+        <div class="blockrow"><div class="chk">⬜</div><div class="info"><div class="title">Pista — Sprint</div><div class="desc">30m · 50m · 50m · 60m · 60m — target già scritti, tu inserisci il tempo</div></div><div class="tag">Da fare</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 — REGISTRARE UN TEMPO -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">04 — Il gesto che ripeterai più spesso</div>
+    <h1 class="slide-h">Registrare un tempo:<br>due tocchi, non un modulo.</h1>
+    <p class="lede">Distanza e tempo. Basta questo — il resto lo calcola l'app: se hai battuto il tuo record, lo sa prima ancora che tu abbia ripreso fiato.</p>
+    <div class="appframe phone">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Registra tempo</span></div>
+      <div class="appframe-body">
+        <div class="formrow">
+          <div class="field"><label>Distanza</label><div class="fake-input filled">60m</div></div>
+          <div class="field"><label>Tempo</label><div class="fake-input filled">7.42</div></div>
+        </div>
+        <div class="btnrow"><div class="btn-mock primary">✅ Salva tempo</div></div>
+        <div class="preview-line">Nuovo record personale sui 60m — battuto il tuo 7.51 di gennaio.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 — CHECK-IN -->
+<section class="slide">
+  <div class="slide-inner narrow">
+    <div class="eyebrow">05 — Un tocco in più, utile al tuo coach</div>
+    <h1 class="slide-h">Come stai oggi?<br>Diglielo con un'emoji.</h1>
+    <p class="lede">Appena apri "Oggi" puoi segnalare come ti senti — energia, sonno, un fastidio muscolare. Il tuo allenatore lo vede subito, senza doverti fermare a chiedertelo, e tu lo dici prima della seduta, quando serve.</p>
+    <div class="appframe phone">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Check-in di oggi</span></div>
+      <div class="appframe-body">
+        <div class="app-sub">Come ti senti oggi?</div>
+        <div class="pillrow">
+          <div class="wpill big">😴 Stanco</div>
+          <div class="wpill big">😐 Normale</div>
+          <div class="wpill big active">💪 Carico</div>
+          <div class="wpill big">🔥 In forma</div>
+          <div class="wpill big">😩 Pesante</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 — HOME SQUADRA -->
+<section class="slide">
+  <div class="slide-inner wide">
+    <div class="eyebrow">06 — Non solo il tuo allenamento</div>
+    <h1 class="slide-h">Anche tu vedi come sta<br>andando la squadra.</h1>
+    <p class="lede">"Home Squadra" non è riservata all'allenatore: apre anche a te, con i numeri belli da festeggiare — chi ha appena fatto un PB, quanto volume ha corso la squadra, chi si allena con più costanza.</p>
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Home Squadra</span></div>
+      <div class="appframe-body">
+        <div class="kpi-mini-grid" style="margin-bottom:18px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
+          <div class="kpi-mini"><div class="t">Atleti in PB</div><div class="v pos">3</div></div>
+          <div class="kpi-mini"><div class="t">Volume Squadra</div><div class="v">368 km</div></div>
+        </div>
+        <div class="app-sub">Alert & Notifiche</div>
+        <div class="alertline"><span class="ic">🏆</span><div><div class="tt">Record infranti</div><div class="dd">Marco, Giulia e altri hanno battuto il PB in questo periodo. 🔥</div></div></div>
+        <div class="alertline"><span class="ic">🔥</span><div><div class="tt">Più costanti (7 gg)</div><div class="dd">Chi si è allenato più giorni questa settimana — una classifica di impegno, non di prestazione.</div></div></div>
+        <div class="alertline"><span class="ic">🎉</span><div><div class="tt">Prossimi compleanni</div><div class="dd">Un compleanno tra 3 giorni.</div></div></div>
+      </div>
+    </div>
+    <p style="font-size:13px; color:var(--text-m); margin-top:14px;">Quello che non vedi qui: gli alert operativi (chi è fermo da giorni, i trend in calo) — quelli restano riservati al tuo allenatore.</p>
+  </div>
+</section>
+
+<!-- 7 — CLASSIFICA PB SQUADRA -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">07 — Sì, vedi anche i tempi dei compagni</div>
+    <h1 class="slide-h">Una classifica vera,<br>non solo la tua.</h1>
+    <p class="lede">"Classifica PB Squadra" mette tutti gli atleti fianco a fianco, distanza per distanza — il miglior tempo di ogni colonna è evidenziato. Ti confronti, ti spingi, sai dove sei.</p>
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Classifica PB Squadra</span></div>
+      <div class="appframe-body">
+        <table class="pbtable">
+          <thead><tr><th>Atleta</th><th>60m</th><th>100m</th><th>200m</th></tr></thead>
+          <tbody>
+            <tr><td class="name">Marco R.</td><td class="best">7.28s</td><td>11.42s</td><td>23.10s</td></tr>
+            <tr><td class="name">Tu</td><td>7.51s</td><td class="best">11.20s</td><td>22.94s</td></tr>
+            <tr><td class="name">Giulia F.</td><td>7.60s</td><td>11.55s</td><td class="best">22.80s</td></tr>
+            <tr><td class="name">Davide P.</td><td>7.74s</td><td>11.68s</td><td>23.55s</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 — PROFILO DI UN COMPAGNO -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">08 — Cosa puoi fare sul profilo di un compagno</div>
+    <h1 class="slide-h">Puoi guardare.<br>Non puoi toccare.</h1>
+    <p class="lede">Da Home Squadra o dalla classifica, tocca il nome di un compagno per aprire il suo profilo: PB, storico completo, grafici — tutto visibile, esattamente come il tuo. L'unica differenza è cosa puoi fare con quei dati.</p>
+    <div class="appframe phone">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Profilo · Marco R.</span></div>
+      <div class="appframe-body">
+        <div class="readonly-badge">🔒 Sola lettura</div>
+        <div class="blockrow"><div class="chk">🏆</div><div class="info"><div class="title">Classifica PB</div><div class="desc">Visibile</div></div></div>
+        <div class="blockrow"><div class="chk">📖</div><div class="info"><div class="title">Storico completo</div><div class="desc">Visibile</div></div></div>
+        <div class="blockrow"><div class="chk">✏️</div><div class="info"><div class="title">Modificare o cancellare un tempo</div><div class="desc">Non disponibile — resta all'allenatore o all'atleta stesso</div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 — IL TUO PROFILO -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">09 — La tua scheda personale</div>
+    <h1 class="slide-h">Il tuo profilo: PB, storico,<br>e come stai migliorando.</h1>
+    <p class="lede">Ogni prova che registri finisce qui — organizzata, non sparsa tra screenshot e messaggi vecchi.</p>
+    <div class="pillars">
+      <div class="pillar" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);"><span class="ic">🏆</span><h3 style="color:var(--app-text-h);">I tuoi PB</h3><p style="color:var(--app-text-b);">Il tuo miglior tempo per ogni distanza, aggiornato in automatico a ogni prova.</p></div>
+      <div class="pillar" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);"><span class="ic">📖</span><h3 style="color:var(--app-text-h);">Storico completo</h3><p style="color:var(--app-text-b);">Ogni tempo che hai mai corso, raggruppato per distanza — niente si perde.</p></div>
+      <div class="pillar" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);"><span class="ic">📈</span><h3 style="color:var(--app-text-h);">Il tuo trend</h3><p style="color:var(--app-text-b);">Un grafico per distanza, per vedere la tendenza vera — non solo il singolo tempo.</p></div>
+      <div class="pillar" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);"><span class="ic">🔮</span><h3 style="color:var(--app-text-h);">Previsioni gara</h3><p style="color:var(--app-text-b);">Cosa potresti correre, secondo i tuoi numeri di oggi.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 — IL TUO TREND -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">10 — Il grafico che racconta i progressi</div>
+    <h1 class="slide-h">Non un tempo isolato.<br>Una linea che scende.</h1>
+    <p class="lede">Ogni distanza ha il suo grafico, con una media mobile su 3 sessioni per leggere la tendenza vera — non il rumore di un giorno storto.</p>
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Trend · 60m</span></div>
+      <div class="appframe-body">
+        <svg viewBox="0 0 600 210" style="width:100%; height:auto; display:block;" role="img" aria-label="Sei sessioni sui 60 metri: la linea dei tempi scende da 7.62 a 7.28, il personal best e' il punto piu' basso">
+          <line x1="60" y1="30"  x2="580" y2="30"  stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+          <line x1="60" y1="56"  x2="580" y2="56"  stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+          <line x1="60" y1="82"  x2="580" y2="82"  stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+          <line x1="60" y1="108" x2="580" y2="108" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+          <line x1="60" y1="134" x2="580" y2="134" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+          <line x1="60" y1="165" x2="580" y2="165" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>
+          <text x="52" y="34"  text-anchor="end" font-family="DM Mono, monospace" font-size="9.5" fill="rgba(255,255,255,0.42)">7.70</text>
+          <text x="52" y="60"  text-anchor="end" font-family="DM Mono, monospace" font-size="9.5" fill="rgba(255,255,255,0.42)">7.60</text>
+          <text x="52" y="86"  text-anchor="end" font-family="DM Mono, monospace" font-size="9.5" fill="rgba(255,255,255,0.42)">7.50</text>
+          <text x="52" y="112" text-anchor="end" font-family="DM Mono, monospace" font-size="9.5" fill="rgba(255,255,255,0.42)">7.40</text>
+          <text x="52" y="138" text-anchor="end" font-family="DM Mono, monospace" font-size="9.5" fill="rgba(255,255,255,0.42)">7.30</text>
+          <polyline points="70,51 168,61 266,53 364,95 462,113 560,139" fill="none" stroke="var(--app-cyan)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="70,51 168,56 266,55 364,71 462,87 560,116" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <circle cx="70"  cy="51"  r="4" fill="var(--app-cyan)"/>
+          <circle cx="168" cy="61"  r="4" fill="var(--app-cyan)"/>
+          <circle cx="266" cy="53"  r="4" fill="var(--app-cyan)"/>
+          <circle cx="364" cy="95"  r="4" fill="var(--app-cyan)"/>
+          <circle cx="462" cy="113" r="4" fill="var(--app-cyan)"/>
+          <circle cx="560" cy="139" r="6.5" fill="var(--app-yellow)"/>
+          <text x="548" y="158" text-anchor="end" font-family="DM Mono, monospace" font-size="13" fill="#E8FF3A" font-weight="600">7.28s · PB</text>
+          <text x="70"  y="185" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="rgba(255,255,255,0.42)">S1</text>
+          <text x="168" y="185" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="rgba(255,255,255,0.42)">S2</text>
+          <text x="266" y="185" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="rgba(255,255,255,0.42)">S3</text>
+          <text x="364" y="185" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="rgba(255,255,255,0.42)">S4</text>
+          <text x="462" y="185" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="rgba(255,255,255,0.42)">S5</text>
+          <text x="560" y="185" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="rgba(255,255,255,0.42)">S6</text>
+          <text x="60" y="204" font-family="DM Mono, monospace" font-size="9.5" fill="rgba(255,255,255,0.32)">secondi · più in basso = più veloce</text>
+        </svg>
+        <div class="chart-legend">
+          <span class="item"><span class="sw"></span>Tempo gara</span>
+          <span class="item"><span class="sw dash"></span>Media mobile (3 sessioni)</span>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:13px; color:var(--app-text-m); margin-top:14px;">L'asse verticale sono i secondi: <strong>più in basso vuol dire più veloce</strong>. Per questo il tuo PB è il punto più basso del grafico, e una linea che scende è la linea che vuoi vedere.</p>
+  </div>
+</section>
+
+<!-- 11 — PREVISIONI GARA -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">11 — Scopri il tuo potenziale</div>
+    <h1 class="slide-h">Cosa potresti correre,<br>secondo i tuoi numeri.</h1>
+    <p class="lede">A partire dai tuoi PB, l'app calcola stime reali — la stessa logica che usano i tecnici federali per stimare il potenziale di un velocista. Non è magia, è matematica sui tuoi dati.</p>
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Previsioni Gara</span></div>
+      <div class="appframe-body">
+        <div class="modelbox">
+          <div class="mt">Obiettivo gara → split di allenamento</div>
+          <div class="mv">Tempo target → passaggi 30/60/80m</div>
+          <div class="md">Dato un tempo obiettivo, calcola a ritroso i passaggi da raggiungere in allenamento per arrivarci.</div>
+        </div>
+        <div class="modelbox">
+          <div class="mt">Il tuo profilo fisiologico</div>
+          <div class="mv">Dai tuoi PB → il tuo potenziale</div>
+          <div class="md">Incrocia i tuoi tempi su più distanze per capire su cosa lavorare per avvicinarti al tuo limite.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ SEZIONE GUIDA PRATICA (12–20) ══════════ -->
+
+<!-- 12 — PIVOT GUIDA -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">12 — Da qui in poi, la guida</div>
+    <h1 class="slide-h">Fin qui cosa fa.<br>Da adesso, come si fa.</h1>
+    <p class="lede big">Le prossime schermate sono istruzioni, non presentazione. Entrare la prima volta, mettertela sul telefono, cambiare il PIN, leggere i grafici senza sbagliare interpretazione. Nessun passaggio dato per scontato.</p>
+    <div class="numbers" style="margin-top:38px;">
+      <div class="num"><div class="n">8</div><div class="l">cose da sapere</div></div>
+      <div class="num"><div class="n">2</div><div class="l">minuti per la prima volta</div></div>
+      <div class="num"><div class="n">0</div><div class="l">cose da installare</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 — LOGIN -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">13 — Guida · Entrare</div>
+    <h1 class="slide-h">Una chiave sola:<br>il tuo PIN.</h1>
+    <p class="lede">Non ci sono account da creare, né email da confermare, né password da inventare. Apri il link, scrivi il tuo PIN, sei dentro. Il PIN te lo dà il tuo allenatore la prima volta.</p>
+
+    <div class="appframe" style="margin-top:26px; max-width:520px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Accedi</span></div>
+      <div class="appframe-body" style="text-align:center;">
+        <div class="app-sub" style="margin-bottom:18px;">Il tuo PIN personale · oppure la password dell'allenatore</div>
+        <div class="fake-input filled" style="text-align:center; letter-spacing:6px; margin-bottom:12px;">••••</div>
+        <div class="btn-mock primary">🔐 Accedi</div>
+      </div>
+    </div>
+
+    <div class="steps" style="margin-top:30px;">
+      <div class="step"><div><h3>Apri il link della squadra</h3><p>Sempre lo stesso, salvalo tra i preferiti. Nella prossima schermata vedi come trasformarlo in un'icona sul telefono.</p></div></div>
+      <div class="step"><div><h3>Scrivi il PIN che ti ha dato l'allenatore</h3><p>È provvisorio: serve solo a farti entrare la prima volta. Subito dopo puoi cambiarlo con uno tuo.</p></div></div>
+      <div class="step"><div><h3>Sei dentro, su "Oggi"</h3><p>L'app ti porta direttamente all'allenamento del giorno. Non devi cercare nulla.</p></div></div>
+    </div>
+
+    <div class="callout warn" style="margin-top:26px;">
+      <div class="ct">Se leggi "Codice errato"</div>
+      <div class="cd">Il PIN è sbagliato: richiedilo all'allenatore. Se invece leggi <strong>"Il tuo profilo è sospeso"</strong> il PIN è giusto, ma il tuo profilo è stato messo in pausa — solo l'allenatore può riattivarlo.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 — IL TUO PIN -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">14 — Guida · Il tuo PIN</div>
+    <h1 class="slide-h">Quello che ti ha dato il coach<br>non deve restare per sempre.</h1>
+    <p class="lede">Il PIN provvisorio l'ha scelto qualcun altro e probabilmente lo sa più di una persona. Cambialo con uno tuo: ci vogliono dieci secondi e da quel momento sei l'unico ad avere la chiave del tuo profilo.</p>
+
+    <div class="appframe" style="margin-top:26px; max-width:560px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Il Mio Profilo</span></div>
+      <div class="appframe-body">
+        <div class="app-sub">🔐 Il tuo PIN personale</div>
+        <p style="font-size:12px; color:var(--app-text-m); margin-bottom:14px;">Scegline uno nuovo quando vuoi — vale dal prossimo accesso.</p>
+        <div class="formrow">
+          <div class="field"><label>Scegli un PIN</label><div class="fake-input">••••••</div></div>
+          <div class="field"><label>Conferma PIN</label><div class="fake-input">••••••</div></div>
+        </div>
+        <div class="btn-mock primary">🔐 Cambia PIN Personale</div>
+      </div>
+    </div>
+
+    <div class="steps" style="margin-top:30px;">
+      <div class="step"><div><h3>Menu → 👤 Il Mio Profilo</h3><p>Scendi fino al riquadro "Il tuo PIN personale". Compare solo sul <em>tuo</em> profilo: su quello di un compagno non lo vedi, e non potresti cambiarglielo.</p></div></div>
+      <div class="step"><div><h3>Scrivilo due volte uguale</h3><p>Almeno 4 caratteri. Se i due campi non coincidono l'app te lo dice e non salva niente.</p></div></div>
+      <div class="step"><div><h3>Non può essere quello di un compagno</h3><p>Se scegli un PIN già in uso l'app lo rifiuta. Non è un capriccio: due PIN uguali vorrebbero dire entrare uno nel profilo dell'altro.</p></div></div>
+    </div>
+
+    <div class="callout" style="margin-top:26px;">
+      <div class="ct">Trattalo come il PIN del bancomat</div>
+      <div class="cd">Chi ha il tuo PIN può registrare tempi a nome tuo, correggere i tuoi e modificare i tuoi dati. Se lo perdi non c'è recupero automatico: chiedi all'allenatore, che può rileggerlo e riassegnartelo.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 — INSTALLARE SUL TELEFONO -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">15 — Guida · Sul telefono</div>
+    <h1 class="slide-h">Non è sull'App Store.<br>Ce la metti tu, in un minuto.</h1>
+    <p class="lede">L'app vive su un indirizzo web, non in un negozio di applicazioni. Ma il telefono sa trasformare un indirizzo in un'icona vera sulla schermata home: stessa faccia di un'app normale, si apre a schermo intero senza la barra del browser, e resti collegato senza rifare il login ogni volta.</p>
+
+    <div class="two-col" style="margin-top:30px;">
+      <div class="how">
+        <div class="how-h">📱 iPhone · iPad</div>
+        <div class="steps compact">
+          <div class="step"><div><h3>Apri il link con Safari</h3><p>Non con Chrome: su iPhone solo Safari sa aggiungere alla schermata home.</p></div></div>
+          <div class="step"><div><h3>Tocca Condividi</h3><p>Il quadrato con la freccia che esce verso l'alto, in basso al centro.</p></div></div>
+          <div class="step"><div><h3>Scorri e tocca "Aggiungi a Home"</h3><p>È più in basso nell'elenco, oltre le icone di condivisione.</p></div></div>
+          <div class="step"><div><h3>Tocca "Aggiungi" in alto a destra</h3><p>L'icona compare sulla schermata home come tutte le altre.</p></div></div>
+        </div>
+      </div>
+      <div class="how">
+        <div class="how-h">🤖 Android</div>
+        <div class="steps compact">
+          <div class="step"><div><h3>Apri il link con Chrome</h3><p>Va bene anche il browser di sistema, i passaggi sono gli stessi.</p></div></div>
+          <div class="step"><div><h3>Tocca i tre puntini in alto a destra</h3><p>Il menu del browser.</p></div></div>
+          <div class="step"><div><h3>"Installa app" o "Aggiungi a schermata Home"</h3><p>La voce cambia nome secondo la versione: fanno la stessa cosa.</p></div></div>
+          <div class="step"><div><h3>Conferma</h3><p>Fatto: la trovi tra le tue app.</p></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:26px;">
+      <div class="ct">Il link della squadra</div>
+      <div class="cd"><span class="mono" style="color:var(--accent);">https://IL-LINK-DELLA-TUA-APP.streamlit.app</span> — chiedilo all'allenatore se non ce l'hai. È sempre lo stesso, non cambia mai.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 — L'APP CHE DORME -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">16 — Guida · Se la trovi spenta</div>
+    <h1 class="slide-h">Dopo 12 ore che nessuno la apre,<br>l'app si addormenta.</h1>
+    <p class="lede">Non è rotta e non hai perso niente. Il servizio che la ospita mette in pausa le app che non riceve visite da un po', per non tenere acceso un motore che nessuno sta usando. Si risveglia con un tocco.</p>
+
+    <div class="appframe" style="margin-top:26px; max-width:540px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Zzzz · App in pausa</span></div>
+      <div class="appframe-body" style="text-align:center; padding:34px 22px 38px;">
+        <div style="font-size:34px; margin-bottom:14px;">😴</div>
+        <p style="font-size:13px; color:var(--app-text-b); margin-bottom:20px;">This app has gone to sleep due to inactivity.</p>
+        <div class="btn-mock primary" style="display:inline-block; padding:11px 22px;">Yes, get this app back up!</div>
+      </div>
+    </div>
+
+    <div class="steps" style="margin-top:30px;">
+      <div class="step"><div><h3>Tocca il bottone e aspetta</h3><p>Ci mette da mezzo minuto a un paio di minuti. Non ricaricare la pagina di continuo: sta già partendo.</p></div></div>
+      <div class="step"><div><h3>Può farlo chiunque, non solo l'allenatore</h3><p>Il primo che arriva in pista la risveglia per tutti. Se sai di doverla usare alle 18, aprila alle 17:55.</p></div></div>
+      <div class="step"><div><h3>I dati non c'entrano</h3><p>Tempi, PB e storico stanno su un database separato che non dorme mai. In pausa va solo la pagina, e si riprende esattamente da dov'era.</p></div></div>
+    </div>
+
+    <div class="callout" style="margin-top:26px;">
+      <div class="ct">Il conto delle 12 ore riparte a ogni visita</div>
+      <div class="cd">Se la squadra la usa tutti i giorni non la vedrai mai dormire. Capita tipicamente il lunedì mattina dopo un fine settimana senza allenamenti.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 17 — CHECK-IN, IN PRATICA -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">17 — Guida · Il check-in</div>
+    <h1 class="slide-h">Un tocco che il coach legge<br>prima di farti correre.</h1>
+    <p class="lede">È la cosa più veloce dell'app e la più sottovalutata: dice al tuo allenatore come stai <em>prima</em> della seduta, quando può ancora cambiare qualcosa. Un "😩 Pesante" letto alle 17 vale più di una spiegazione alle 19.</p>
+
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Oggi · Check-in</span></div>
+      <div class="appframe-body">
+        <div class="app-sub">Come ti senti oggi?</div>
+        <p style="font-size:12px; color:var(--app-text-m); margin-bottom:14px;">Un tocco solo. Il tuo allenatore lo vede subito, senza doverti fermare a chiedertelo.</p>
+        <div class="pillrow">
+          <div class="wpill big">😴 Stanco</div>
+          <div class="wpill big">😐 Normale</div>
+          <div class="wpill big active">💪 Carico</div>
+          <div class="wpill big">🔥 In forma</div>
+          <div class="wpill big">😩 Pesante</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="recipes" style="margin-top:28px;">
+      <div class="recipe"><div class="ic">⏱️</div><div><h3>Quando</h3><p>Appena apri "Oggi", prima di allenarti. Il riquadro c'è sempre, anche nei giorni in cui non ti è stato assegnato nulla.</p></div></div>
+      <div class="recipe"><div class="ic">🔁</div><div><h3>Uno al giorno, modificabile</h3><p>Vale un check-in per giornata. Se ti eri segnato "Carico" e poi ti sei svegliato a pezzi, tocca "✏️ Cambia" e riscrivilo: l'ultimo sovrascrive il precedente.</p></div></div>
+      <div class="recipe"><div class="ic">👀</div><div><h3>Chi lo vede, e a cosa serve</h3><p>Compare accanto al tuo nome nell'elenco atleti: lo legge l'allenatore e lo vedono i compagni. È uno stato pubblico come una bio — non è il posto per i dettagli medici. Serve al coach per decidere se oggi si spinge o si scarica.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 18 — STORICO PROVE -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">18 — Guida · Lo storico</div>
+    <h1 class="slide-h">Ogni prova che hai corso,<br>in ordine di come è andata.</h1>
+    <p class="lede">Dal tuo profilo, la card <strong>📖 Storico Completo</strong>. Non è un elenco alla rinfusa: è diviso per distanza, e dentro ogni distanza le prove stanno dalla più vecchia alla più recente — così leggendo dall'alto in basso vedi la tua progressione nell'ordine in cui è successa.</p>
+
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">📖 Storico Risultati Completo</span></div>
+      <div class="appframe-body">
+        <div class="app-sub" style="color:var(--app-yellow);">🏃 60m — 14 prove | PB: 7.28s</div>
+        <table class="pbtable">
+          <tr><th>Data</th><th>Tempo</th><th>Note</th></tr>
+          <tr><td>12/11/2025</td><td>7.62</td><td>prima seduta invernale</td></tr>
+          <tr><td>21/01/2026</td><td>7.45</td><td>chiodi nuovi</td></tr>
+          <tr><td>18/02/2026</td><td class="best">7.28</td><td>vento a favore</td></tr>
+        </table>
+        <div class="app-sub" style="margin-top:20px; color:var(--app-yellow);">🏃 100m — 9 prove | PB: 11.89s</div>
+        <p style="font-size:11.5px; color:var(--app-text-m); margin:0;">…e così per ogni distanza che hai corso.</p>
+      </div>
+    </div>
+
+    <div class="recipes" style="margin-top:28px;">
+      <div class="recipe"><div class="ic">🏆</div><div><h3>L'intestazione dice già tutto</h3><p>Per ogni distanza trovi quante prove hai fatto e qual è il tuo PB. Se ti serve solo quel numero, ti fermi lì. I filtri di data del menu laterale non toccano questa tabella: è l'archivio completo, non una vista.</p></div></div>
+      <div class="recipe"><div class="ic">📝</div><div><h3>La colonna Note vale oro</h3><p>È quello che hai scritto tu sul momento: vento, chiodi, superficie, come stavi. Fra sei mesi è la differenza tra un numero e un ricordo utile.</p></div></div>
+      <div class="recipe"><div class="ic">✏️</div><div><h3>Un tempo sbagliato lo correggi tu</h3><p>Sul <em>tuo</em> profilo trovi anche la card "Correggi Tempo": scegli la prova, cambi il numero, salvi. Su quello di un compagno quella card non esiste.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 19 — PB IN GARA -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">19 — Guida · I PB in gara</div>
+    <h1 class="slide-h">Le gare non si registrano da sole.<br>Mettile tu.</h1>
+    <p class="lede">L'app raccoglie da sola quello che corri in allenamento, ma una gara della domenica non la sa. Aggiungerla richiede mezzo minuto — profilo → scheda <strong>🏅 PB &amp; Gare</strong> → <strong>➕ Registra Nuovo PB/Gara</strong> — e cambia due cose: entra nella tua bacheca dei PB ufficiali, e diventa una delle fonti che i modelli di previsione possono usare al posto dei tempi di allenamento.</p>
+
+    <div class="appframe" style="margin-top:26px; max-width:560px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Inserisci Risultato di Gara</span></div>
+      <div class="appframe-body">
+        <div class="formrow">
+          <div class="field"><label>Specialità</label><div class="fake-input filled">100m</div></div>
+          <div class="field"><label>Tempo / Misura</label><div class="fake-input filled">11.73</div></div>
+        </div>
+        <div class="formrow">
+          <div class="field"><label>Vento</label><div class="fake-input">+1.2</div></div>
+          <div class="field"><label>Città / Luogo</label><div class="fake-input">Donnas</div></div>
+        </div>
+        <div class="field" style="margin-bottom:14px;"><label>Data della gara</label><div class="fake-input">12/07/2026</div></div>
+        <div class="btn-mock primary">✅ Salva Risultato</div>
+      </div>
+    </div>
+
+    <div class="callout warn" style="margin-top:26px;">
+      <div class="ct">Scrivi la distanza così: 100m</div>
+      <div class="cd">Il numero seguito da <span class="mono">m</span>, senza spazi. Se scrivi <span class="mono">100 metri</span> o <span class="mono">cento</span> la gara si salva lo stesso e la vedi in tabella, ma i modelli di previsione non riescono a leggerla come una distanza e la ignorano. Per gare che non sono una distanza piana — <span class="mono">100 HS</span>, <span class="mono">Lungo</span> — è normale e va benissimo così.</div>
+    </div>
+
+    <div class="recipes" style="margin-top:22px;">
+      <div class="recipe"><div class="ic">🔒</div><div><h3>Solo sul tuo profilo</h3><p>Puoi aggiungere gare alle tue, non a quelle di un compagno. Quello lo può fare solo l'allenatore.</p></div></div>
+      <div class="recipe"><div class="ic">🌬️</div><div><h3>Il vento scrivilo sempre</h3><p>Un 11.73 con +3.3 non è un 11.73 con +0.3. Senza quel dato, fra un anno, il tempo racconta una bugia.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 20 — TONNELLAGGIO -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">20 — Guida · Il tonnellaggio</div>
+    <h1 class="slide-h">I chili di ieri,<br>i centesimi di domani.</h1>
+    <p class="lede">In fondo al tuo profilo c'è il grafico più difficile da leggere e il più interessante: mette sulla stessa linea del tempo <strong>quanto hai sollevato ogni settimana</strong> e <strong>quanto correvi in quelle settimane</strong>. Serve a rispondere a una domanda sola: la palestra sta funzionando?</p>
+
+    <div class="appframe" style="margin-top:26px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">🏋️ Tonnellaggio vs Performance · 60m</span></div>
+      <div class="appframe-body">
+        <svg viewBox="0 0 600 190" style="width:100%; height:auto; display:block;" role="img" aria-label="Barre del carico settimanale e linea del tempo che scende dopo il picco">
+          <text x="8" y="16" font-family="DM Mono, monospace" font-size="9" fill="rgba(255,255,255,0.42)">kg</text>
+          <text x="592" y="16" text-anchor="end" font-family="DM Mono, monospace" font-size="9" fill="#E8FF3A">tempo</text>
+          <line x1="34" y1="150" x2="576" y2="150" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>
+          <rect x="46"  y="112" width="46" height="38" rx="3" fill="rgba(74,158,255,0.45)"/>
+          <rect x="122" y="86"  width="46" height="64" rx="3" fill="rgba(74,158,255,0.55)"/>
+          <rect x="198" y="58"  width="46" height="92" rx="3" fill="rgba(74,158,255,0.7)"/>
+          <rect x="274" y="42"  width="46" height="108" rx="3" fill="#4A9EFF"/>
+          <rect x="350" y="96"  width="46" height="54" rx="3" fill="rgba(74,158,255,0.5)"/>
+          <rect x="426" y="120" width="46" height="30" rx="3" fill="rgba(74,158,255,0.4)"/>
+          <rect x="502" y="128" width="46" height="22" rx="3" fill="rgba(74,158,255,0.35)"/>
+          <text x="297" y="34" text-anchor="middle" font-family="DM Mono, monospace" font-size="9.5" fill="#4A9EFF">PICCO CARICO</text>
+          <polyline points="69,52 145,56 221,50 297,58 373,74 449,96 525,116"
+                    fill="none" stroke="#E8FF3A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="69" cy="52" r="3.5" fill="#E8FF3A"/><circle cx="145" cy="56" r="3.5" fill="#E8FF3A"/>
+          <circle cx="221" cy="50" r="3.5" fill="#E8FF3A"/><circle cx="297" cy="58" r="3.5" fill="#E8FF3A"/>
+          <circle cx="373" cy="74" r="3.5" fill="#E8FF3A"/><circle cx="449" cy="96" r="3.5" fill="#E8FF3A"/>
+          <circle cx="525" cy="116" r="5.5" fill="#E8FF3A"/>
+          <text x="525" y="136" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="#E8FF3A">più veloce</text>
+          <text x="46"  y="168" font-family="DM Mono, monospace" font-size="9" fill="rgba(255,255,255,0.42)">S1</text>
+          <text x="198" y="168" font-family="DM Mono, monospace" font-size="9" fill="rgba(255,255,255,0.42)">S3</text>
+          <text x="350" y="168" font-family="DM Mono, monospace" font-size="9" fill="rgba(255,255,255,0.42)">S5</text>
+          <text x="502" y="168" font-family="DM Mono, monospace" font-size="9" fill="rgba(255,255,255,0.42)">S7</text>
+        </svg>
+        <div class="chart-legend">
+          <span class="item"><span class="sw" style="background:#4A9EFF; height:8px; border-radius:2px;"></span>Kg sollevati nella settimana</span>
+          <span class="item"><span class="sw" style="background:#E8FF3A;"></span>Il tuo miglior tempo di quella settimana</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="recipes" style="margin-top:26px;">
+      <div class="recipe"><div class="ic">🧮</div><div><h3>Cosa sono i chili</h3><p>Carico × serie × ripetizioni, sommato per tutta la settimana. Una barra alta non vuol dire "ho fatto tanto peso": vuol dire "ho fatto tanto lavoro totale".</p></div></div>
+      <div class="recipe"><div class="ic">📏</div><div><h3>Scegli tu la distanza</h3><p>Il menu in alto a destra decide su quale distanza guardare i tempi: 60, 100, 200… Cambiala e il grafico si ridisegna.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 21 — TONNELLAGGIO · COME SI LEGGE -->
+<section class="slide">
+  <div class="slide-inner narrow">
+    <div class="eyebrow">21 — Guida · Il tonnellaggio, parte 2</div>
+    <h1 class="slide-h">La palestra non si vede<br>la settimana dopo.</h1>
+    <p class="lede">Ed è per questo che sotto il grafico c'è un cursore. Gli effetti della forza sullo sprint arrivano <strong>3–8 settimane</strong> dopo il picco di carico: se confronti le due curve così come stanno, non troverai mai niente.</p>
+
+    <div class="appframe" style="margin-top:26px; max-width:520px;">
+      <div class="appframe-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="appframe-label">Offset Lag</span></div>
+      <div class="appframe-body">
+        <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+          <div>
+            <div class="app-sub" style="margin-bottom:4px;">Offset Lag</div>
+            <div style="font-family:'Bebas Neue',sans-serif; font-size:38px; color:var(--app-yellow); line-height:1;">4 SETT.</div>
+          </div>
+          <div style="flex:1; min-width:180px;">
+            <div style="height:4px; background:rgba(255,255,255,0.1); border-radius:2px; position:relative;">
+              <div style="position:absolute; left:0; top:0; height:4px; width:50%; background:var(--app-yellow); border-radius:2px;"></div>
+              <div style="position:absolute; left:calc(50% - 7px); top:-5px; width:14px; height:14px; border-radius:50%; background:var(--app-yellow);"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-family:'DM Mono',monospace; font-size:10px; color:var(--app-text-m); margin-top:7px;"><span>0</span><span>8</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="steps" style="margin-top:28px;">
+      <div class="step"><div><h3>Sposta il cursore, guarda cosa combacia</h3><p>Fa scorrere indietro la linea dei tempi di N settimane. Provale una alla volta, da 0 a 8.</p></div></div>
+      <div class="step"><div><h3>Fermati dove la discesa si incastra sotto il picco</h3><p>Se succede a 4, quello è il tuo tempo di risposta: dal carico in palestra al beneficio in pista passano circa quattro settimane.</p></div></div>
+      <div class="step"><div><h3>Portalo al coach, non trarre conclusioni da solo</h3><p>È una sovrapposizione visiva, non una dimostrazione: nello stesso periodo cambiano anche il lavoro in pista, il sonno, le gare e il meteo. Serve a fare una domanda buona.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 — REGOLE D'ORO -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">22 — Tre abitudini, zero sforzo extra</div>
+    <h1 class="slide-h">Tre regole per farla<br>funzionare per te.</h1>
+    <div class="recipes" style="margin-top:26px;">
+      <div class="recipe" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <div class="ic">⏱️</div>
+        <div><h3 style="color:var(--app-text-h);">Registra subito dopo la prova</h3><p style="color:var(--app-text-b);">Un tempo scritto a mente il giorno dopo perde precisione — fallo mentre sei ancora in pista.</p></div>
+      </div>
+      <div class="recipe" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <div class="ic">✅</div>
+        <div><h3 style="color:var(--app-text-h);">Anche i giorni "no" contano</h3><p style="color:var(--app-text-b);">Un tempo lento in un allenamento pesante non è un fallimento — è un dato vero, e serve al tuo coach.</p></div>
+      </div>
+      <div class="recipe" style="background:rgba(255,255,255,0.03); border-color:var(--app-border);">
+        <div class="ic">📈</div>
+        <div><h3 style="color:var(--app-text-h);">Ogni tanto guarda il tuo trend</h3><p style="color:var(--app-text-b);">Vedere la curva che sale, con i tuoi numeri veri, è la miglior motivazione che c'è.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 — FAQ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="eyebrow">23 — Le domande che ti farai</div>
+    <h1 class="slide-h">Domande pratiche, risposte dirette.</h1>
+    <div class="recipes" style="margin-top:26px;">
+      <div class="recipe">
+        <div class="ic">❓</div>
+        <div><h3>Ho sbagliato a inserire un tempo?</h3><p>Correggilo tu: sul tuo profilo c'è la card <strong>✏️ Correggi Tempo</strong>. Scegli la prova, cambi il numero, salvi. Vale solo per i tuoi tempi.</p></div>
+      </div>
+      <div class="recipe">
+        <div class="ic">❓</div>
+        <div><h3>Non trovo l'allenamento di oggi</h3><p>Controlla di essere sulla data giusta. Se il coach non ha ancora assegnato la settimana, "Oggi" resta vuoto per ora.</p></div>
+      </div>
+      <div class="recipe">
+        <div class="ic">❓</div>
+        <div><h3>Posso vedere i tempi dei compagni?</h3><p>Sì — apri il loro profilo dalla Home Squadra o dalla classifica: PB, storico e grafici sono visibili. Modificarli o cancellarli, invece, no: quello resta all'allenatore.</p></div>
+      </div>
+      <div class="recipe">
+        <div class="ic">❓</div>
+        <div><h3>Serve internet?</h3><p>Sì — i dati sono sul cloud: quello che scrivi tu, il coach lo vede subito, e viceversa.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 — CONSIGLIO DISPOSITIVO -->
+<section class="slide dark">
+  <div class="slide-inner narrow">
+    <div class="eyebrow on-dark">24 — Un consiglio</div>
+    <h1 class="slide-h">In pista il telefono.<br>A casa, un po' di calma in più.</h1>
+    <p class="lede">Il telefono è perfetto per registrare al volo, tra una prova e l'altra. Ma i grafici — trend, previsioni, storico — si leggono meglio su tablet o computer, quando hai tempo di guardarli con calma.</p>
+  </div>
+</section>
+
+<!-- 15 — CHIUSURA -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="eyebrow on-dark">25 — Da oggi</div>
+    <h1 class="slide-h">Il prossimo tempo che corri<br>vale la pena registrarlo.</h1>
+    <p class="lede big">Apri "Oggi", fai il tuo allenamento, registra il tempo. Il resto — record, trend, previsioni — comincia ad accumularsi da solo, allenamento dopo allenamento.</p>
+    <div class="cta-final">⏱️ Apri Oggi → registra il primo tempo</div>
+    <footer class="end">S.G. Amsicora · Team Velocità — Guida Atleta · Atletica Sprint Dashboard</footer>
+  </div>
+</section>
+
+<script>
+(function(){
+  var slides = Array.from(document.querySelectorAll('.slide'));
+  var rail = document.getElementById('rail');
+  var counter = document.getElementById('slideNo');
+  var total = document.getElementById('slideTot');
+  if (total) total.textContent = String(slides.length).padStart(2,'0');
+  var current = 0;
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting) {
+        var idx = slides.indexOf(e.target);
+        current = idx;
+        counter.textContent = String(idx+1).padStart(2,'0');
+        rail.style.width = ((idx+1)/slides.length*100) + '%';
+      }
+    });
+  }, {threshold:0.5});
+  slides.forEach(function(s){ io.observe(s); });
+
+  document.addEventListener('keydown', function(ev){
+    var forward = ['ArrowDown','ArrowRight','PageDown',' '].indexOf(ev.key) !== -1;
+    var back = ['ArrowUp','ArrowLeft','PageUp'].indexOf(ev.key) !== -1;
+    if (!forward && !back) return;
+    ev.preventDefault();
+    var next = current + (forward ? 1 : -1);
+    next = Math.max(0, Math.min(slides.length - 1, next));
+    slides[next].scrollIntoView({behavior:'smooth', block:'start'});
+  });
+})();
+</script>
+
+</body>
+</html>
