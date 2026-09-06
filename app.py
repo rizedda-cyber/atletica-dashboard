@@ -2446,7 +2446,7 @@ def _render_dettaglio_tabs():
 
 
 @st.fragment
-def _render_home_riepilogo():
+def _render_home_riepilogo(df_r):
     with st.expander("📅 Riepilogo Dettagliato Allenamenti (Vista Excel)", expanded=False):
         st.markdown("Spulcia le tabelle inserite giorno per giorno. Le colonne si espandono in base a quante prove sono state svolte sulla singola distanza nell'arco della seduta.")
         if not df_r.empty:
@@ -3965,7 +3965,7 @@ def _render_home():
         render_row(html_anagrafica, None)
     st.divider()
 
-    _render_home_riepilogo()
+    _render_home_riepilogo(df_r)
     # Griglia atleti (ex pagina "Atleti", ora fusa in Home): visibile sempre
     # quando si e' su Home, non e' piu' una destinazione separata.
     from supabase_connector import get_atleti
