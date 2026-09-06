@@ -2942,6 +2942,7 @@ def _render_programma():
     with tab_stato:
         from supabase_connector import (
             get_assegnazioni_con_stato, delete_assegnazione, update_assegnazione,
+            segna_assente_giorno,
         )
 
         st.caption("Le settimane davvero assegnate, giorno per giorno. Un blocco sbagliato si corregge qui: ✏️ Modifica cambia giorno, tipo, descrizione e target senza rimettere mano al pattern e senza perdere chi ha già completato.")
@@ -2975,8 +2976,9 @@ def _render_programma():
         if df_stato.empty:
             st.info("Nessuna assegnazione nel periodo selezionato.")
         else:
-            totale = len(df_stato)
-            completati = int((df_stato["stato"] == "completato").sum())
+            df_non_assenti = df_stato[df_stato["stato"] != "assente"]
+            totale = len(df_non_assenti)
+            completati = int((df_non_assenti["stato"] == "completato").sum())
             st.metric("Blocchi completati", f"{completati}/{totale}")
 
             # ── TESSERA-GIORNO ────────────────────────────────────────
@@ -3014,8 +3016,9 @@ def _render_programma():
                     ts_giorno = pd.Timestamp(giorno)
                     id_blocchi = list(dict.fromkeys(int(a) for a in df_giorno["assegnazione_id"]))
                     n_blocchi = len(id_blocchi)
-                    fatti_giorno = int((df_giorno["stato"] == "completato").sum())
-                    tot_giorno = len(df_giorno)
+                    df_giorno_non_assenti = df_giorno[df_giorno["stato"] != "assente"]
+                    fatti_giorno = int((df_giorno_non_assenti["stato"] == "completato").sum())
+                    tot_giorno = len(df_giorno_non_assenti)
                     etichetta_blocchi = "blocco" if n_blocchi == 1 else "blocchi"
 
                     with st.container(border=True, key=f"ggbox_{ts_giorno.strftime('%Y%m%d')}"):
@@ -3103,13 +3106,41 @@ def _render_programma():
 
                             righe_nomi = []
                             for _, riga in gruppo.sort_values("nome_atleta").iterrows():
-                                icona = "✅" if riga["stato"] == "completato" else "⬜"
+                                if riga["stato"] == "completato":
+                                    icona = "✅"
+                                elif riga["stato"] == "assente":
+                                    icona = "🚫"
+                                else:
+                                    icona = "⬜"
                                 righe_nomi.append(f"{icona} {riga['nome_atleta']}")
                             st.markdown(
                                 "<div style='font-size:0.85em; color:rgba(255,255,255,0.75); margin-top:2px;'>"
                                 + " &nbsp;&nbsp; ".join(righe_nomi) + "</div>",
                                 unsafe_allow_html=True,
                             )
+
+                        # ── SEGNA ASSENTI (per l'intera giornata) ─────────
+                        # Per chi non ha mai aperto l'app e non ha potuto
+                        # segnarsi da solo: il coach chiude comunque la
+                        # casella bianca invece di lasciarla vuota per sempre.
+                        st.markdown("<hr>", unsafe_allow_html=True)
+                        mappa_atleti_giorno = (
+                            df_giorno.drop_duplicates("nome_atleta")
+                            .set_index("nome_atleta")["atleta_id"].to_dict()
+                        )
+                        col_ass1, col_ass2 = st.columns([4, 1])
+                        assenti_scelti = col_ass1.multiselect(
+                            "Segna assenti questo giorno",
+                            options=sorted(mappa_atleti_giorno.keys()),
+                            key=f"assenti_sel_{ts_giorno.strftime('%Y%m%d')}",
+                            label_visibility="collapsed",
+                            placeholder="Segna chi era assente questo giorno...",
+                        )
+                        if col_ass2.button("🚫 Segna", key=f"assenti_btn_{ts_giorno.strftime('%Y%m%d')}", use_container_width=True):
+                            if assenti_scelti:
+                                for nome_sel in assenti_scelti:
+                                    segna_assente_giorno(int(mappa_atleti_giorno[nome_sel]), ts_giorno.strftime("%Y-%m-%d"))
+                                st.rerun(scope="app")
 
             n_sel = len(selezionati_ids)
             if n_sel:
@@ -3210,17 +3241,21 @@ def _render_oggi():
         descrizione = riga.get("descrizione") or ""
         target = riga.get("target")
         completato = riga.get("stato") == "completato"
+        assente = riga.get("stato") == "assente"
         aa_id = riga["id"]
         data_str = pd.Timestamp(riga['data']).strftime("%Y-%m-%d")
 
         with st.container(border=True):
-            icona = "✅" if completato else "⬜"
+            icona = "✅" if completato else ("🚫" if assente else "⬜")
             st.markdown(f"**{icona} {tipo} — {descrizione}**")
             if _target_valido(target):
                 st.caption(f"Riferimento: {target}")
 
             if completato:
                 st.success("Completato" + _delta_riga(riga))
+                return
+            if assente:
+                st.info("Segnato come assente")
                 return
             if not azionabile:
                 st.info("Assegnato — non ancora completato")
@@ -3339,6 +3374,23 @@ def _render_oggi():
     if df_oggi.empty:
         st.info("Nessun allenamento assegnato per oggi. Puoi comunque registrarne uno da '➕ Inserisci Allenamento' nel menu.")
     else:
+        _, c_assente = st.columns([4, 2])
+        if (df_oggi["stato"] == "assegnato").any():
+            if st.session_state.get("_confirm_assente_oggi"):
+                c_assente.warning("Segnare l'intera giornata come assente?")
+                cf1, cf2 = c_assente.columns(2)
+                if cf1.button("✅ Sì", key="conferma_assente_oggi", use_container_width=True):
+                    from supabase_connector import segna_assente_giorno
+                    segna_assente_giorno(atleta_id, oggi.strftime("%Y-%m-%d"))
+                    st.session_state.pop("_confirm_assente_oggi", None)
+                    st.rerun(scope="app")
+                if cf2.button("Annulla", key="annulla_assente_oggi", use_container_width=True):
+                    st.session_state.pop("_confirm_assente_oggi", None)
+                    st.rerun(scope="fragment")
+            else:
+                if c_assente.button("🚫 Sono assente oggi", key="assente_oggi_btn", use_container_width=True):
+                    st.session_state["_confirm_assente_oggi"] = True
+                    st.rerun(scope="fragment")
         for _, riga in df_oggi.iterrows():
             _render_blocco(riga, azionabile=True)
 
@@ -3364,7 +3416,8 @@ def _render_oggi():
                 ts_giorno = pd.Timestamp(giorno)
                 st.markdown(f"**{_giorni_it[ts_giorno.weekday()]} {ts_giorno.strftime('%d/%m')}**")
                 for _, riga in gruppo.iterrows():
-                    stato_txt = "✅ completato" if riga.get("stato") == "completato" else "⬜ da fare"
+                    stato_riga = riga.get("stato")
+                    stato_txt = "✅ completato" if stato_riga == "completato" else ("🚫 assente" if stato_riga == "assente" else "⬜ da fare")
                     target_txt = f" (rif: {riga['target']})" if _target_valido(riga.get("target")) else ""
                     st.markdown(f"- {riga.get('tipo_sessione')} — {riga.get('descrizione')}{target_txt} · {stato_txt}")
 

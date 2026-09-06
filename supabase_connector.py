@@ -724,6 +724,34 @@ def completa_blocchi_campo_giorno(atleta_id: int, data: str) -> bool:
         return False
 
 
+def segna_assente_giorno(atleta_id: int, data: str) -> bool:
+    """Segna come 'assente' tutti i blocchi assegnati a un atleta in un giorno
+    preciso, tranne quelli gia' completati (non li sovrascrive). Usata sia dal
+    bottone lato atleta in 'Oggi' (per il giorno corrente) sia dal coach in
+    'Stato Completamento' (per un giorno passato, se l'atleta non l'ha mai
+    segnato lui stesso). Idempotente come completa_blocchi_campo_giorno."""
+    supabase = get_supabase()
+    try:
+        resp_blocchi = supabase.table("assegnazioni") \
+            .select("id") \
+            .eq("data", data) \
+            .is_("deleted_at", "null") \
+            .execute()
+        blocco_ids = [r["id"] for r in (resp_blocchi.data or [])]
+        if not blocco_ids:
+            return True
+        payload = {"stato": "assente"}
+        supabase.table("assegnazione_atleti").update(payload) \
+            .eq("atleta_id", atleta_id) \
+            .in_("assegnazione_id", blocco_ids) \
+            .neq("stato", "completato") \
+            .execute()
+        return True
+    except Exception as e:
+        print(f"Errore segna_assente_giorno: {e}")
+        return False
+
+
 def update_assegnazione(assegnazione_id: int, data: str, tipo_sessione: str,
                          descrizione: str, target: str) -> bool:
     """Corregge in-place un blocco gia' assegnato (giorno, tipo, descrizione,
